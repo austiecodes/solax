@@ -1,0 +1,14 @@
+{
+  "name": "pi-solax",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Solax tools for the Super Agent. The tools are callable only from codemode scripts.",
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "^1.3.0"
+  }
+}

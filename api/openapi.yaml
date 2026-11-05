@@ -1,0 +1,32 @@
+openapi: 3.1.0
+info:
+  title: Solax API
+  version: 0.0.0
+  description: >
+    REST API of solax-server. The Go source of truth for the shapes is
+    pkg/protocol. Schemas are added with the implementation.
+paths:
+  /v1/machines:
+    get: { summary: List machines }
+    post: { summary: Register a machine and issue its machine token (owner token only) }
+  /v1/agents: { get: { summary: List agents } }
+  /v1/workspaces:
+    get: { summary: List workspaces }
+    post: { summary: Create a workspace }
+  /v1/workspaces/{ws}: { get: { summary: Show a workspace } }
+  /v1/workspaces/{ws}/members: { post: { summary: Add a member } }
+  /v1/workspaces/{ws}/members/{agent}: { delete: { summary: Remove a member } }
+  /v1/workspaces/{ws}/tasks: { post: { summary: Create a task } }
+  /v1/workspaces/{ws}/messages:
+    get: { summary: Read messages }
+    post: { summary: Post a message (author from the token) }
+  /v1/tasks/{task}: { get: { summary: Show a task } }
+  /v1/tasks/{task}/cancel: { post: { summary: Cancel a task } }
+  /v1/tasks/{task}/summarize: { post: { summary: Ask the leader for a summary } }
+  /v1/super/messages:
+    get: { summary: Read the Super Agent conversation }
+    post: { summary: Send a user message to the Super Agent }
+  /v1/super/replies: { post: { summary: Super Agent reply (Super Agent token only) } }
+  /v1/objects/{id}: { get: { summary: Recall an object by ID } }
+  /v1/stream: { get: { summary: Client event stream (WebSocket) } }
+  /v1/daemon: { get: { summary: Daemon connection (WebSocket) } }
