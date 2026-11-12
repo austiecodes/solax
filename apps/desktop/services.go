@@ -7,9 +7,7 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// The types in this file are bound with mygo.Bind. `mygo generate` turns
-// their exported methods into typed functions in src/mygo.ts. Each method
-// calls the server through pkg/client, so the page needs no token.
+// Services are called directly by native Go views through pkg/client.
 
 // Profiles manages server profiles.
 type Profiles struct{ a *app }
@@ -107,6 +105,15 @@ func (s Workspaces) Post(ctx context.Context, ws string, req protocol.PostMessag
 
 // Tasks reads and controls tasks.
 type Tasks struct{ a *app }
+
+// List returns the tasks of a workspace, including the general task.
+func (s Tasks) List(ctx context.Context, ws string) ([]protocol.Task, error) {
+	c, err := s.a.api()
+	if err != nil {
+		return nil, err
+	}
+	return c.Tasks(ctx, ws)
+}
 
 func (s Tasks) Get(ctx context.Context, task string) (protocol.Task, error) {
 	c, err := s.a.api()

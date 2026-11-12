@@ -5,8 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/egoist/mygo"
-
+	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -26,15 +25,22 @@ type Connection struct {
 	Error  string          `json:"error,omitempty"`
 }
 
-// Events that the page receives. They are package-level so that
-// `mygo generate` finds them. Each one mirrors a /v1/stream event.
+// Native Go events mirror the server stream without a JavaScript bridge.
 var (
-	ConnectionChanged = mygo.NewEvent[Connection]("connection")
-	MessageCreated    = mygo.NewEvent[protocol.Message]("messageCreated")
-	TaskUpdated       = mygo.NewEvent[protocol.Task]("taskUpdated")
-	MachineUpdated    = mygo.NewEvent[protocol.Machine]("machineUpdated")
-	SuperReplied      = mygo.NewEvent[protocol.Message]("superReplied")
+	ConnectionChanged = newEvent[Connection]("connection")
+	MessageCreated    = newEvent[protocol.Message]("messageCreated")
+	TaskUpdated       = newEvent[protocol.Task]("taskUpdated")
+	MachineUpdated    = newEvent[protocol.Machine]("machineUpdated")
+	SuperReplied      = newEvent[protocol.Message]("superReplied")
+	SessionEvent      = newEvent[SessionEventRecord]("sessionEvent")
 )
+
+// SessionEventRecord is the payload of session.event on /v1/stream: one IR
+// event of one agent session, so native views can show live execution.
+type SessionEventRecord struct {
+	SessionID string   `json:"session_id"`
+	Event     ir.Event `json:"event"`
+}
 
 // stream keeps one WebSocket to /v1/stream for the profile in use and
 // broadcasts its events to all windows. It reconnects with backoff.
@@ -74,5 +80,25 @@ func (s *stream) run(ctx context.Context, server, token string) {
 	case <-ctx.Done():
 	case <-time.After(time.Second):
 		ConnectionChanged.Broadcast(Connection{State: Disconnected, Server: server, Error: "stream: not implemented"})
+	}
+}
+
+type event[T any] struct {
+	mu        sync.RWMutex
+	listeners []func(T)
+}
+
+func newEvent[T any](_ string) *event[T] { return &event[T]{} }
+func (e *event[T]) listen(fn func(T)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.listeners = append(e.listeners, fn)
+}
+func (e *event[T]) Broadcast(value T) {
+	e.mu.RLock()
+	fns := append([]func(T){}, e.listeners...)
+	e.mu.RUnlock()
+	for _, fn := range fns {
+		fn(value)
 	}
 }

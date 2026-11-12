@@ -16,6 +16,8 @@ type ID string
 type Prefix string
 
 const (
+	PrefixOwner     Prefix = "own"
+	PrefixClient    Prefix = "cli"
 	PrefixMachine   Prefix = "mch"
 	PrefixAgent     Prefix = "agt"
 	PrefixWorkspace Prefix = "ws"
@@ -25,13 +27,25 @@ const (
 	PrefixBatch     Prefix = "bat"
 )
 
-// NewID returns a new ID: the prefix, the time in base 36 milliseconds,
-// and 8 random bytes. IDs of one prefix sort by creation time.
-func NewID(p Prefix) ID {
+// idTimeWidth is the width of the base-36 timestamp in an ID. It is fixed
+// so that IDs of one prefix sort by creation time as strings even for
+// small timestamps, such as a test clock at the Unix epoch. 36^9 ms ends
+// in the year 5138.
+const idTimeWidth = 9
+
+// NewID returns a new ID: the prefix, the time in base 36 milliseconds
+// padded to a fixed width, and 8 random bytes.
+func NewID(p Prefix) ID { return NewIDAt(p, time.Now()) }
+
+// NewIDAt returns a new ID for ts. Tests inject a clock through it.
+func NewIDAt(p Prefix, ts time.Time) ID {
 	var b [8]byte
 	_, _ = rand.Read(b[:])
-	ts := strconv.FormatInt(time.Now().UnixMilli(), 36)
-	return ID(string(p) + "_" + ts + hex.EncodeToString(b[:]))
+	t := strconv.FormatInt(ts.UnixMilli(), 36)
+	if n := idTimeWidth - len(t); n > 0 {
+		t = strings.Repeat("0", n) + t
+	}
+	return ID(string(p) + "_" + t + hex.EncodeToString(b[:]))
 }
 
 // Prefix returns the type prefix of the ID, or "" when it has none.

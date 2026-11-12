@@ -100,7 +100,11 @@ func tokenCmd(cfg *server.Config) *cobra.Command {
 				return err
 			}
 			for _, t := range ts {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\trevoked=%t\tlast used %s\n", t.ID, t.Name, t.Revoked, t.LastUsed.Format("2006-01-02"))
+				used := "never"
+				if !t.LastUsed.IsZero() {
+					used = t.LastUsed.Format("2006-01-02 15:04")
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\trevoked=%t\tlast used %s\n", t.ID, t.Name, t.Revoked, used)
 			}
 			return nil
 		},

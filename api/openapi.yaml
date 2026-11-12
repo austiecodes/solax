@@ -5,24 +5,41 @@ info:
   description: >
     REST API of solax-server. The Go source of truth for the shapes is
     pkg/protocol. Schemas are added with the implementation.
+
+    Management routes (create a workspace, change members, create or cancel
+    a task) need a client token or the Super Agent token; a plain worker
+    agent token gets 403. A worker agent reads and posts only inside its own
+    workspace and task.
 paths:
   /v1/machines:
-    get: { summary: List machines }
-    post: { summary: Register a machine and issue its machine token (owner token only) }
+    get: { summary: List machines (client or Super Agent token) }
+    post:
+      summary: Register a machine with the hash of the token that it generated
+      description: >
+        A client token only. The machine creates its own sxm_ token and
+        submits token_hash; the server does not generate the token.
+  /v1/machines/enroll:
+    post:
+      summary: Enroll a machine without a token (pending until a client approves it)
+      security: []
+  /v1/machines/approve: { post: { summary: Approve a pending machine by its pairing code } }
+  /v1/machines/{machine}: { delete: { summary: Revoke the token of a machine } }
   /v1/agents: { get: { summary: List agents } }
   /v1/workspaces:
     get: { summary: List workspaces }
-    post: { summary: Create a workspace }
+    post: { summary: Create a workspace (client or Super Agent token) }
   /v1/workspaces/{ws}: { get: { summary: Show a workspace } }
-  /v1/workspaces/{ws}/members: { post: { summary: Add a member } }
-  /v1/workspaces/{ws}/members/{agent}: { delete: { summary: Remove a member } }
-  /v1/workspaces/{ws}/tasks: { post: { summary: Create a task } }
+  /v1/workspaces/{ws}/tasks:
+    get: { summary: List the tasks of a workspace, including the general task }
+    post: { summary: Create a task (client or Super Agent token) }
+  /v1/workspaces/{ws}/members: { post: { summary: Add a member (client or Super Agent token) } }
+  /v1/workspaces/{ws}/members/{agent}: { delete: { summary: Remove a member (client or Super Agent token) } }
   /v1/workspaces/{ws}/messages:
     get: { summary: Read messages }
-    post: { summary: Post a message (author from the token) }
+    post: { summary: Post a message (author from the token; scoped to the agent token) }
   /v1/tasks/{task}: { get: { summary: Show a task } }
-  /v1/tasks/{task}/cancel: { post: { summary: Cancel a task } }
-  /v1/tasks/{task}/summarize: { post: { summary: Ask the leader for a summary } }
+  /v1/tasks/{task}/cancel: { post: { summary: Cancel a task (client or Super Agent token) } }
+  /v1/tasks/{task}/summarize: { post: { summary: Ask the leader for a summary (client or Super Agent token) } }
   /v1/super/messages:
     get: { summary: Read the Super Agent conversation }
     post: { summary: Send a user message to the Super Agent }

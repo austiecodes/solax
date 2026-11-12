@@ -16,12 +16,13 @@ type Handler func(ctx context.Context, env protocol.Envelope) protocol.Ack
 type Conn struct {
 	server string
 	token  string
-	hello  func() protocol.Hello
+	hello  func(ctx context.Context) protocol.Hello
 	handle Handler
 }
 
-// New returns a Conn. hello builds the Hello record for each connect.
-func New(server, token string, hello func() protocol.Hello, h Handler) *Conn {
+// New returns a Conn. hello builds the Hello record for each connect; it
+// receives the connection context, so a probe cannot outlive the link.
+func New(server, token string, hello func(ctx context.Context) protocol.Hello, h Handler) *Conn {
 	return &Conn{server: server, token: token, hello: hello, handle: h}
 }
 

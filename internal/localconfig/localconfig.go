@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -123,10 +124,40 @@ func (c Config) withDefaults(p Paths) Config {
 	if c.Machine.MaxSessions <= 0 {
 		c.Machine.MaxSessions = 4
 	}
+	c.Machine.StateDir = expandHome(c.Machine.StateDir)
 	if c.Machine.StateDir == "" {
 		c.Machine.StateDir = p.State()
 	}
+	// Agents: a hand-written config.yaml may use "~/..." for the work
+	// directory and for the extension paths. Expand both here, so every
+	// reader uses the same values (the "daemon agent add" command does too).
+	for i := range c.Agents {
+		c.Agents[i].Dir = expandHome(c.Agents[i].Dir)
+		for j, e := range c.Agents[i].Extensions {
+			c.Agents[i].Extensions[j] = expandHome(e)
+		}
+	}
 	return c
+}
+
+// expandHome turns a leading "~/" into the home directory. Any other path
+// is returned as written. A path that cannot be expanded stays as is; the
+// daemon then fails on it with a clear error.
+func expandHome(p string) string {
+	if p == "~" {
+		if home, err := os.UserHomeDir(); err == nil {
+			return home
+		}
+		return p
+	}
+	if !strings.HasPrefix(p, "~/") {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return p
+	}
+	return filepath.Join(home, p[2:])
 }
 
 // AgentByName returns the index of an agent, or -1.
@@ -185,18 +216,41 @@ func readYAML(path string, v any) error {
 	return nil
 }
 
-// writeYAML writes through a temp file and a rename, so a crash never
-// leaves a partial file.
+// writeYAML writes through a uniquely named temp file and a rename, so a
+// crash never leaves a partial file and two processes never write the same
+// temp file.
 func writeYAML(path string, v any, mode fs.FileMode) error {
 	b, err := yaml.Marshal(v)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, mode); err != nil {
+	f, err := os.CreateTemp(dir, ".solax-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer func() {
+		if err != nil {
+			_ = os.Remove(tmp)
+		}
+	}()
+	if _, err = f.Write(b); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err = f.Chmod(mode); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

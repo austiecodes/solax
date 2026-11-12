@@ -70,11 +70,18 @@ type Member struct {
 }
 
 type Task struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	Title       string    `json:"title"`
-	State       string    `json:"state"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID            string    `json:"id"`
+	WorkspaceID   string    `json:"workspace_id"`
+	ParentID      string    `json:"parent_id,omitempty"`
+	Depth         int       `json:"depth,omitempty"`
+	Title         string    `json:"title"`
+	Brief         string    `json:"brief,omitempty"`
+	General       bool      `json:"general,omitempty"`
+	State         string    `json:"state"`                    // open | running | summarizing | blocked | done | failed | cancelled
+	BlockedReason string    `json:"blocked_reason,omitempty"` // ask | budget | fault
+	Orchestrator  string    `json:"orchestrator,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at,omitzero"`
 }
 
 type Message struct {
@@ -107,6 +114,17 @@ type AddMemberRequest struct {
 
 type CreateTaskRequest struct {
 	Brief string `json:"brief"`
+}
+
+// TextRequest is the body of the Super Agent conversation endpoints.
+type TextRequest struct {
+	Text string `json:"text"`
+}
+
+// SuperMessagesQuery reads the Super Agent conversation.
+type SuperMessagesQuery struct {
+	Since int64 `form:"since"`
+	Limit int   `form:"limit"`
 }
 
 // PostMessageRequest has no author field. The server takes the author from

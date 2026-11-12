@@ -11,8 +11,7 @@ import (
 // errNoProfile is returned when no server profile is in use.
 var errNoProfile = errors.New("no server profile: add one in Settings")
 
-// app is the state that the bound services share. The token stays here. The
-// page never sees it.
+// app is the state shared by native Go services. Tokens stay in Go.
 type app struct {
 	profiles *profile.Store
 	stream   *stream

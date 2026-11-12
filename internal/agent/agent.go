@@ -74,34 +74,31 @@ type Accepted struct {
 	Duplicate bool
 }
 
-// Registry holds the drivers of a daemon.
+// Registry holds the drivers of a daemon. Order is the registration order,
+// so the Drivers list of a hello is stable from connect to connect.
 type Registry struct {
-	drivers map[ir.Kind]Driver
+	order []Driver
+	byKey map[ir.Kind]Driver
 }
 
 // NewRegistry returns a registry with the given drivers.
 func NewRegistry(ds ...Driver) *Registry {
-	r := &Registry{drivers: make(map[ir.Kind]Driver, len(ds))}
+	r := &Registry{order: make([]Driver, 0, len(ds)), byKey: make(map[ir.Kind]Driver, len(ds))}
 	for _, d := range ds {
-		r.drivers[d.Kind()] = d
+		r.order = append(r.order, d)
+		r.byKey[d.Kind()] = d
 	}
 	return r
 }
 
 // Get returns the driver of a kind.
 func (r *Registry) Get(k ir.Kind) (Driver, error) {
-	d, ok := r.drivers[k]
+	d, ok := r.byKey[k]
 	if !ok {
 		return nil, fmt.Errorf("agent: no driver %q", k)
 	}
 	return d, nil
 }
 
-// All returns all drivers.
-func (r *Registry) All() []Driver {
-	out := make([]Driver, 0, len(r.drivers))
-	for _, d := range r.drivers {
-		out = append(out, d)
-	}
-	return out
-}
+// All returns all drivers in registration order.
+func (r *Registry) All() []Driver { return r.order }

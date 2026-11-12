@@ -31,8 +31,32 @@ func taskCmd(g *globals) *cobra.Command {
 		taskAction(g, "show", "Show a task"),
 		taskAction(g, "cancel", "Cancel a task"),
 		taskAction(g, "summarize", "Ask the leader for a summary"),
+		taskListCmd(g),
 	)
 	return cmd
+}
+
+func taskListCmd(g *globals) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list <ws>",
+		Short: "List the tasks of a workspace",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := g.client()
+			if err != nil {
+				return err
+			}
+			ts, err := c.Tasks(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return g.print(cmd.OutOrStdout(), ts, func(w io.Writer) {
+				for _, t := range ts {
+					fmt.Fprintf(w, "%s\t%s\t%s\n", t.ID, t.State, t.Title)
+				}
+			})
+		},
+	}
 }
 
 func taskAction(g *globals, name, short string) *cobra.Command {

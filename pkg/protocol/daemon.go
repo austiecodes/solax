@@ -74,10 +74,23 @@ type Heartbeat struct {
 	Sessions  map[string]ir.SessionState `json:"sessions"`
 }
 
+// SessionRole is the role of the agent in this session. The server decides
+// it: a worker is the leader or a plain member of the workspace, and the
+// Super Agent has its own session. The same agent can have a different
+// role in each workspace. The daemon loads prompts/<role>.md for it.
+type SessionRole string
+
+const (
+	RoleLeader SessionRole = "leader"
+	RoleMember SessionRole = "member"
+	RoleSuper  SessionRole = "super"
+)
+
 // SessionEnsure asks the daemon to start or resume a session.
 type SessionEnsure struct {
 	SessionID  string         `json:"session_id"`
 	Agent      string         `json:"agent"`
+	Role       SessionRole    `json:"role"`
 	Workspace  string         `json:"workspace"`
 	Task       string         `json:"task"`
 	AgentToken string         `json:"agent_token"`

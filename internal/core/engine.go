@@ -59,8 +59,14 @@ type Queries interface {
 	Agents(ctx context.Context, a Actor) ([]Agent, error)
 	Workspaces(ctx context.Context, a Actor) ([]Workspace, error)
 	Workspace(ctx context.Context, a Actor, ws ID) (Workspace, []Member, error)
+	// Tasks returns the tasks of a workspace, oldest first. It includes
+	// the general task.
+	Tasks(ctx context.Context, a Actor, ws ID) ([]Task, error)
 	Task(ctx context.Context, a Actor, task ID) (Task, error)
 	Messages(ctx context.Context, a Actor, task ID, since int64, limit int) ([]Message, error)
+	// SuperMessages returns the conversation of the user with the Super
+	// Agent, with seq > since.
+	SuperMessages(ctx context.Context, a Actor, since int64, limit int) ([]Message, error)
 	// Recall returns any object by ID with the IDs of related objects
 	// (Chain of Recall).
 	Recall(ctx context.Context, a Actor, id ID) (protocol.Object, error)
@@ -92,6 +98,7 @@ type Engine struct {
 	store    Store
 	dispatch Dispatcher
 	notify   Notifier
+	tokens   AgentTokens
 	now      Clock
 }
 
@@ -100,7 +107,9 @@ type Deps struct {
 	Store      Store
 	Dispatcher Dispatcher
 	Notifier   Notifier
-	Clock      Clock // nil: time.Now
+	// Tokens issues the agent token of each session.ensure.
+	Tokens AgentTokens
+	Clock  Clock // nil: time.Now
 }
 
 // NewEngine returns an Engine.
@@ -109,7 +118,7 @@ func NewEngine(d Deps) *Engine {
 	if now == nil {
 		now = time.Now
 	}
-	return &Engine{store: d.Store, dispatch: d.Dispatcher, notify: d.Notifier, now: now}
+	return &Engine{store: d.Store, dispatch: d.Dispatcher, notify: d.Notifier, tokens: d.Tokens, now: now}
 }
 
 var (
@@ -119,125 +128,54 @@ var (
 	_ DaemonFacts = (*Engine)(nil)
 )
 
-// Commands.
+// Helpers shared by the command files.
 
-func (e *Engine) RegisterMachine(ctx context.Context, a Actor, name, tokenHash string) (Machine, error) {
-	return Machine{}, errs.ErrNotImplemented
+// requireManager rejects a plain worker agent. Only a person and the Super
+// Agent create workspaces, change members and create or cancel tasks.
+func requireManager(a Actor) error {
+	if a.Kind != AuthorHuman && a.Kind != AuthorSuper {
+		return errs.ErrForbidden
+	}
+	return nil
 }
 
-// EnrollMachine creates a pending machine with a pairing code that is
-// valid for PairTTL. The same token hash enrolls once.
-func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (Machine, error) {
-	return Machine{}, errs.ErrNotImplemented
+// requireHuman rejects everything but a person (a client token).
+func requireHuman(a Actor) error {
+	if a.Kind != AuthorHuman {
+		return errs.ErrForbidden
+	}
+	return nil
 }
 
-func (e *Engine) ApproveMachine(ctx context.Context, a Actor, code string) (Machine, error) {
-	return Machine{}, errs.ErrNotImplemented
+// checkScope rejects a worker agent that acts outside the (workspace, task)
+// pair of its token. People and the Super Agent are not scoped.
+func checkScope(a Actor, ws, task ID) error {
+	if a.Kind != AuthorAgent {
+		return nil
+	}
+	if a.Workspace != ws {
+		return errs.ErrForbidden
+	}
+	if a.Task != "" && task != "" && a.Task != task {
+		return errs.ErrForbidden
+	}
+	return nil
 }
 
-func (e *Engine) RevokeMachine(ctx context.Context, a Actor, machineID ID) error {
-	return errs.ErrNotImplemented
+// owned hides objects of other owners: they look absent, not forbidden.
+func owned(a Actor, owner ID) error {
+	if a.OwnerID == "" || a.OwnerID != owner {
+		return errs.ErrNotFound
+	}
+	return nil
 }
 
-func (e *Engine) CreateWorkspace(ctx context.Context, a Actor, name, leader string) (Workspace, error) {
-	return Workspace{}, errs.ErrNotImplemented
-}
+// zeroTime clears a time field.
+var zeroTime time.Time
 
-func (e *Engine) AddMember(ctx context.Context, a Actor, ws ID, agentRef string, leader bool) error {
-	return errs.ErrNotImplemented
-}
-
-func (e *Engine) RemoveMember(ctx context.Context, a Actor, ws ID, agentRef string) error {
-	return errs.ErrNotImplemented
-}
-
-// CreateTask creates a task with DefaultBudget, appends the brief as the
-// first message and wakes the leader.
-func (e *Engine) CreateTask(ctx context.Context, a Actor, ws ID, brief string) (Task, error) {
-	return Task{}, errs.ErrNotImplemented
-}
-
-func (e *Engine) CancelTask(ctx context.Context, a Actor, task ID) error {
-	return errs.ErrNotImplemented
-}
-
-// RequestSummary appends a system message that asks the leader for a summary.
-func (e *Engine) RequestSummary(ctx context.Context, a Actor, task ID) error {
-	return errs.ErrNotImplemented
-}
-
-// PostMessage appends a message, computes the wake set (Wakes), charges
-// the budget (CheckBudget) and enqueues one deliver effect for each
-// session to wake. It also updates the task state for reports and summaries.
-func (e *Engine) PostMessage(ctx context.Context, a Actor, ws ID, in PostInput) (Message, error) {
-	return Message{}, errs.ErrNotImplemented
-}
-
-func (e *Engine) SendToSuper(ctx context.Context, a Actor, text string) (Message, error) {
-	return Message{}, errs.ErrNotImplemented
-}
-
-func (e *Engine) SuperReply(ctx context.Context, a Actor, text string) (Message, error) {
-	return Message{}, errs.ErrNotImplemented
-}
-
-// Queries.
-
-func (e *Engine) Machines(ctx context.Context, a Actor) ([]Machine, error) {
-	return nil, errs.ErrNotImplemented
-}
-
-func (e *Engine) Agents(ctx context.Context, a Actor) ([]Agent, error) {
-	return nil, errs.ErrNotImplemented
-}
-
-func (e *Engine) Workspaces(ctx context.Context, a Actor) ([]Workspace, error) {
-	return nil, errs.ErrNotImplemented
-}
-
-func (e *Engine) Workspace(ctx context.Context, a Actor, ws ID) (Workspace, []Member, error) {
-	return Workspace{}, nil, errs.ErrNotImplemented
-}
-
-func (e *Engine) Task(ctx context.Context, a Actor, task ID) (Task, error) {
-	return Task{}, errs.ErrNotImplemented
-}
-
-func (e *Engine) Messages(ctx context.Context, a Actor, task ID, since int64, limit int) ([]Message, error) {
-	return nil, errs.ErrNotImplemented
-}
-
-func (e *Engine) Recall(ctx context.Context, a Actor, id ID) (protocol.Object, error) {
-	return protocol.Object{}, errs.ErrNotImplemented
-}
-
-// Daemon facts.
-
-// MachineConnected registers the machine and its agents, and redelivers
-// from the cursors of its sessions.
-func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.Hello) error {
-	return errs.ErrNotImplemented
-}
-
-func (e *Engine) MachineDisconnected(ctx context.Context, machineID ID) error {
-	return errs.ErrNotImplemented
-}
-
-func (e *Engine) Heartbeat(ctx context.Context, machineID ID, hb protocol.Heartbeat) error {
-	return errs.ErrNotImplemented
-}
-
-// SessionStateChanged records the state and the native ref. When a session
-// becomes idle, it flushes the pending batch of the session.
-func (e *Engine) SessionStateChanged(ctx context.Context, machineID ID, r protocol.SessionStateReport) error {
-	return errs.ErrNotImplemented
-}
-
-// SessionEvent handles one IR event. Reliable events update read cursors
-// and wake rules (for example request.opened). All events go to clients.
-func (e *Engine) SessionEvent(ctx context.Context, machineID ID, ev protocol.SessionEvent) error {
-	return errs.ErrNotImplemented
-}
+// clock returns the current time in the precision the store keeps, so a
+// value read back equals the value written.
+func (e *Engine) clock() time.Time { return e.now().UTC().Truncate(time.Millisecond) }
 
 // selectMode selects the input mode for a batch: prompt when the session
 // is idle, steer for urgent items, follow_up for other items.

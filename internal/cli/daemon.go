@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -83,6 +84,11 @@ sends only its hash to the server:
 			cfg, err := p.LoadEffective()
 			if err != nil {
 				return err
+			}
+			// Resolve the server the same way the client commands do:
+			// flag, then environment, then config.yaml.
+			if s := first(g.server, os.Getenv(EnvServer)); s != "" {
+				cfg.Backend.URL = strings.TrimRight(s, "/")
 			}
 			if err := cfg.Validate(); err != nil {
 				return err

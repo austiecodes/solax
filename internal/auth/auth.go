@@ -11,10 +11,14 @@ package auth
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -109,7 +113,11 @@ type ClientToken struct {
 // Repo is the storage port of auth. internal/store/sqlite implements it.
 // Machine token hashes live on the machine record (core.Machine.TokenHash).
 type Repo interface {
+	// DefaultOwner returns the owner of a single-owner installation, or
+	// errs.ErrNotFound before "solax-server init".
+	DefaultOwner(ctx context.Context) (core.ID, error)
 	ClientByHash(ctx context.Context, hash string) (ClientToken, error)
+	ClientByID(ctx context.Context, id core.ID) (ClientToken, error)
 	SaveClient(ctx context.Context, t ClientToken) error
 	Clients(ctx context.Context, ownerID core.ID) ([]ClientToken, error)
 	MachineByTokenHash(ctx context.Context, hash string) (core.Machine, error)
@@ -151,38 +159,199 @@ func (s *Service) Verify(ctx context.Context, token string) (Claims, error) {
 
 // CreateClient creates a client token. It returns the token once; the
 // server keeps only its hash. "solax-server token create" calls it.
+// An empty ownerID means the default owner.
 func (s *Service) CreateClient(ctx context.Context, ownerID core.ID, name string) (string, ClientToken, error) {
-	return "", ClientToken{}, errs.ErrNotImplemented
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", ClientToken{}, fmt.Errorf("%w: a token needs a name", errs.ErrInvalid)
+	}
+	if ownerID == "" {
+		var err error
+		if ownerID, err = s.repo.DefaultOwner(ctx); err != nil {
+			return "", ClientToken{}, fmt.Errorf("no owner (run solax-server init): %w", err)
+		}
+	}
+	token, err := NewToken(PrefixClient)
+	if err != nil {
+		return "", ClientToken{}, err
+	}
+	t := ClientToken{
+		ID:        core.NewID(core.PrefixClient),
+		OwnerID:   ownerID,
+		Name:      name,
+		Hash:      Hash(token),
+		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}
+	if err := s.repo.SaveClient(ctx, t); err != nil {
+		return "", ClientToken{}, err
+	}
+	return token, t, nil
 }
 
 // RevokeClient makes a client token invalid.
 func (s *Service) RevokeClient(ctx context.Context, id core.ID) error {
-	return errs.ErrNotImplemented
+	t, err := s.repo.ClientByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if t.Revoked {
+		return nil
+	}
+	t.Revoked = true
+	return s.repo.SaveClient(ctx, t)
 }
 
-// Clients lists the client tokens of an owner.
+// Clients lists the client tokens of an owner. An empty ownerID means the
+// default owner.
 func (s *Service) Clients(ctx context.Context, ownerID core.ID) ([]ClientToken, error) {
+	if ownerID == "" {
+		var err error
+		if ownerID, err = s.repo.DefaultOwner(ctx); err != nil {
+			return nil, err
+		}
+	}
 	return s.repo.Clients(ctx, ownerID)
 }
 
+// sessionTTL is the default lifetime of an agent token. A session that
+// lives longer gets a fresh token with its next ensure.
+const sessionTTL = 6 * time.Hour
+
 func (s *Service) IssueAgent(ctx context.Context, c Claims) (string, error) {
-	return "", errs.ErrNotImplemented
+	if s.secret == nil || len(s.secret) == 0 {
+		return "", errs.ErrUnavailable
+	}
+	c.Kind = KindAgent
+	if c.Expires.IsZero() {
+		c.Expires = time.Now().Add(sessionTTL)
+	}
+	return s.signAgent(c)
 }
+
+// IssueToken issues the agent token of one session. The engine reaches it
+// through core.AgentTokens.
+func (s *Service) IssueToken(ctx context.Context, r core.TokenRequest) (string, error) {
+	ttl := r.TTL
+	if ttl <= 0 {
+		ttl = sessionTTL
+	}
+	return s.IssueAgent(ctx, Claims{
+		Kind:      KindAgent,
+		Subject:   r.AgentID,
+		OwnerID:   r.OwnerID,
+		Super:     r.Super,
+		Workspace: r.Workspace,
+		Task:      r.Task,
+		SessionID: r.SessionID,
+		Expires:   time.Now().Add(ttl),
+	})
+}
+
+// agentClaims is the wire form of an agent token. The JSON is compact, so
+// a token stays short on the command line.
+type agentClaims struct {
+	AgentID   core.ID   `json:"a"`
+	OwnerID   core.ID   `json:"o"`
+	Super     bool      `json:"s,omitempty"`
+	Workspace core.ID   `json:"w,omitempty"`
+	Task      core.ID   `json:"t,omitempty"`
+	SessionID core.ID   `json:"e,omitempty"`
+	Expires   time.Time `json:"x"`
+}
+
+// signAgent returns "sxa_<claims>.<hmac>", both parts base64url without
+// padding. The HMAC covers the claims part as it appears in the token.
+func (s *Service) signAgent(c Claims) (string, error) {
+	if len(s.secret) == 0 {
+		return "", errs.ErrUnavailable
+	}
+	body, err := json.Marshal(agentClaims{
+		AgentID: c.Subject, OwnerID: c.OwnerID, Super: c.Super,
+		Workspace: c.Workspace, Task: c.Task, SessionID: c.SessionID, Expires: c.Expires,
+	})
+	if err != nil {
+		return "", err
+	}
+	payload := base64.RawURLEncoding.EncodeToString(body)
+	return PrefixAgent + payload + "." + s.mac(payload), nil
+}
+
+func (s *Service) mac(payload string) string {
+	m := hmac.New(sha256.New, s.secret)
+	m.Write([]byte(payload))
+	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
+}
+
+// lastUsedEvery bounds how often a client token's last use is written, so
+// reads do not turn into a write per request.
+const lastUsedEvery = time.Minute
 
 // verifyClient looks up the hash and rejects revoked tokens.
 func (s *Service) verifyClient(ctx context.Context, token string) (Claims, error) {
-	return Claims{}, errs.ErrNotImplemented
+	t, err := s.repo.ClientByHash(ctx, Hash(token))
+	if errors.Is(err, errs.ErrNotFound) || (err == nil && t.Revoked) {
+		return Claims{}, errs.ErrUnauthorized
+	}
+	if err != nil {
+		return Claims{}, err
+	}
+	if now := time.Now().UTC(); now.Sub(t.LastUsed) > lastUsedEvery {
+		t.LastUsed = now.Truncate(time.Millisecond)
+		_ = s.repo.SaveClient(ctx, t) // best effort; never fails a request
+	}
+	return Claims{Kind: KindClient, Subject: t.ID, OwnerID: t.OwnerID}, nil
 }
 
 // verifyMachine looks up the hash on the machine record. Pending and
 // revoked machines give errs.ErrForbidden.
 func (s *Service) verifyMachine(ctx context.Context, token string) (Claims, error) {
-	return Claims{}, errs.ErrNotImplemented
+	m, err := s.repo.MachineByTokenHash(ctx, Hash(token))
+	if errors.Is(err, errs.ErrNotFound) {
+		return Claims{}, errs.ErrUnauthorized
+	}
+	if err != nil {
+		return Claims{}, err
+	}
+	switch m.State {
+	case core.MachineApproved:
+		return Claims{Kind: KindMachine, Subject: m.ID, OwnerID: m.OwnerID}, nil
+	case core.MachinePending:
+		return Claims{}, fmt.Errorf("%w: pending approval", errs.ErrForbidden)
+	default:
+		return Claims{}, fmt.Errorf("%w: machine revoked", errs.ErrForbidden)
+	}
 }
 
 // verifyAgent checks the HMAC and the expiry.
 func (s *Service) verifyAgent(token string) (Claims, error) {
-	return Claims{}, errs.ErrNotImplemented
+	if len(s.secret) == 0 {
+		return Claims{}, errs.ErrUnauthorized
+	}
+	payload, sig, ok := strings.Cut(strings.TrimPrefix(token, PrefixAgent), ".")
+	if !ok || payload == "" || sig == "" {
+		return Claims{}, errs.ErrUnauthorized
+	}
+	if !hmac.Equal([]byte(sig), []byte(s.mac(payload))) {
+		return Claims{}, errs.ErrUnauthorized
+	}
+	body, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		return Claims{}, errs.ErrUnauthorized
+	}
+	var c agentClaims
+	if err := json.Unmarshal(body, &c); err != nil {
+		return Claims{}, errs.ErrUnauthorized
+	}
+	if !c.Expires.IsZero() && time.Now().After(c.Expires) {
+		return Claims{}, errs.ErrUnauthorized
+	}
+	return Claims{
+		Kind: KindAgent, Subject: c.AgentID, OwnerID: c.OwnerID, Super: c.Super,
+		Workspace: c.Workspace, Task: c.Task, SessionID: c.SessionID, Expires: c.Expires,
+	}, nil
 }
 
-var _ Verifier = (*Service)(nil)
+var (
+	_ Verifier         = (*Service)(nil)
+	_ core.AgentTokens = (*Service)(nil)
+)

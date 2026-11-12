@@ -4,6 +4,9 @@
 package main
 
 import (
+	"context"
+	"github.com/austiecodes/solax/pkg/protocol"
+	"github.com/egoist/mygo/ui"
 	"log"
 
 	"github.com/egoist/mygo"
@@ -22,28 +25,38 @@ func main() {
 	}
 	a := &app{profiles: profiles, stream: &stream{}}
 
-	mygo.Bind(Profiles{a})
-	mygo.Bind(Super{a})
-	mygo.Bind(Workspaces{a})
-	mygo.Bind(Tasks{a})
-	mygo.Bind(Machines{a})
-
-	// Setup that must not run during `mygo generate` goes in WhenReady.
+	d := &desktop{a: a, page: "Settings", name: "default", connection: Connection{State: Disconnected}}
 	mygo.App.WhenReady(func() {
-		mygo.NewWindow(mygo.WindowOptions{
-			Title:           "Solax",
-			Width:           1200,
-			Height:          780,
-			MinWidth:        720,
-			MinHeight:       480,
-			BackgroundColor: "light-dark(#f6f7f9, #0f1115)", // --bg in src/style.css
-			StateKey:        "main",
-			URL:             "/",
+		d.win = mygo.NewWindow(mygo.WindowOptions{Title: "Solax", Width: 1200, Height: 780, MinWidth: 720, MinHeight: 480, StateKey: "main", Content: ui.View(d.view)})
+		ConnectionChanged.listen(func(v Connection) { d.win.Update(func() { d.connection = v }) })
+		MessageCreated.listen(func(v protocol.Message) {
+			d.win.Update(func() {
+				if d.page == "Workspaces" {
+					d.appendMessage(v)
+				}
+			})
 		})
-		if err := a.connect(); err != nil {
-			ConnectionChanged.Broadcast(Connection{State: Disconnected, Error: err.Error()})
-		}
+		SuperReplied.listen(func(v protocol.Message) {
+			d.win.Update(func() {
+				if d.page == "Super" {
+					d.appendMessage(v)
+				}
+			})
+		})
+		MachineUpdated.listen(func(v protocol.Machine) { d.win.Update(func() { d.upsertMachine(v) }) })
+		d.run(func(ctx context.Context) (func(), error) {
+			ps := a.profiles.List()
+			err := a.connect()
+			return func() {
+				d.profiles = ps
+				if err != nil {
+					d.status = err.Error()
+				}
+			}, nil
+		})
 	})
+	defer a.stream.Stop()
+
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}

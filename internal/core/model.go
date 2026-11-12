@@ -4,10 +4,18 @@
 package core
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/austiecodes/solax/pkg/ir"
 )
+
+// Owner is the person who owns an installation. v1 has one owner; the
+// schema keeps owner_id so that team support can come later.
+type Owner struct {
+	ID        ID
+	CreatedAt time.Time
+}
 
 // Machine is a host that runs "solax daemon".
 type Machine struct {
@@ -57,12 +65,15 @@ const (
 
 // Workspace is a long-lived group of agents with a shared message log.
 type Workspace struct {
-	ID        ID
-	OwnerID   ID
-	Name      string
-	LeaderID  ID // agent ID; exactly one leader
-	NextSeq   int64
-	CreatedAt time.Time
+	ID       ID
+	OwnerID  ID
+	Name     string
+	LeaderID ID // agent ID; exactly one leader
+	// Orchestrator is the default orchestrator plugin of new tasks. Empty
+	// means the server default.
+	Orchestrator string
+	NextSeq      int64
+	CreatedAt    time.Time
 }
 
 // MemberRole is the role of an agent in a workspace.
@@ -87,23 +98,59 @@ const (
 	TaskOpen        TaskState = "open"
 	TaskRunning     TaskState = "running"
 	TaskSummarizing TaskState = "summarizing"
+	TaskBlocked     TaskState = "blocked" // a pause; see BlockedReason
 	TaskDone        TaskState = "done"
-	TaskBlocked     TaskState = "blocked"
+	TaskFailed      TaskState = "failed"
 	TaskCancelled   TaskState = "cancelled"
 )
 
+// Terminal reports whether s is a final state. Final states are absorbing:
+// no transition leaves them.
+func (s TaskState) Terminal() bool {
+	return s == TaskDone || s == TaskFailed || s == TaskCancelled
+}
+
+// BlockedReason tells why a task is blocked. When several apply, the
+// strongest wins: fault > budget > ask.
+type BlockedReason string
+
+const (
+	BlockedNone   BlockedReason = ""
+	BlockedAsk    BlockedReason = "ask"    // waits for a human answer; the orchestrator keeps running
+	BlockedBudget BlockedReason = "budget" // a budget bound was reached
+	BlockedFault  BlockedReason = "fault"  // the orchestrator plugin faulted; it is stopped
+)
+
 // Task is one unit of work in a workspace, with its own message stream.
-// Each workspace has a general task.
+// Each workspace has a general task. A task may be the child of another
+// task (a node of an orchestrator plugin).
 type Task struct {
-	ID          ID
-	WorkspaceID ID
-	Title       string
-	Brief       string
-	General     bool
-	State       TaskState
-	Budget      Budget
-	Spent       Spent
-	CreatedAt   time.Time
+	ID            ID
+	WorkspaceID   ID
+	ParentID      ID     // empty for a root task
+	ParentNode    string // the orchestrator action id that spawned it
+	Depth         int    // 0 for a root task
+	TargetAgentID ID     // the agent a spawned child task is for
+	Title         string
+	Brief         string
+	General       bool
+	State         TaskState
+	BlockedReason BlockedReason
+	Budget        Budget
+	Spent         Spent
+
+	// Orchestrator is the plugin name and OrchHash the pinned bundle. They
+	// are fixed when the task is created. General tasks have none.
+	Orchestrator string
+	OrchHash     string
+	OrchState    json.RawMessage // plugin state, strict JSON
+	OrchLastSeq  int64           // last task event the orchestrator consumed
+
+	// Rev increases on every state transition and orchestrator commit.
+	// Writers that computed outside a transaction compare it on commit.
+	Rev       int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Budget holds the hard limits of a task. When a limit is reached, the
@@ -163,9 +210,10 @@ const (
 // Message is one append-only entry in a task stream.
 type Message struct {
 	ID          ID
-	WorkspaceID ID
-	TaskID      ID
-	Seq         int64 // per workspace
+	OwnerID     ID
+	WorkspaceID ID    // empty for the Super Agent conversation
+	TaskID      ID    // empty for the Super Agent conversation
+	Seq         int64 // per workspace, or per owner for the Super Agent conversation
 	Author      Author
 	Kind        MessageKind
 	Status      ReportStatus // report only

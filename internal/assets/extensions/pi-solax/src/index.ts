@@ -12,17 +12,53 @@ import { Type, type TSchema } from "@earendil-works/pi-ai";
 import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const server = process.env.SOLAX_SERVER ?? "";
-const token = process.env.SOLAX_TOKEN ?? "";
+
+/**
+ * Reads the token for each call, so a rotated token is picked up without a
+ * restart. SOLAX_TOKEN_FILE wins: the server writes a fresh token there
+ * when a long Super Agent session outlives its previous one.
+ */
+async function readToken(): Promise<string> {
+  const file = process.env.SOLAX_TOKEN_FILE;
+  if (file) {
+    const { readFile } = await import("node:fs/promises");
+    const t = (await readFile(file, "utf8")).trim();
+    if (t) return t;
+  }
+  return process.env.SOLAX_TOKEN ?? "";
+}
 
 /** Calls the Solax REST API. */
 async function call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-	void server;
-	void token;
-	void method;
-	void path;
-	void body;
-	void signal;
-	throw new Error("solax: not implemented");
+  const token = await readToken();
+  const res = await fetch(new URL(path, server), {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`solax ${method} ${path}: ${res.status} ${text}`);
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/** Lists everything the Super Agent needs to plan, with IDs. */
+async function list(): Promise<unknown> {
+  const [workspaces, agents, machines] = await Promise.all([
+    call<any[]>("GET", "/v1/workspaces"),
+    call<any[]>("GET", "/v1/agents"),
+    call<any[]>("GET", "/v1/machines"),
+  ]);
+  const tasks = await Promise.all(
+    workspaces.map(async (w) => ({
+      workspace: w.id,
+      tasks: await call<any[]>("GET", `/v1/workspaces/${w.id}/tasks`),
+    })),
+  );
+  return { workspaces, agents, machines, tasks };
 }
 
 /** Defines a codemode-only tool that returns structured data. */
@@ -59,7 +95,7 @@ const tools = [
 		description: "List workspaces, agents, machine status and open tasks, with IDs.",
 		parameters: Type.Object({}),
 		outputSchema: Obj,
-		run: (_p, s) => call("GET", "/v1/workspaces", undefined, s),
+		run: (_p, _s) => list(),
 	}),
 	solaxTool({
 		name: "solax_recall",

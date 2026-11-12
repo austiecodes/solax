@@ -12,7 +12,6 @@ import (
 	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/core/outbox"
-	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/server/api"
 	"github.com/austiecodes/solax/internal/server/hub"
 	"github.com/austiecodes/solax/internal/server/stream"
@@ -34,7 +33,12 @@ func Init(ctx context.Context, cfg Config, clientName string) (token string, err
 		return "", err
 	}
 	defer store.Close()
-	return "", errs.ErrNotImplemented
+	owner, err := core.NewEngine(core.Deps{Store: store}).InitOwner(ctx)
+	if err != nil {
+		return "", err
+	}
+	token, _, err = auth.NewService(store, cfg.Secret).CreateClient(ctx, owner.ID, clientName)
+	return token, err
 }
 
 // Admin opens the database for "solax-server token ..." commands. They
@@ -58,10 +62,11 @@ func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
 	verifier := auth.NewService(store, cfg.Secret)
 	h := hub.New(verifier)
 	st := stream.New()
-	eng := core.NewEngine(core.Deps{Store: store, Dispatcher: h, Notifier: st})
+	eng := core.NewEngine(core.Deps{Store: store, Dispatcher: h, Notifier: st, Tokens: verifier})
 	h.SetFacts(eng)
 
-	ob := outbox.New(store)
+	ob := outbox.New(store, log)
+	store.OnEffects(ob.Kick)
 	// TODO: register handlers for core.EffectDeliver, EffectEnsure, EffectNotifyClient.
 
 	srv := &http.Server{

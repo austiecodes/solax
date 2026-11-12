@@ -8,7 +8,9 @@
 package framing
 
 import (
+	"encoding/json"
 	"io"
+	"sync"
 
 	"github.com/austiecodes/solax/internal/errs"
 )
@@ -30,9 +32,11 @@ func (r *Reader) Next() ([]byte, error) {
 	return nil, errs.ErrNotImplemented
 }
 
-// Writer writes JSONL records.
+// Writer writes JSONL records. The delivery path and the event pump both
+// send, so it is safe for concurrent use.
 type Writer struct {
-	w io.Writer
+	mu sync.Mutex
+	w  io.Writer
 }
 
 // NewWriter returns a Writer on w.
@@ -40,5 +44,13 @@ func NewWriter(w io.Writer) *Writer { return &Writer{w: w} }
 
 // Write encodes v as one JSON record and a '\n'. It is safe for concurrent use.
 func (w *Writer) Write(v any) error {
-	return errs.ErrNotImplemented
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b = append(b, '\n')
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_, err = w.w.Write(b)
+	return err
 }

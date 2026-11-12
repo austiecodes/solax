@@ -1,6 +1,10 @@
 package core
 
-import "github.com/austiecodes/solax/internal/errs"
+import (
+	"time"
+
+	"github.com/austiecodes/solax/internal/errs"
+)
 
 // Wake is one session that a message must wake.
 type Wake struct {
@@ -39,9 +43,40 @@ const (
 	BudgetExhausted               // move the task to blocked and wake the Super Agent
 )
 
-// CheckBudget charges one wake against the task budget.
-func CheckBudget(t *Task, m Message, wakes int) (BudgetVerdict, error) {
-	return BudgetOK, errs.ErrNotImplemented
+// CheckBudget charges one wake against the task budget. It is pure: now
+// comes from the caller, so a test clock gives stable results. The wall
+// time runs from the creation of the task. Each message from an agent or
+// the system spends one hop of the hops without a human; a message from a
+// human resets the count.
+//
+// A task that is summarizing and goes over again is exhausted: the leader
+// did not deliver the summary in time.
+func CheckBudget(t *Task, m Message, wakes int, now time.Time) (BudgetVerdict, error) {
+	if t == nil || wakes < 0 {
+		return BudgetOK, errs.ErrInvalid
+	}
+	if t.State.Terminal() {
+		return BudgetOK, nil
+	}
+	over := func() BudgetVerdict {
+		if t.State == TaskSummarizing {
+			return BudgetExhausted
+		}
+		return BudgetSummarize
+	}
+	if t.Budget.MaxAgentTurns > 0 && t.Spent.AgentTurns+wakes > t.Budget.MaxAgentTurns {
+		return over(), nil
+	}
+	if t.Budget.MaxWallTime > 0 && now.Sub(t.CreatedAt) > t.Budget.MaxWallTime {
+		return over(), nil
+	}
+	if m.Author.Kind == AuthorHuman {
+		return BudgetOK, nil
+	}
+	if t.Budget.MaxHopsWithoutHuman > 0 && t.Spent.HopsWithoutHuman+1 > t.Budget.MaxHopsWithoutHuman {
+		return over(), nil
+	}
+	return BudgetOK, nil
 }
 
 // RenderLimits is the Inline & Spill budget of one batch.

@@ -58,4 +58,7 @@ func (h *Hub) Online(machineID core.ID) bool {
 	return ok
 }
 
+// Disconnect closes the connection of a machine, if any.
+func (h *Hub) Disconnect(machineID core.ID) {}
+
 var _ core.Dispatcher = (*Hub)(nil)

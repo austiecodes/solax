@@ -46,17 +46,19 @@ const (
 type EventType string
 
 const (
-	SessionStarted  EventType = "session.started"
-	SessionEnded    EventType = "session.exited"
-	TurnStarted     EventType = "turn.started"
-	TurnCompleted   EventType = "turn.completed"
-	ItemStarted     EventType = "item.started"
-	ItemDelta       EventType = "item.delta"
-	ItemCompleted   EventType = "item.completed"
-	RequestOpened   EventType = "request.opened"
-	RequestResolved EventType = "request.resolved"
-	UsageUpdated    EventType = "usage.updated"
-	NoticeEmitted   EventType = "notice"
+	SessionStarted EventType = "session.started"
+	// SessionExitedEvent is the event type. The state ir.SessionExited has
+	// the same name in the docs; one Go package cannot hold both names.
+	SessionExitedEvent EventType = "session.exited"
+	TurnStarted        EventType = "turn.started"
+	TurnCompleted      EventType = "turn.completed"
+	ItemStarted        EventType = "item.started"
+	ItemDelta          EventType = "item.delta"
+	ItemCompleted      EventType = "item.completed"
+	RequestOpened      EventType = "request.opened"
+	RequestResolved    EventType = "request.resolved"
+	UsageUpdated       EventType = "usage.updated"
+	NoticeEmitted      EventType = "notice"
 )
 
 // Reliable reports whether events of this type go on the reliable channel.
@@ -81,7 +83,7 @@ type Event struct {
 	Raw       json.RawMessage `json:"raw,omitempty"` // native record, debug only
 }
 
-// SessionInfo is the payload of SessionStarted and SessionEnded.
+// SessionInfo is the payload of SessionStarted and SessionExitedEvent.
 type SessionInfo struct {
 	Ref      SessionRef `json:"ref"`
 	Model    string     `json:"model,omitempty"`

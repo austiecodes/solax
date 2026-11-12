@@ -49,27 +49,32 @@ func NewRouter(d Deps) *gin.Engine {
 	v1 := r.Group("/v1", Authenticate(d.Auth))
 	v1.GET("/stream", RequireKind(auth.KindClient), gin.WrapH(d.Stream))
 
-	machines := v1.Group("/machines", RequireKind(auth.KindClient))
+	// The Super Agent lists machines to know what is available. Only a
+	// person changes them.
+	machines := v1.Group("/machines", RequireClientOrSuper())
 	machines.GET("", h.listMachines)
-	machines.POST("", h.registerMachine)
-	machines.POST("/approve", h.approveMachine)
-	machines.DELETE("/:machine", h.revokeMachine)
+	machines.POST("", RequireKind(auth.KindClient), h.registerMachine)
+	machines.POST("/approve", RequireKind(auth.KindClient), h.approveMachine)
+	machines.DELETE("/:machine", RequireKind(auth.KindClient), h.revokeMachine)
 	v1.GET("/agents", h.listAgents)
 
+	// Reading is open to every non-machine token; a worker agent gets only
+	// its own workspace and task (the Engine enforces the scope).
 	ws := v1.Group("/workspaces")
 	ws.GET("", h.listWorkspaces)
-	ws.POST("", RequireKind(auth.KindClient, auth.KindAgent), h.createWorkspace)
+	ws.POST("", RequireClientOrSuper(), h.createWorkspace)
 	ws.GET("/:ws", h.getWorkspace)
-	ws.POST("/:ws/members", h.addMember)
-	ws.DELETE("/:ws/members/:agent", h.removeMember)
-	ws.POST("/:ws/tasks", h.createTask)
+	ws.GET("/:ws/tasks", h.listTasks)
+	ws.POST("/:ws/members", RequireClientOrSuper(), h.addMember)
+	ws.DELETE("/:ws/members/:agent", RequireClientOrSuper(), h.removeMember)
+	ws.POST("/:ws/tasks", RequireClientOrSuper(), h.createTask)
 	ws.POST("/:ws/messages", h.postMessage)
 	ws.GET("/:ws/messages", h.readMessages)
 
 	tasks := v1.Group("/tasks")
 	tasks.GET("/:task", h.getTask)
-	tasks.POST("/:task/cancel", h.cancelTask)
-	tasks.POST("/:task/summarize", h.summarizeTask)
+	tasks.POST("/:task/cancel", RequireClientOrSuper(), h.cancelTask)
+	tasks.POST("/:task/summarize", RequireClientOrSuper(), h.summarizeTask)
 
 	// The conversation of the user with the Super Agent.
 	super := v1.Group("/super")
@@ -84,8 +89,16 @@ func NewRouter(d Deps) *gin.Engine {
 }
 
 // fail writes the HTTP status of err.
+// A 500 hides the error text, which may hold storage details; the error is
+// attached to the gin context for the access log.
 func fail(c *gin.Context, err error) {
-	c.AbortWithStatusJSON(status(err), protocol.ErrorResponse{Error: err.Error()})
+	code := status(err)
+	msg := err.Error()
+	if code == http.StatusInternalServerError {
+		_ = c.Error(err)
+		msg = "internal error"
+	}
+	c.AbortWithStatusJSON(code, protocol.ErrorResponse{Error: msg})
 }
 
 func status(err error) int {

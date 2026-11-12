@@ -16,9 +16,9 @@ func wsCmd(g *globals) *cobra.Command {
 	cmd.AddCommand(
 		wsCreateCmd(g),
 		wsListCmd(g),
-		stub("show <ws>", "Show a workspace"),
+		wsShowCmd(g),
 		wsAddCmd(g),
-		stub("remove <ws> <agent@machine>", "Remove an agent from a workspace"),
+		wsRemoveCmd(g),
 		wsSendCmd(g),
 		wsReadCmd(g),
 	)
@@ -65,6 +65,45 @@ func wsListCmd(g *globals) *cobra.Command {
 					fmt.Fprintf(out, "%s\t%s\tmembers=%d\n", w.ID, w.Name, len(w.Members))
 				}
 			})
+		},
+	}
+}
+
+func wsShowCmd(g *globals) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show <ws>",
+		Short: "Show a workspace and its members",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := g.client()
+			if err != nil {
+				return err
+			}
+			w, err := c.Workspace(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			return g.print(cmd.OutOrStdout(), w, func(out io.Writer) {
+				fmt.Fprintf(out, "%s\t%s\tleader=%s\n", w.ID, w.Name, w.Leader)
+				for _, m := range w.Members {
+					fmt.Fprintf(out, "  %s\t%s\n", m.AgentID, m.Role)
+				}
+			})
+		},
+	}
+}
+
+func wsRemoveCmd(g *globals) *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove <ws> <agent@machine>",
+		Short: "Remove an agent from a workspace",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := g.client()
+			if err != nil {
+				return err
+			}
+			return c.RemoveMember(cmd.Context(), args[0], args[1])
 		},
 	}
 }
