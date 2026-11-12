@@ -8,28 +8,61 @@
 package framing
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"sync"
-
-	"github.com/austiecodes/solax/internal/errs"
 )
 
 // MaxRecord is the largest record that the reader accepts.
 const MaxRecord = 64 << 20
 
+// ErrTooLarge is returned for a record longer than MaxRecord.
+var ErrTooLarge = errors.New("framing: record too large")
+
 // Reader reads JSONL records.
 type Reader struct {
-	r io.Reader
+	r *bufio.Reader
 }
 
 // NewReader returns a Reader on r.
-func NewReader(r io.Reader) *Reader { return &Reader{r: r} }
+func NewReader(r io.Reader) *Reader { return &Reader{r: bufio.NewReaderSize(r, 64<<10)} }
 
-// Next returns the next record without the line terminator. It returns
-// io.EOF after the last record.
+// Next returns the next non-empty record without the line terminator. It
+// returns io.EOF after the last record. A last record without '\n' is
+// still returned.
 func (r *Reader) Next() ([]byte, error) {
-	return nil, errs.ErrNotImplemented
+	for {
+		var buf []byte
+		for {
+			chunk, err := r.r.ReadSlice('\n')
+			if len(buf)+len(chunk) > MaxRecord {
+				return nil, ErrTooLarge
+			}
+			buf = append(buf, chunk...)
+			if err == nil {
+				break
+			}
+			if errors.Is(err, bufio.ErrBufferFull) {
+				continue
+			}
+			if errors.Is(err, io.EOF) && len(bytes.TrimSpace(buf)) > 0 {
+				return trimEOL(buf), nil
+			}
+			return nil, err
+		}
+		if rec := trimEOL(buf); len(bytes.TrimSpace(rec)) > 0 {
+			return rec, nil
+		}
+	}
+}
+
+func trimEOL(b []byte) []byte {
+	b = bytes.TrimSuffix(b, []byte{'\n'})
+	return bytes.TrimSuffix(b, []byte{'\r'})
 }
 
 // Writer writes JSONL records. The delivery path and the event pump both
@@ -46,7 +79,7 @@ func NewWriter(w io.Writer) *Writer { return &Writer{w: w} }
 func (w *Writer) Write(v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {
-		return err
+		return fmt.Errorf("framing: encode: %w", err)
 	}
 	b = append(b, '\n')
 	w.mu.Lock()

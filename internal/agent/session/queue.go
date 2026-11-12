@@ -28,6 +28,24 @@ func (q *Queue) Seen(ref string) bool {
 	return ok
 }
 
+// Len returns the number of queued inputs.
+func (q *Queue) Len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.pending)
+}
+
+// Remember records a ref that was sent directly, so a redelivery of the
+// same batch is dropped.
+func (q *Queue) Remember(ref string) {
+	if ref == "" {
+		return
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.seen[ref] = struct{}{}
+}
+
 // Push adds an emulated input. A repeated ref is ignored, so the caller can
 // redeliver a batch after a reconnect.
 func (q *Queue) Push(in ir.Input) error {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -32,6 +33,9 @@ type Tx interface {
 	Sessions() SessionRepo
 	Cursors() CursorRepo
 	Effects() EffectRepo
+	Jobs() JobRepo
+	Inputs() InputRepo
+	SessionEvents() SessionEventRepo
 }
 
 type OwnerRepo interface {
@@ -51,7 +55,10 @@ type MachineRepo interface {
 type AgentRepo interface {
 	Get(ctx context.Context, id ID) (Agent, error)
 	ByName(ctx context.Context, machineID ID, name string) (Agent, error)
+	// Named returns the live (not deleted) agent with this name.
+	Named(ctx context.Context, name string) (Agent, error)
 	Save(ctx context.Context, a Agent) error
+	// List returns the live agents.
 	List(ctx context.Context) ([]Agent, error)
 }
 
@@ -115,6 +122,31 @@ type SessionRepo interface {
 	For(ctx context.Context, agentID, taskID ID) (Session, error)
 	Save(ctx context.Context, s Session) error
 	OnMachine(ctx context.Context, machineID ID) ([]Session, error)
+}
+
+type JobRepo interface {
+	Get(ctx context.Context, id ID) (Job, error)
+	BySession(ctx context.Context, sessionID ID) (Job, error)
+	Save(ctx context.Context, j Job) error
+	// List returns the newest jobs of an owner first.
+	List(ctx context.Context, ownerID ID, limit int) ([]Job, error)
+}
+
+type InputRepo interface {
+	Add(ctx context.Context, in Input) error
+	// Pending returns the unsent inputs of a session, oldest first.
+	Pending(ctx context.Context, sessionID ID) ([]Input, error)
+	MarkSent(ctx context.Context, ids []ID) error
+	// PendingSessions returns the sessions that have unsent inputs.
+	PendingSessions(ctx context.Context) ([]ID, error)
+}
+
+type SessionEventRepo interface {
+	// Add stores a reliable IR event. It reports false for a seq that is
+	// already stored (a resend after reconnect).
+	Add(ctx context.Context, sessionID ID, e ir.Event) (bool, error)
+	// Since returns events with seq > after, oldest first.
+	Since(ctx context.Context, sessionID ID, after int64, limit int) ([]ir.Event, error)
 }
 
 type CursorRepo interface {

@@ -138,7 +138,6 @@ func configCmd(g *globals) *cobra.Command {
 				fmt.Fprintf(w, "machine:       %s (max %d sessions)\n", cfg.Machine.Name, cfg.Machine.MaxSessions)
 				fmt.Fprintf(w, "machine id:    %s\n", creds.MachineID)
 				fmt.Fprintf(w, "machine token: %s\n", view.Credentials.MachineToken)
-				fmt.Fprintf(w, "agents:        %d\n", len(cfg.Agents))
 			})
 		},
 	}

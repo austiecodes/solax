@@ -1,0 +1,35 @@
+{"id":"p1","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"user","content":[{"type":"text","text":"Run `cat a.txt` with bash, then reply with one word."}],"timestamp":1794506885490}}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"Run `cat a.txt` with bash, then reply with one word."}],"timestamp":1794506885490}}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506885504,"errorMessage":"Connection error.","durationMs":5,"thinkingLevel":"max"}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506885504,"errorMessage":"Connection error.","durationMs":5,"thinkingLevel":"max"}}
+{"type":"turn_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506885504,"errorMessage":"Connection error.","durationMs":5,"thinkingLevel":"max"},"toolResults":[]}
+{"type":"agent_end","willRetry":true}
+{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":2000,"errorMessage":"Connection error."}
+{"type":"entry_appended","entry":{"type":"context_edit","id":"56c407c3","parentId":"a46b589d","timestamp":"2026-11-12T18:08:05.511Z","targetId":"a46b589d","replacement":null}}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506887519,"errorMessage":"Connection error.","durationMs":6,"thinkingLevel":"max"}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506887519,"errorMessage":"Connection error.","durationMs":6,"thinkingLevel":"max"}}
+{"type":"turn_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506887519,"errorMessage":"Connection error.","durationMs":6,"thinkingLevel":"max"},"toolResults":[]}
+{"type":"agent_end","willRetry":true}
+{"type":"auto_retry_start","attempt":2,"maxAttempts":3,"delayMs":4000,"errorMessage":"Connection error."}
+{"type":"entry_appended","entry":{"type":"context_edit","id":"9a602e45","parentId":"e05d8372","timestamp":"2026-11-12T18:08:07.525Z","targetId":"e05d8372","replacement":null}}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506891531,"errorMessage":"Connection error.","durationMs":6,"thinkingLevel":"max"}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506891531,"errorMessage":"Connection error.","durationMs":6,"thinkingLevel":"max"}}
+{"type":"turn_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506891531,"errorMessage":"Connection error.","durationMs":6,"thinkingLevel":"max"},"toolResults":[]}
+{"type":"agent_end","willRetry":true}
+{"type":"auto_retry_start","attempt":3,"maxAttempts":3,"delayMs":8000,"errorMessage":"Connection error."}
+{"type":"entry_appended","entry":{"type":"context_edit","id":"1d835abc","parentId":"24902be0","timestamp":"2026-11-12T18:08:11.539Z","targetId":"24902be0","replacement":null}}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506899546,"errorMessage":"Connection error.","durationMs":8,"thinkingLevel":"max"}}
+{"type":"message_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506899546,"errorMessage":"Connection error.","durationMs":8,"thinkingLevel":"max"}}
+{"type":"turn_end","message":{"role":"assistant","content":[],"api":"openai-completions","provider":"magpie","model":"zai/glm-5.3","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}},"stopReason":"error","timestamp":1794506899546,"errorMessage":"Connection error.","durationMs":8,"thinkingLevel":"max"},"toolResults":[]}
+{"type":"agent_end","willRetry":false}
+{"type":"auto_retry_end","success":false,"attempt":3,"finalError":"Connection error."}
+{"type":"agent_settled","aborted":false}

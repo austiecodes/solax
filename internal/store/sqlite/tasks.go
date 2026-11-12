@@ -229,7 +229,7 @@ func (r eventRepo) Last(ctx context.Context, taskID core.ID) (int64, error) {
 
 type sessionRepo struct{ t *txn }
 
-const sessionCols = `s.id, s.agent_id, s.task_id, s.state, s.ref, s.updated_at`
+const sessionCols = `s.id, s.agent_id, s.task_id, s.state, s.ref, s.live, s.last_seq, s.updated_at`
 
 func (r sessionRepo) Get(ctx context.Context, id core.ID) (core.Session, error) {
 	return scanSession(r.t.q.QueryRowContext(ctx, `SELECT `+sessionCols+` FROM sessions s WHERE s.id = ?`, id))
@@ -248,9 +248,10 @@ func (r sessionRepo) Save(ctx context.Context, s core.Session) error {
 		}
 		ref = string(b)
 	}
-	_, err := r.t.exec(ctx, `INSERT INTO sessions(id, agent_id, task_id, state, ref, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET state = excluded.state, ref = excluded.ref, updated_at = excluded.updated_at`,
-		s.ID, s.AgentID, s.TaskID, s.State, ref, ms(s.UpdatedAt))
+	_, err := r.t.exec(ctx, `INSERT INTO sessions(id, agent_id, task_id, state, ref, live, last_seq, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET state = excluded.state, ref = excluded.ref, live = excluded.live,
+			last_seq = excluded.last_seq, updated_at = excluded.updated_at`,
+		s.ID, s.AgentID, s.JobID, s.State, ref, b2i(s.Live), s.LastSeq, ms(s.UpdatedAt))
 	return err
 }
 
@@ -264,10 +265,11 @@ func scanSession(sc scanner) (core.Session, error) {
 	var s core.Session
 	var state, ref string
 	var updated int64
-	if err := sc.Scan(&s.ID, &s.AgentID, &s.TaskID, &state, &ref, &updated); err != nil {
+	var live int
+	if err := sc.Scan(&s.ID, &s.AgentID, &s.JobID, &state, &ref, &live, &s.LastSeq, &updated); err != nil {
 		return s, mapErr(err)
 	}
-	s.State, s.UpdatedAt = ir.SessionState(state), tm(updated)
+	s.State, s.Live, s.UpdatedAt = ir.SessionState(state), live != 0, tm(updated)
 	if ref != "" {
 		s.Ref = new(ir.SessionRef)
 		if err := json.Unmarshal([]byte(ref), s.Ref); err != nil {

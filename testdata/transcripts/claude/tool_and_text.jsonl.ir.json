@@ -1,0 +1,163 @@
+[
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "turn.started",
+    "turn": {
+      "cause": "input"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.started",
+    "item": {
+      "id": "toolu_01JJQLZwyDFXpP6QRZJTuB5e",
+      "kind": "tool_call",
+      "status": "in_progress",
+      "tool": {
+        "name": "Bash",
+        "class": "shell",
+        "input": {
+          "command": "cat a.txt",
+          "description": "Print contents of a.txt"
+        }
+      },
+      "native": "tool_use"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "toolu_01JJQLZwyDFXpP6QRZJTuB5e",
+      "kind": "tool_call",
+      "status": "completed",
+      "tool": {
+        "name": "Bash",
+        "class": "shell",
+        "input": {
+          "command": "cat a.txt",
+          "description": "Print contents of a.txt"
+        },
+        "output": "hello"
+      },
+      "native": "tool_result"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.started",
+    "item": {
+      "id": "msg_011CgyUnTBZRH3C4uvCGcLgZ:0",
+      "kind": "reasoning",
+      "status": "in_progress",
+      "native": "thinking"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "msg_011CgyUnTBZRH3C4uvCGcLgZ:0",
+      "kind": "reasoning",
+      "status": "completed",
+      "native": "thinking"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.started",
+    "item": {
+      "id": "msg_011CgyUnTBZRH3C4uvCGcLgZ:1",
+      "kind": "agent_message",
+      "status": "in_progress",
+      "native": "text"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_011CgyUnTBZRH3C4uvCGcLgZ:1",
+      "kind": "text",
+      "text": "h"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_011CgyUnTBZRH3C4uvCGcLgZ:1",
+      "kind": "text",
+      "text": "ello"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "msg_011CgyUnTBZRH3C4uvCGcLgZ:1",
+      "kind": "agent_message",
+      "status": "completed",
+      "text": "hello",
+      "native": "text"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "usage.updated",
+    "usage": {
+      "input": 4,
+      "output": 129,
+      "cache_read": 26403,
+      "cache_write": 9072,
+      "cost_usd": 0.0021433300000000006
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "turn.completed",
+    "turn": {
+      "status": "completed",
+      "usage": {
+        "input": 4,
+        "output": 129,
+        "cache_read": 26403,
+        "cache_write": 9072,
+        "cost_usd": 0.0021433300000000006
+      }
+    }
+  }
+]

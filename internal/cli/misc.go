@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -48,33 +49,18 @@ func machineCmd(g *globals) *cobra.Command {
 				return err
 			}
 			return g.print(cmd.OutOrStdout(), ms, func(w io.Writer) {
+				tw := table(w)
+				fmt.Fprintln(tw, "ID\tNAME\tSTATE\tONLINE\tAGENT CLIS")
 				for _, m := range ms {
-					fmt.Fprintf(w, "%s\t%s\t%s\tonline=%t\n", m.ID, m.Name, m.State, m.Online)
+					var found []string
+					for _, d := range m.Drivers {
+						if d.OK {
+							found = append(found, string(d.Kind)+" "+d.Version)
+						}
+					}
+					fmt.Fprintf(tw, "%s\t%s\t%s\t%t\t%s\n", m.ID, m.Name, m.State, m.Online, strings.Join(found, ", "))
 				}
-			})
-		},
-	})
-	return cmd
-}
-
-func agentCmd(g *globals) *cobra.Command {
-	cmd := &cobra.Command{Use: "agent", Short: "Agents of all machines, as the server knows them"}
-	cmd.AddCommand(&cobra.Command{
-		Use:   "list",
-		Short: "List agents",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := g.client()
-			if err != nil {
-				return err
-			}
-			as, err := c.Agents(cmd.Context())
-			if err != nil {
-				return err
-			}
-			return g.print(cmd.OutOrStdout(), as, func(w io.Writer) {
-				for _, a := range as {
-					fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", a.ID, a.Name, a.MachineID, a.Driver)
-				}
+				tw.Flush()
 			})
 		},
 	})

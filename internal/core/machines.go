@@ -138,12 +138,13 @@ func (e *Engine) RevokeMachine(ctx context.Context, a Actor, machineID ID) error
 	return nil
 }
 
-// MachineConnected records that the machine is online and upserts the
-// agents of its Hello. Agents that left the local config keep their record,
-// because memberships and sessions reference them; they are simply never
-// online again.
+// MachineConnected records that the machine is online with the drivers
+// that its daemon detected. Sessions that the daemon still runs stay live;
+// all other sessions of the machine are stopped, and the delivery loop
+// starts them again when they have input.
 func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.Hello) error {
-	return e.store.Atomic(ctx, func(tx Tx) error {
+	var owner ID
+	err := e.store.Atomic(ctx, func(tx Tx) error {
 		m, err := tx.Machines().Get(ctx, machineID)
 		if err != nil {
 			return err
@@ -151,48 +152,55 @@ func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.
 		if m.State != MachineApproved {
 			return errs.ErrForbidden
 		}
-		m.Online, m.LastSeen, m.Slots = true, e.clock(), h.FreeSlots
+		m.Online, m.LastSeen, m.Slots, m.Drivers = true, e.clock(), h.FreeSlots, h.Drivers
+		owner = m.OwnerID
 		if err := tx.Machines().Save(ctx, m); err != nil {
 			return err
 		}
-		for _, info := range h.Agents {
-			if err := e.upsertAgent(ctx, tx, machineID, info); err != nil {
+		sessions, err := tx.Sessions().OnMachine(ctx, machineID)
+		if err != nil {
+			return err
+		}
+		for _, ses := range sessions {
+			state, live := h.Sessions[string(ses.ID)]
+			if live == ses.Live && (!live || state == ses.State) {
+				continue
+			}
+			ses.Live, ses.UpdatedAt = live, e.clock()
+			if live {
+				ses.State = state
+			} else {
+				ses.State = SessionStopped
+			}
+			if err := tx.Sessions().Save(ctx, ses); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
-}
-
-func (e *Engine) upsertAgent(ctx context.Context, tx Tx, machineID ID, info protocol.AgentInfo) error {
-	if strings.TrimSpace(info.Name) == "" {
-		return fmt.Errorf("%w: agent without a name", errs.ErrInvalid)
+	if err == nil {
+		e.publish(ctx, owner, PushMachines, nil)
+		e.wake()
 	}
-	ag, err := tx.Agents().ByName(ctx, machineID, info.Name)
-	switch {
-	case errors.Is(err, errs.ErrNotFound):
-		ag = Agent{ID: NewIDAt(PrefixAgent, e.clock()), MachineID: machineID, Name: info.Name}
-	case err != nil:
-		return err
-	}
-	ag.Driver, ag.Dir, ag.Model = info.Driver, info.Dir, info.Model
-	ag.Role = RoleWorker
-	if info.Role == string(RoleSuper) {
-		ag.Role = RoleSuper
-	}
-	return tx.Agents().Save(ctx, ag)
+	return err
 }
 
 // MachineDisconnected records that the machine is offline.
 func (e *Engine) MachineDisconnected(ctx context.Context, machineID ID) error {
-	return e.store.Atomic(ctx, func(tx Tx) error {
+	var owner ID
+	err := e.store.Atomic(ctx, func(tx Tx) error {
 		m, err := tx.Machines().Get(ctx, machineID)
 		if err != nil {
 			return err
 		}
+		owner = m.OwnerID
 		m.Online, m.LastSeen = false, e.clock()
 		return tx.Machines().Save(ctx, m)
 	})
+	if err == nil {
+		e.publish(ctx, owner, PushMachines, nil)
+	}
+	return err
 }
 
 // Heartbeat records the free slots of a machine. Session states in the

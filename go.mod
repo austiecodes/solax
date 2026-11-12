@@ -4,6 +4,7 @@ go 1.27.4
 
 require (
 	github.com/gin-gonic/gin v1.12.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
 	go.yaml.in/yaml/v3 v3.0.6
 	modernc.org/sqlite v1.62.0

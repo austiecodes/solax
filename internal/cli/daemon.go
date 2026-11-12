@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,10 +16,8 @@ import (
 	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/daemon"
 	"github.com/austiecodes/solax/internal/daemon/control"
-	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/localconfig"
 	"github.com/austiecodes/solax/pkg/client"
-	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -32,13 +29,12 @@ func daemonCmd(g *globals) *cobra.Command {
 		daemonCtlCmd("stop", "Stop the daemon", func(ctx context.Context, c *control.Client, _ io.Writer) error {
 			return c.Stop(ctx)
 		}),
-		daemonCtlCmd("reload", "Reload config.yaml and send the agents to the server", func(ctx context.Context, c *control.Client, _ io.Writer) error {
+		daemonCtlCmd("reload", "Reload config.yaml and probe the agent CLIs again", func(ctx context.Context, c *control.Client, _ io.Writer) error {
 			return c.Reload(ctx)
 		}),
 		daemonStatusCmd(g),
 		daemonLogsCmd(),
 		stub("restart", "Stop and start the daemon"),
-		daemonAgentCmd(g),
 	)
 	return cmd
 }
@@ -167,7 +163,10 @@ func daemonStatusCmd(g *globals) *cobra.Command {
 			return g.print(cmd.OutOrStdout(), st, func(w io.Writer) {
 				fmt.Fprintf(w, "pid %d, version %s\n", st.PID, st.Version)
 				fmt.Fprintf(w, "machine %s, backend %s, connected=%t\n", st.Machine, st.Backend, st.Connected)
-				fmt.Fprintf(w, "agents %v, free slots %d, sessions %d\n", st.Agents, st.FreeSlots, len(st.Sessions))
+				fmt.Fprintf(w, "free slots %d, sessions %d\n", st.FreeSlots, len(st.Sessions))
+				for id, state := range st.Sessions {
+					fmt.Fprintf(w, "  %s  %s\n", id, state)
+				}
 			})
 		},
 	}
@@ -213,117 +212,6 @@ func ctlClient() (*control.Client, error) {
 }
 
 // Local agent definitions.
-
-func daemonAgentCmd(g *globals) *cobra.Command {
-	cmd := &cobra.Command{Use: "agent", Short: "Agents that this machine defines (config.yaml)"}
-	cmd.AddCommand(daemonAgentAddCmd(), daemonAgentRemoveCmd(), daemonAgentListCmd(g))
-	return cmd
-}
-
-func daemonAgentAddCmd() *cobra.Command {
-	var a localconfig.Agent
-	var driver string
-	cmd := &cobra.Command{
-		Use:     "add <name>",
-		Short:   "Add or replace a local agent, then reload the daemon",
-		Example: "  solax daemon agent add backend --driver claude --dir ~/codes/api --tool Read --tool Edit --tool Bash",
-		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			a.Name, a.Driver = args[0], ir.Kind(driver)
-			dir, err := filepath.Abs(expandHome(a.Dir))
-			if err != nil {
-				return err
-			}
-			a.Dir = dir
-			return editAgents(cmd, func(cfg *localconfig.Config) error {
-				if i := cfg.AgentByName(a.Name); i >= 0 {
-					cfg.Agents[i] = a
-				} else {
-					cfg.Agents = append(cfg.Agents, a)
-				}
-				return nil
-			})
-		},
-	}
-	f := cmd.Flags()
-	f.StringVar(&driver, "driver", "", "pi | codex | claude")
-	f.StringVar(&a.Dir, "dir", "", "work directory")
-	f.StringVar(&a.Model, "model", "", "model")
-	f.StringArrayVar(&a.Tools, "tool", nil, "allowed native tool (repeat)")
-	f.StringArrayVar(&a.Extensions, "extension", nil, "pi extension path (repeat)")
-	f.StringVar(&a.Role, "role", "", `"" or "super"`)
-	_ = cmd.MarkFlagRequired("driver")
-	_ = cmd.MarkFlagRequired("dir")
-	return cmd
-}
-
-func daemonAgentRemoveCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "remove <name>",
-		Short: "Remove a local agent, then reload the daemon",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return editAgents(cmd, func(cfg *localconfig.Config) error {
-				i := cfg.AgentByName(args[0])
-				if i < 0 {
-					return fmt.Errorf("no local agent %q", args[0])
-				}
-				cfg.Agents = append(cfg.Agents[:i], cfg.Agents[i+1:]...)
-				return nil
-			})
-		},
-	}
-}
-
-func daemonAgentListCmd(g *globals) *cobra.Command {
-	return &cobra.Command{
-		Use:   "list",
-		Short: "List local agents",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			p, err := paths()
-			if err != nil {
-				return err
-			}
-			cfg, err := p.Load()
-			if err != nil {
-				return err
-			}
-			return g.print(cmd.OutOrStdout(), cfg.Agents, func(w io.Writer) {
-				for _, a := range cfg.Agents {
-					fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", a.Name, a.Driver, a.Dir, a.Role)
-				}
-			})
-		},
-	}
-}
-
-// editAgents changes config.yaml, validates it, saves it and reloads a
-// running daemon. A daemon that does not run (errs.ErrUnavailable) is not
-// an error.
-func editAgents(cmd *cobra.Command, fn func(*localconfig.Config) error) error {
-	p, err := paths()
-	if err != nil {
-		return err
-	}
-	cfg, err := p.Load()
-	if err != nil {
-		return err
-	}
-	if err := fn(&cfg); err != nil {
-		return err
-	}
-	if err := cfg.ValidateAgents(); err != nil {
-		return err
-	}
-	if err := p.Save(cfg); err != nil {
-		return err
-	}
-	err = control.NewClient(p.Socket()).Reload(cmd.Context())
-	if err != nil && !errors.Is(err, errs.ErrUnavailable) {
-		fmt.Fprintf(cmd.ErrOrStderr(), "saved; the daemon did not reload: %v\n", err)
-	}
-	return nil
-}
 
 func expandHome(p string) string {
 	if len(p) > 1 && p[:2] == "~/" {

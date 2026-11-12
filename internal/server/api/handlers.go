@@ -8,6 +8,7 @@ import (
 
 	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -49,16 +50,7 @@ func reply(c *gin.Context, code int, v any, err error) {
 func (h *Handlers) listMachines(c *gin.Context) {
 	a := actor(c)
 	ms, err := h.q.Machines(c.Request.Context(), a)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	agents, err := h.q.Agents(c.Request.Context(), a)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	reply(c, http.StatusOK, mapAll(ms, func(m core.Machine) protocol.Machine { return machineDTO(m, agents) }), nil)
+	reply(c, http.StatusOK, mapAll(ms, machineDTO), err)
 }
 
 func (h *Handlers) enrollMachine(c *gin.Context) {
@@ -85,7 +77,7 @@ func (h *Handlers) approveMachine(c *gin.Context) {
 		return
 	}
 	m, err := h.cmd.ApproveMachine(c.Request.Context(), actor(c), r.Code)
-	reply(c, http.StatusOK, machineDTO(m, nil), err)
+	reply(c, http.StatusOK, machineDTO(m), err)
 }
 
 func (h *Handlers) revokeMachine(c *gin.Context) {
@@ -95,6 +87,129 @@ func (h *Handlers) revokeMachine(c *gin.Context) {
 func (h *Handlers) listAgents(c *gin.Context) {
 	as, err := h.q.Agents(c.Request.Context(), actor(c))
 	reply(c, http.StatusOK, mapAll(as, agentDTO), err)
+}
+
+func (h *Handlers) createAgent(c *gin.Context) {
+	var r protocol.CreateAgentRequest
+	if !bind(c, &r) {
+		return
+	}
+	ag, err := h.cmd.CreateAgent(c.Request.Context(), actor(c), core.AgentSpec{
+		Machine: r.Machine, Name: r.Name, Description: r.Description, Driver: r.Driver,
+		Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
+	})
+	h.replyAgent(c, http.StatusCreated, ag, err)
+}
+
+func (h *Handlers) updateAgent(c *gin.Context) {
+	var r protocol.UpdateAgentRequest
+	if !bind(c, &r) {
+		return
+	}
+	ag, err := h.cmd.UpdateAgent(c.Request.Context(), actor(c), c.Param("agent"), core.AgentPatch{
+		Description: r.Description, Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
+	})
+	h.replyAgent(c, http.StatusOK, ag, err)
+}
+
+// replyAgent answers with the agent as the list shows it, with its machine.
+func (h *Handlers) replyAgent(c *gin.Context, code int, ag core.Agent, err error) {
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	views, err := h.q.Agents(c.Request.Context(), actor(c))
+	for _, v := range views {
+		if v.ID == ag.ID {
+			reply(c, code, agentDTO(v), err)
+			return
+		}
+	}
+	reply(c, code, agentDTO(core.AgentView{Agent: ag}), err)
+}
+
+func (h *Handlers) deleteAgent(c *gin.Context) {
+	reply(c, http.StatusNoContent, nil, h.cmd.DeleteAgent(c.Request.Context(), actor(c), c.Param("agent")))
+}
+
+// Jobs.
+
+func (h *Handlers) dispatch(c *gin.Context) {
+	var r protocol.DispatchRequest
+	if !bind(c, &r) {
+		return
+	}
+	j, err := h.cmd.Dispatch(c.Request.Context(), actor(c), r.Agent, r.Prompt)
+	h.replyJob(c, http.StatusAccepted, j, err)
+}
+
+func (h *Handlers) listJobs(c *gin.Context) {
+	var q struct {
+		Limit int `form:"limit"`
+	}
+	if !bindQuery(c, &q) {
+		return
+	}
+	a := actor(c)
+	js, err := h.q.Jobs(c.Request.Context(), a, q.Limit)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	names := h.agentNames(c)
+	reply(c, http.StatusOK, mapAll(js, func(j core.Job) protocol.Job { return core.JobDTO(j, names[j.AgentID]) }), nil)
+}
+
+func (h *Handlers) getJob(c *gin.Context) {
+	j, err := h.q.Job(c.Request.Context(), actor(c), core.ID(c.Param("job")))
+	h.replyJob(c, http.StatusOK, j, err)
+}
+
+func (h *Handlers) followUpJob(c *gin.Context) {
+	var r protocol.TextRequest
+	if !bind(c, &r) {
+		return
+	}
+	j, err := h.cmd.FollowUp(c.Request.Context(), actor(c), core.ID(c.Param("job")), r.Text)
+	h.replyJob(c, http.StatusAccepted, j, err)
+}
+
+func (h *Handlers) cancelJob(c *gin.Context) {
+	j, err := h.cmd.CancelJob(c.Request.Context(), actor(c), core.ID(c.Param("job")))
+	h.replyJob(c, http.StatusOK, j, err)
+}
+
+func (h *Handlers) sessionEvents(c *gin.Context) {
+	var q struct {
+		After int64 `form:"after"`
+		Limit int   `form:"limit"`
+	}
+	if !bindQuery(c, &q) {
+		return
+	}
+	evs, err := h.q.SessionEvents(c.Request.Context(), actor(c), core.ID(c.Param("session")), q.After, q.Limit)
+	if evs == nil {
+		evs = []ir.Event{}
+	}
+	reply(c, http.StatusOK, evs, err)
+}
+
+func (h *Handlers) replyJob(c *gin.Context, code int, j core.Job, err error) {
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	reply(c, code, core.JobDTO(j, h.agentNames(c)[j.AgentID]), nil)
+}
+
+// agentNames maps agent IDs to names, deleted agents included.
+func (h *Handlers) agentNames(c *gin.Context) map[core.ID]string {
+	out := map[core.ID]string{}
+	views, _ := h.q.Agents(c.Request.Context(), actor(c))
+	for _, v := range views {
+		out[v.ID] = v.Name
+	}
+	return out
 }
 
 // Workspaces and members.

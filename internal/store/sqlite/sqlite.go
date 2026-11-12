@@ -144,16 +144,19 @@ type txn struct {
 	enqueued bool
 }
 
-func (t *txn) Owners() core.OwnerRepo         { return ownerRepo{t} }
-func (t *txn) Machines() core.MachineRepo     { return machineRepo{t} }
-func (t *txn) Agents() core.AgentRepo         { return agentRepo{t} }
-func (t *txn) Workspaces() core.WorkspaceRepo { return workspaceRepo{t} }
-func (t *txn) Tasks() core.TaskRepo           { return taskRepo{t} }
-func (t *txn) Messages() core.MessageRepo     { return messageRepo{t} }
-func (t *txn) TaskEvents() core.TaskEventRepo { return eventRepo{t} }
-func (t *txn) Sessions() core.SessionRepo     { return sessionRepo{t} }
-func (t *txn) Cursors() core.CursorRepo       { return cursorRepo{t} }
-func (t *txn) Effects() core.EffectRepo       { return effectRepo{t} }
+func (t *txn) Owners() core.OwnerRepo               { return ownerRepo{t} }
+func (t *txn) Machines() core.MachineRepo           { return machineRepo{t} }
+func (t *txn) Agents() core.AgentRepo               { return agentRepo{t} }
+func (t *txn) Workspaces() core.WorkspaceRepo       { return workspaceRepo{t} }
+func (t *txn) Tasks() core.TaskRepo                 { return taskRepo{t} }
+func (t *txn) Messages() core.MessageRepo           { return messageRepo{t} }
+func (t *txn) TaskEvents() core.TaskEventRepo       { return eventRepo{t} }
+func (t *txn) Sessions() core.SessionRepo           { return sessionRepo{t} }
+func (t *txn) Cursors() core.CursorRepo             { return cursorRepo{t} }
+func (t *txn) Effects() core.EffectRepo             { return effectRepo{t} }
+func (t *txn) Jobs() core.JobRepo                   { return jobRepo{t} }
+func (t *txn) Inputs() core.InputRepo               { return inputRepo{t} }
+func (t *txn) SessionEvents() core.SessionEventRepo { return sessionEventRepo{t} }
 
 func (t *txn) exec(ctx context.Context, q string, args ...any) (sql.Result, error) {
 	res, err := t.q.ExecContext(ctx, q, args...)

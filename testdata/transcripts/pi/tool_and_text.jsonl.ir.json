@@ -1,0 +1,147 @@
+[
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "turn.started",
+    "turn": {
+      "cause": "input"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "usage.updated",
+    "usage": {
+      "input": 15990,
+      "output": 13,
+      "cache_read": 128,
+      "cost_usd": 0.019203233299999997
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.started",
+    "item": {
+      "id": "call_a55b96a4dff84eef858e1bde",
+      "kind": "tool_call",
+      "status": "in_progress",
+      "tool": {
+        "name": "bash",
+        "class": "shell",
+        "input": {
+          "command": "cat a.txt"
+        }
+      },
+      "native": "bash"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "call_a55b96a4dff84eef858e1bde",
+      "kind": "tool_output",
+      "text": "hello\n"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "call_a55b96a4dff84eef858e1bde",
+      "kind": "tool_call",
+      "status": "completed",
+      "tool": {
+        "name": "bash",
+        "class": "shell",
+        "input": {
+          "command": "cat a.txt"
+        },
+        "output": "hello\n",
+        "exit_code": 0
+      },
+      "native": "bash"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.started",
+    "item": {
+      "id": "turn-1:m2:0",
+      "kind": "agent_message",
+      "status": "in_progress",
+      "native": "text"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "turn-1:m2:0",
+      "kind": "text",
+      "text": "hello"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "turn-1:m2:0",
+      "kind": "agent_message",
+      "status": "completed",
+      "text": "hello",
+      "native": "text"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "usage.updated",
+    "usage": {
+      "input": 16063,
+      "output": 16,
+      "cache_read": 16192,
+      "cost_usd": 0.024102791719999996
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "turn.completed",
+    "turn": {
+      "status": "completed",
+      "usage": {
+        "input": 16063,
+        "output": 16,
+        "cache_read": 16192,
+        "cost_usd": 0.024102791719999996
+      }
+    }
+  }
+]

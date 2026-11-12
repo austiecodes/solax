@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/austiecodes/solax/internal/errs"
@@ -44,6 +45,14 @@ type Commands interface {
 	SendToSuper(ctx context.Context, a Actor, text string) (Message, error)
 	// SuperReply appends a Super Agent reply and pushes it to the clients.
 	SuperReply(ctx context.Context, a Actor, text string) (Message, error)
+
+	CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agent, error)
+	UpdateAgent(ctx context.Context, a Actor, ref string, p AgentPatch) (Agent, error)
+	DeleteAgent(ctx context.Context, a Actor, ref string) error
+	// Dispatch gives a job to an agent and returns at once.
+	Dispatch(ctx context.Context, a Actor, agentRef, prompt string) (Job, error)
+	FollowUp(ctx context.Context, a Actor, job ID, text string) (Job, error)
+	CancelJob(ctx context.Context, a Actor, job ID) (Job, error)
 }
 
 // Enrollment is the only unauthenticated command. A machine without a
@@ -56,7 +65,10 @@ type Enrollment interface {
 // Queries are the read operations. They never write.
 type Queries interface {
 	Machines(ctx context.Context, a Actor) ([]Machine, error)
-	Agents(ctx context.Context, a Actor) ([]Agent, error)
+	Agents(ctx context.Context, a Actor) ([]AgentView, error)
+	Jobs(ctx context.Context, a Actor, limit int) ([]Job, error)
+	Job(ctx context.Context, a Actor, id ID) (Job, error)
+	SessionEvents(ctx context.Context, a Actor, session ID, after int64, limit int) ([]ir.Event, error)
 	Workspaces(ctx context.Context, a Actor) ([]Workspace, error)
 	Workspace(ctx context.Context, a Actor, ws ID) (Workspace, []Member, error)
 	// Tasks returns the tasks of a workspace, oldest first. It includes
@@ -99,6 +111,7 @@ type Engine struct {
 	dispatch Dispatcher
 	notify   Notifier
 	tokens   AgentTokens
+	kick     func() // wakes the delivery loop; see OnWork
 	now      Clock
 }
 
@@ -188,4 +201,13 @@ func selectMode(state ir.SessionState, urgent bool) ir.InputMode {
 	default:
 		return ir.ModeFollowUp
 	}
+}
+
+// mustJSON encodes a wire value for an Envelope payload.
+func mustJSON(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return json.RawMessage(`null`)
+	}
+	return b
 }

@@ -16,27 +16,17 @@ func TestWithDefaultsExpandsHome(t *testing.T) {
 	p := Paths{Dir: t.TempDir()}
 	c := Config{
 		Machine: Machine{StateDir: "~/x"},
-		Agents: []Agent{
-			{Name: "backend", Driver: "claude", Dir: "~/codes/api", Extensions: []string{"~/.solax/ext/pi-solax", "/abs/ext"}},
-			{Name: "other", Driver: "codex", Dir: "/srv/code"},
-		},
 	}
 	got := c.withDefaults(p)
 
 	if want := filepath.Join(home, "x"); got.Machine.StateDir != want {
 		t.Errorf("StateDir = %q, want %q", got.Machine.StateDir, want)
 	}
-	if want := filepath.Join(home, "codes", "api"); got.Agents[0].Dir != want {
-		t.Errorf("Agent.Dir = %q, want %q", got.Agents[0].Dir, want)
+	if want := filepath.Join(home, "codes", "api"); ExpandHome("~/codes/api") != want {
+		t.Errorf("ExpandHome = %q, want %q", ExpandHome("~/codes/api"), want)
 	}
-	if want := filepath.Join(home, ".solax", "ext", "pi-solax"); got.Agents[0].Extensions[0] != want {
-		t.Errorf("Extension = %q, want %q", got.Agents[0].Extensions[0], want)
-	}
-	if got.Agents[0].Extensions[1] != "/abs/ext" {
-		t.Errorf("absolute extension changed: %q", got.Agents[0].Extensions[1])
-	}
-	if got.Agents[1].Dir != "/srv/code" {
-		t.Errorf("absolute Dir changed: %q", got.Agents[1].Dir)
+	if ExpandHome("/srv/code") != "/srv/code" {
+		t.Errorf("absolute path changed")
 	}
 	// Defaults that are not paths stay.
 	if got.Machine.MaxSessions != 4 {

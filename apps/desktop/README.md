@@ -1,22 +1,31 @@
 # Solax desktop client
 
-Native MyGo UI written entirely in Go using `github.com/egoist/mygo/ui`.
-Requires Go 1.27.3. No Bun, Vite, TypeScript, or webview is required.
+Native macOS app, written entirely in Go with `github.com/egoist/mygo/ui`.
+No webview, no JavaScript.
+
+Pages:
+
+- **Super Agent**: chat with the router. Shows when it works and which
+  command it runs, and the jobs that run now.
+- **Jobs**: every job with its prompt, result and live activity (tool
+  calls, messages, streamed text), the same view for Claude Code, Codex and
+  pi. Send a follow-up or cancel.
+- **Agents**: set up agents (name, machine, driver, folder, model,
+  description) and choose the Super Agent.
+- **Machines**: machines, the agent CLIs their daemons found, and pairing.
+- **Settings**: server URL and client token. The token is kept in the
+  macOS keychain (service `dev.austiecodes.solax`), the profiles in
+  `~/Library/Application Support/solax/desktop/profiles.json`.
 
 Run from this directory:
 
 ```sh
-go1.27.3 tool mygo dev
-go1.27.3 tool mygo build
-go1.27.3 test ./...
+go run .                                        # run it
+go run github.com/egoist/mygo/cmd/mygo dev      # run with hot reload
+go run github.com/egoist/mygo/cmd/mygo build    # build/darwin-arm64/Solax.app
+go test ./...
 ```
 
-`main.go` opens the native window; `native.go` implements Super chat,
-workspaces and task messages, machines and pairing, and server settings.
-Views call `services.go` directly using shared `pkg/protocol` types.
-Network and keychain operations run outside the UI thread and apply results
-through `Window.Update`. Tokens stay in the OS keychain.
-
-`stream.go` delivers Go events to native listeners. Its WebSocket transport
-and parts of `pkg/client` are still unimplemented; server operations report
-those errors in the UI. Use Refresh to reload available server data.
+`go.mod` has no `tool` directive on purpose: some Go version switchers
+cannot parse it. Use `go run github.com/egoist/mygo/cmd/mygo` instead of
+`go tool mygo`.

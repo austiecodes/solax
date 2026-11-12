@@ -21,7 +21,12 @@ type Deps struct {
 	Queries    core.Queries
 	Auth       auth.Verifier
 	Daemon     http.Handler // the hub, mounted at protocol.DaemonPath
-	Stream     http.Handler // the client stream, mounted at /v1/stream
+	Stream     Streamer     // the client stream, mounted at /v1/stream
+}
+
+// Streamer serves the client stream of one owner.
+type Streamer interface {
+	Serve(w http.ResponseWriter, r *http.Request, owner core.ID)
 }
 
 // Handlers implements the REST endpoints.
@@ -47,7 +52,9 @@ func NewRouter(d Deps) *gin.Engine {
 	r.POST("/v1/machines/enroll", RateLimit(), h.enrollMachine)
 
 	v1 := r.Group("/v1", Authenticate(d.Auth))
-	v1.GET("/stream", RequireKind(auth.KindClient), gin.WrapH(d.Stream))
+	v1.GET("/stream", RequireKind(auth.KindClient), func(c *gin.Context) {
+		d.Stream.Serve(c.Writer, c.Request, actor(c).OwnerID)
+	})
 
 	// The Super Agent lists machines to know what is available. Only a
 	// person changes them.
@@ -56,7 +63,23 @@ func NewRouter(d Deps) *gin.Engine {
 	machines.POST("", RequireKind(auth.KindClient), h.registerMachine)
 	machines.POST("/approve", RequireKind(auth.KindClient), h.approveMachine)
 	machines.DELETE("/:machine", RequireKind(auth.KindClient), h.revokeMachine)
+	// Agents are set up by a person; the Super Agent reads them to route.
 	v1.GET("/agents", h.listAgents)
+	agents := v1.Group("/agents", RequireKind(auth.KindClient))
+	agents.POST("", h.createAgent)
+	agents.PATCH("/:agent", h.updateAgent)
+	agents.DELETE("/:agent", h.deleteAgent)
+
+	// Jobs: a person or the Super Agent dispatches work to an agent. The
+	// call returns at once; the result arrives on the stream (and in the
+	// Super Agent inbox).
+	jobs := v1.Group("/jobs", RequireClientOrSuper())
+	jobs.POST("", h.dispatch)
+	jobs.GET("", h.listJobs)
+	jobs.GET("/:job", h.getJob)
+	jobs.POST("/:job/messages", h.followUpJob)
+	jobs.POST("/:job/cancel", h.cancelJob)
+	v1.GET("/sessions/:session/events", RequireClientOrSuper(), h.sessionEvents)
 
 	// Reading is open to every non-machine token; a worker agent gets only
 	// its own workspace and task (the Engine enforces the scope).

@@ -40,7 +40,7 @@ func TestPrompt(t *testing.T) {
 	}
 	for role, want := range map[protocol.SessionRole]string{
 		protocol.RoleLeader: "workspace leader",
-		protocol.RoleMember: "workspace member",
+		protocol.RoleMember: "Role: Solax agent",
 		protocol.RoleSuper:  "Super Agent",
 	} {
 		got, err := Prompt(dir, role)
@@ -56,7 +56,7 @@ func TestPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, "workspace member") {
+	if !strings.Contains(got, "Role: Solax agent") {
 		t.Errorf("unknown role did not fall back to member:\n%s", got)
 	}
 }
