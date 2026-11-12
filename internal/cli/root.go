@@ -64,8 +64,13 @@ func NewRoot() *cobra.Command {
 		}
 	}
 	add("config", setCmd(g), configCmd(g))
-	add("daemon", daemonCmd(g))
-	add("client", machineCmd(g), agentCmd(g), wsCmd(g), taskCmd(g), recallCmd(g))
+	add("daemon", daemonCmd(g), tryCmd(g))
+	add("client", chatCmd(g), agentCmd(g), jobCmd(g), watchCmd(g), machineCmd(g), recallCmd(g))
+	// Workspaces and team tasks come back with agent teams. Hidden until then.
+	for _, c := range []*cobra.Command{wsCmd(g), taskCmd(g)} {
+		c.Hidden = true
+		root.AddCommand(c)
+	}
 	return root
 }
 

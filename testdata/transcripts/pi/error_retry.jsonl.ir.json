@@ -1,0 +1,73 @@
+[
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "turn.started",
+    "turn": {
+      "cause": "input"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "notice",
+    "notice": {
+      "level": "warn",
+      "code": "retry",
+      "message": "retry 1/3: Connection error."
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "notice",
+    "notice": {
+      "level": "warn",
+      "code": "retry",
+      "message": "retry 2/3: Connection error."
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "notice",
+    "notice": {
+      "level": "warn",
+      "code": "retry",
+      "message": "retry 3/3: Connection error."
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "notice",
+    "notice": {
+      "level": "error",
+      "code": "retry_failed",
+      "message": "Connection error."
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "turn-1",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "turn.completed",
+    "turn": {
+      "status": "failed",
+      "error": {
+        "message": "Connection error."
+      }
+    }
+  }
+]

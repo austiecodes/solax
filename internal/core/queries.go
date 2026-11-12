@@ -29,21 +29,34 @@ func (e *Engine) Machines(ctx context.Context, a Actor) ([]Machine, error) {
 	return out, err
 }
 
-func (e *Engine) Agents(ctx context.Context, a Actor) ([]Agent, error) {
-	var out []Agent
+// AgentView is an agent with the state of its machine.
+type AgentView struct {
+	Agent
+	MachineName string
+	// Online is true when the machine is connected and its daemon detected
+	// a working driver for the agent.
+	Online bool
+}
+
+// Agents lists the live agents of the owner. The Super Agent uses it to
+// choose where a job goes.
+func (e *Engine) Agents(ctx context.Context, a Actor) ([]AgentView, error) {
+	var out []AgentView
 	err := e.store.Read(ctx, func(tx Tx) error {
 		machines, err := tx.Machines().List(ctx)
 		if err != nil {
 			return err
 		}
-		mine := map[ID]bool{}
+		byID := map[ID]Machine{}
 		for _, m := range machines {
-			mine[m.ID] = m.OwnerID == a.OwnerID
+			if m.OwnerID == a.OwnerID {
+				byID[m.ID] = m
+			}
 		}
 		all, err := tx.Agents().List(ctx)
 		for _, ag := range all {
-			if mine[ag.MachineID] {
-				out = append(out, ag)
+			if m, ok := byID[ag.MachineID]; ok {
+				out = append(out, AgentView{Agent: ag, MachineName: m.Name, Online: m.Online && m.HasDriver(ag.Driver)})
 			}
 		}
 		return err

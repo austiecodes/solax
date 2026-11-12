@@ -1,0 +1,233 @@
+[
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "turn.started",
+    "turn": {
+      "cause": "input"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.started",
+    "item": {
+      "id": "msg_00d118af57748c63016af600792b1887d0b0502c03de77cc9b",
+      "kind": "agent_message",
+      "status": "in_progress",
+      "native": "agentMessage"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_00d118af57748c63016af600792b1887d0b0502c03de77cc9b",
+      "kind": "text",
+      "text": "I"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_00d118af57748c63016af600792b1887d0b0502c03de77cc9b",
+      "kind": "text",
+      "text": "’ll"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_00d118af57748c63016af600792b1887d0b0502c03de77cc9b",
+      "kind": "text",
+      "text": " run"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_00d118af57748c63016af600792b1887d0b0502c03de77cc9b",
+      "kind": "text",
+      "text": " the"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_00d118af57748c63016af600792b1887d0b0502c03de77cc9b",
+      "kind": "text",
+      "text": " command"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_00d118af57748c63016af600792b1887d0b0502c03de77cc9b",
+      "kind": "text",
+      "text": ".\n"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "msg_00d118af57748c63016af600792b1887d0b0502c03de77cc9b",
+      "kind": "agent_message",
+      "status": "completed",
+      "text": "I’ll run the command.\n",
+      "native": "agentMessage"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.started",
+    "item": {
+      "id": "exec-f28c5241-af7e-4688-8c93-e441ce8c2480",
+      "kind": "tool_call",
+      "status": "in_progress",
+      "tool": {
+        "name": "commandExecution",
+        "class": "shell",
+        "input": {
+          "command": "/bin/zsh -lc 'cat a.txt'",
+          "cwd": "/tmp/work"
+        }
+      },
+      "native": "commandExecution"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "exec-f28c5241-af7e-4688-8c93-e441ce8c2480",
+      "kind": "tool_call",
+      "status": "completed",
+      "tool": {
+        "name": "commandExecution",
+        "class": "shell",
+        "input": {
+          "command": "/bin/zsh -lc 'cat a.txt'",
+          "cwd": "/tmp/work"
+        },
+        "output": "hello\n",
+        "exit_code": 0
+      },
+      "native": "commandExecution"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "usage.updated",
+    "usage": {
+      "input": 7473,
+      "output": 42,
+      "cache_read": 13312
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.started",
+    "item": {
+      "id": "msg_00d118af57748c63016af6007c89dc87d0b99c2daf1f49ad39",
+      "kind": "agent_message",
+      "status": "in_progress",
+      "native": "agentMessage"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.delta",
+    "delta": {
+      "item_id": "msg_00d118af57748c63016af6007c89dc87d0b99c2daf1f49ad39",
+      "kind": "text",
+      "text": "hello"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "msg_00d118af57748c63016af6007c89dc87d0b99c2daf1f49ad39",
+      "kind": "agent_message",
+      "status": "completed",
+      "text": "hello",
+      "native": "agentMessage"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "usage.updated",
+    "usage": {
+      "input": 7749,
+      "output": 47,
+      "cache_read": 33920
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
+    "turn_id": "01a1d0f1-c26d-7630-8771-62bc34890828",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "turn.completed",
+    "turn": {
+      "status": "completed",
+      "usage": {
+        "input": 7749,
+        "output": 47,
+        "cache_read": 33920
+      }
+    }
+  }
+]

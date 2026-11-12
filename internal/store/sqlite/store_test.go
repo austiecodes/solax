@@ -342,7 +342,7 @@ func TestSessionsAndCursors(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
 	_, _, a, _ := seed(t, s)
-	ses := core.Session{ID: "ses_1", AgentID: a.ID, TaskID: "tsk_1", State: ir.SessionIdle,
+	ses := core.Session{ID: "ses_1", AgentID: a.ID, JobID: "tsk_1", State: ir.SessionIdle,
 		Ref: &ir.SessionRef{Kind: ir.KindClaude, NativeID: "abc"}, UpdatedAt: t0}
 	atomic_(t, s, func(tx core.Tx) error {
 		return errors.Join(

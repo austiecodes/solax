@@ -10,19 +10,20 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/austiecodes/solax/internal/agent"
-	"github.com/austiecodes/solax/internal/agent/driver/claude"
-	"github.com/austiecodes/solax/internal/agent/driver/codex"
-	"github.com/austiecodes/solax/internal/agent/driver/pi"
+	"github.com/austiecodes/solax/internal/agent/driver"
 	"github.com/austiecodes/solax/internal/assets"
 	"github.com/austiecodes/solax/internal/daemon/conn"
 	"github.com/austiecodes/solax/internal/daemon/control"
 	"github.com/austiecodes/solax/internal/daemon/supervisor"
-	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/localconfig"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -40,6 +41,7 @@ type Daemon struct {
 	creds  localconfig.Credentials
 	log    *slog.Logger
 	assets string // the released embeds.FS dir: prompts, skills, extensions
+	bin    string // folder of the solax binary, put first on the PATH of sessions
 
 	// mu guards cfg, which Reload replaces while Status and hello read it.
 	mu  sync.RWMutex
@@ -54,6 +56,9 @@ type Daemon struct {
 // New builds a daemon from the local state. It needs the machine token that
 // "solax daemon start" generated. A pending machine runs, but the server
 // rejects its connection until a client approves it; conn retries.
+//
+// The daemon defines no agents: the server sends the settings of an agent
+// with each session.ensure. The daemon reports which agent CLIs it found.
 func New(paths localconfig.Paths, log *slog.Logger) (*Daemon, error) {
 	cfg, err := paths.LoadEffective()
 	if err != nil {
@@ -78,25 +83,16 @@ func New(paths localconfig.Paths, log *slog.Logger) (*Daemon, error) {
 	if err := assets.Release(assetsDir); err != nil {
 		return nil, fmt.Errorf("release assets: %w", err)
 	}
-	d := &Daemon{
-		paths: paths, cfg: cfg, creds: creds, log: log, assets: assetsDir,
-		reg: agent.NewRegistry(
-			pi.New(pi.Config{StateDir: filepath.Join(state, "pi")}),
-			codex.New(codex.Config{StateDir: filepath.Join(state, "codex")}),
-			claude.New(claude.Config{StateDir: filepath.Join(state, "claude")}),
-		),
+	bin := ""
+	if exe, err := os.Executable(); err == nil {
+		bin = filepath.Dir(exe)
 	}
-	specs, err := d.agentSpecs()
-	if err != nil {
-		return nil, err
-	}
-	d.conn = conn.New(cfg.Backend.URL, creds.MachineToken, d.hello, d.handle)
-	d.sup = supervisor.New(specs, cfg.Machine.MaxSessions, d.conn)
+	d := &Daemon{paths: paths, cfg: cfg, creds: creds, log: log, assets: assetsDir, bin: bin, reg: driver.Registry(state)}
+	d.conn = conn.New(cfg.Backend.URL, creds.MachineToken, d.hello, d.heartbeat, d.handle, log)
 	return d, nil
 }
 
-// config returns the current config. The caller must not keep the copy's
-// slices across a Reload without copying them.
+// config returns the current config.
 func (d *Daemon) config() localconfig.Config {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -107,6 +103,15 @@ func (d *Daemon) config() localconfig.Config {
 func (d *Daemon) Run(ctx context.Context) error {
 	ctx, d.stop = context.WithCancel(ctx)
 	defer d.stop()
+	d.sup = supervisor.New(ctx, supervisor.Config{
+		Registry: d.reg,
+		Prompt:   func(role protocol.SessionRole) (string, error) { return assets.Prompt(d.assets, role) },
+		Env:      d.sessionEnv,
+		Dir:      localconfig.ExpandHome,
+		MaxSlots: d.config().Machine.MaxSessions,
+		Sink:     d.conn,
+		Log:      d.log,
+	})
 
 	ctl := control.NewServer(d.paths.Socket(), d)
 	errc := make(chan error, 2)
@@ -121,23 +126,42 @@ func (d *Daemon) Run(ctx context.Context) error {
 	return errors.Join(err, d.sup.Shutdown(context.WithoutCancel(ctx)))
 }
 
+// sessionEnv is the environment of one session. The agent calls the
+// solax CLI with it: the server URL, its own agent token and its job.
+func (d *Daemon) sessionEnv(e protocol.SessionEnsure) map[string]string {
+	env := map[string]string{
+		"SOLAX_SERVER":  d.config().Backend.URL,
+		"SOLAX_TOKEN":   e.AgentToken,
+		"SOLAX_AGENT":   e.Agent,
+		"SOLAX_SESSION": e.SessionID,
+	}
+	if e.Job != "" {
+		env["SOLAX_JOB"] = e.Job
+	}
+	if d.bin != "" {
+		env["PATH"] = d.bin + string(os.PathListSeparator) + os.Getenv("PATH")
+	}
+	return env
+}
+
 // control.Daemon.
 
 func (d *Daemon) Status() control.Status {
 	cfg := d.config()
 	st := control.Status{
 		PID: os.Getpid(), Version: Version, Machine: cfg.Machine.Name, Backend: cfg.Backend.URL,
-		Connected: d.conn.Connected(), FreeSlots: d.sup.FreeSlots(),
+		Connected: d.conn.Connected(),
 	}
-	for _, a := range cfg.Agents {
-		st.Agents = append(st.Agents, a.Name)
+	if d.sup != nil {
+		st.FreeSlots, st.Sessions = d.sup.FreeSlots(), d.sup.States()
 	}
 	return st
 }
 
-// Reload reads config.yaml again, swaps the agent definitions of the
-// supervisor and sends a new hello. The backend URL cannot change under a
-// running daemon: the machine identity belongs to one server.
+// Reload reads config.yaml again and sends a new hello with fresh driver
+// probes, for example after a person installed an agent CLI. The backend
+// URL cannot change under a running daemon: the machine identity belongs
+// to one server.
 func (d *Daemon) Reload(ctx context.Context) error {
 	cfg, err := d.paths.LoadEffective()
 	if err != nil {
@@ -146,26 +170,14 @@ func (d *Daemon) Reload(ctx context.Context) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
-	prev := d.config()
-	if prev.Backend.URL != cfg.Backend.URL {
+	if d.config().Backend.URL != cfg.Backend.URL {
 		return errors.New(`config: backend.url changed: run "solax daemon restart"`)
 	}
-
 	d.mu.Lock()
-	saved := d.cfg
 	d.cfg = cfg
 	d.mu.Unlock()
-
-	specs, err := d.agentSpecs()
-	if err != nil {
-		d.mu.Lock()
-		d.cfg = saved
-		d.mu.Unlock()
-		return err
-	}
-	// UpdateSpecs closes the sessions of removed agents.
-	if err := d.sup.UpdateSpecs(ctx, specs, cfg.Machine.MaxSessions); err != nil {
-		return err
+	if d.sup != nil {
+		d.sup.SetMaxSlots(cfg.Machine.MaxSessions)
 	}
 	return d.conn.Send(ctx, protocol.Envelope{Type: protocol.TypeHello, Payload: mustJSON(d.hello(ctx))})
 }
@@ -177,9 +189,27 @@ func (d *Daemon) Stop() {
 	}
 }
 
-// Logs copies the daemon log to w.
+// Logs copies the daemon log to w. With follow, it keeps copying new
+// lines until ctx ends.
 func (d *Daemon) Logs(ctx context.Context, w io.Writer, follow bool) error {
-	return errs.ErrNotImplemented
+	f, err := os.Open(d.paths.Log())
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	for {
+		if _, err := io.Copy(w, f); err != nil {
+			return err
+		}
+		if !follow {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 }
 
 var _ control.Daemon = (*Daemon)(nil)
@@ -188,43 +218,13 @@ func (d *Daemon) handle(ctx context.Context, env protocol.Envelope) protocol.Ack
 	return d.sup.Handle(ctx, env)
 }
 
-func (d *Daemon) agentSpecs() ([]supervisor.AgentSpec, error) {
-	cfg := d.config()
-	specs := make([]supervisor.AgentSpec, 0, len(cfg.Agents))
-	for _, a := range cfg.Agents {
-		drv, err := d.reg.Get(a.Driver)
-		if err != nil {
-			return nil, err
-		}
-		exts := make([]string, len(a.Extensions))
-		for i, e := range a.Extensions {
-			exts[i] = assets.Extension(d.assets, e)
-		}
-		specs = append(specs, supervisor.AgentSpec{
-			Name:   a.Name,
-			Driver: drv,
-			Prompt: func(role protocol.SessionRole) (string, error) {
-				return assets.Prompt(d.assets, role)
-			},
-			Template: agent.SessionSpec{
-				Dir:        a.Dir,
-				Model:      a.Model,
-				Tools:      agent.ToolPolicy{Allow: a.Tools},
-				Extensions: exts,
-				Options:    a.Options,
-			},
-		})
-	}
-	return specs, nil
-}
-
 // hello builds the Hello record for each connect. Each driver probe gets
 // its own timeout, so one hung CLI cannot stall the handshake.
 func (d *Daemon) hello(ctx context.Context) protocol.Hello {
 	cfg := d.config()
-	h := protocol.Hello{
-		MachineID: d.creds.MachineID, MachineName: cfg.Machine.Name,
-		DaemonVersion: Version, FreeSlots: d.sup.FreeSlots(),
+	h := protocol.Hello{MachineID: d.creds.MachineID, MachineName: cfg.Machine.Name, DaemonVersion: Version}
+	if d.sup != nil {
+		h.FreeSlots, h.Sessions = d.sup.FreeSlots(), d.sup.States()
 	}
 	for _, drv := range d.reg.All() {
 		pctx, cancel := context.WithTimeout(ctx, probeTimeout)
@@ -233,14 +233,17 @@ func (d *Daemon) hello(ctx context.Context) protocol.Hello {
 		dp := protocol.DriverProbe{Kind: drv.Kind(), Version: p.Version, OK: p.OK && err == nil, Problem: p.Problem, Caps: p.Caps}
 		if err != nil {
 			dp.OK, dp.Problem = false, err.Error()
-			d.log.Warn("driver probe failed", "driver", drv.Kind(), "err", err)
+		}
+		if !dp.OK {
+			d.log.Info("agent CLI not available", "driver", drv.Kind(), "problem", dp.Problem)
 		}
 		h.Drivers = append(h.Drivers, dp)
 	}
-	for _, a := range cfg.Agents {
-		h.Agents = append(h.Agents, protocol.AgentInfo{Name: a.Name, Driver: a.Driver, Role: a.Role, Dir: a.Dir, Model: a.Model})
-	}
 	return h
+}
+
+func (d *Daemon) heartbeat() protocol.Heartbeat {
+	return protocol.Heartbeat{FreeSlots: d.sup.FreeSlots(), Sessions: d.sup.States()}
 }
 
 // mustJSON encodes a wire value for an Envelope payload.
@@ -253,7 +256,32 @@ func mustJSON(v any) json.RawMessage {
 }
 
 // Start runs "solax daemon run" as a detached background process. It
-// writes the PID file and sends the output to the daemon log.
+// writes the PID file and sends the output to the daemon log. It fails when
+// a daemon of this home already runs.
 func Start(paths localconfig.Paths) (pid int, err error) {
-	return 0, errs.ErrNotImplemented
+	if b, err := os.ReadFile(paths.PID()); err == nil {
+		if old, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && syscall.Kill(old, 0) == nil {
+			return 0, fmt.Errorf("daemon already runs (pid %d)", old)
+		}
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return 0, err
+	}
+	logf, err := os.OpenFile(paths.Log(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return 0, err
+	}
+	defer logf.Close()
+	cmd := exec.Command(exe, "daemon", "run")
+	cmd.Stdout, cmd.Stderr = logf, logf
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if err := cmd.Start(); err != nil {
+		return 0, err
+	}
+	pid = cmd.Process.Pid
+	if err := os.WriteFile(paths.PID(), []byte(strconv.Itoa(pid)), 0o600); err != nil {
+		return pid, err
+	}
+	return pid, cmd.Process.Release()
 }

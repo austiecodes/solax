@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/austiecodes/solax/pkg/ir"
+	"github.com/austiecodes/solax/pkg/protocol"
 )
 
 // Owner is the person who owns an installation. v1 has one owner; the
@@ -29,6 +30,18 @@ type Machine struct {
 	LastSeen  time.Time
 	Online    bool
 	Slots     int // free session slots from the last heartbeat
+	// Drivers are the coding agent CLIs that the daemon detected.
+	Drivers []protocol.DriverProbe
+}
+
+// HasDriver reports whether the daemon detected a working driver of kind k.
+func (m Machine) HasDriver(k ir.Kind) bool {
+	for _, d := range m.Drivers {
+		if d.Kind == k && d.OK {
+			return true
+		}
+	}
+	return false
 }
 
 // MachineState is the approval state of a machine.
@@ -43,16 +56,22 @@ const (
 // PairTTL is how long a pairing code is valid.
 const PairTTL = 24 * time.Hour
 
-// Agent references an agent that the local config of a machine defines. The server does
-// not define agents.
+// Agent is a coding agent that a person set up on one machine. The server
+// defines it; the daemon of the machine runs its sessions. The name is
+// unique: the Super Agent routes jobs by name, with the description as the
+// hint for what the agent is good at.
 type Agent struct {
-	ID        ID
-	MachineID ID
-	Name      string
-	Driver    ir.Kind
-	Role      AgentRole
-	Dir       string
-	Model     string
+	ID          ID
+	MachineID   ID
+	Name        string
+	Description string
+	Driver      ir.Kind
+	Role        AgentRole
+	Dir         string
+	Model       string
+	Options     map[string]any // driver-specific, for example pi "thinking"
+	Deleted     bool
+	CreatedAt   time.Time
 }
 
 // AgentRole is the system role of an agent.
@@ -228,10 +247,60 @@ type Message struct {
 type Session struct {
 	ID        ID
 	AgentID   ID
-	TaskID    ID // empty for the Super Agent session
+	JobID     ID // the job of a worker session; empty for the Super Agent session
 	State     ir.SessionState
 	Ref       *ir.SessionRef
+	Live      bool  // the daemon reports the process as running
+	LastSeq   int64 // last stored IR event
 	UpdatedAt time.Time
+}
+
+// SessionStopped is the state of a session that has no process and never
+// had one, or whose process ended. An input wakes it again.
+const SessionStopped ir.SessionState = "stopped"
+
+// JobState is the state of a job.
+type JobState string
+
+const (
+	JobQueued    JobState = "queued"  // waits for its session to take the prompt
+	JobRunning   JobState = "running" // the agent works on it
+	JobDone      JobState = "done"    // the last turn completed; Result holds the answer
+	JobFailed    JobState = "failed"
+	JobCancelled JobState = "cancelled"
+)
+
+// Terminal reports whether no more work happens without a new input.
+func (s JobState) Terminal() bool { return s == JobDone || s == JobFailed || s == JobCancelled }
+
+// Job is one piece of work for one agent. It runs in its own session. The
+// caller gets the job ID at once and does not wait: when the turn of the
+// agent completes, the job is done and the result goes back to whoever
+// asked (the Super Agent inbox, or the person).
+type Job struct {
+	ID          ID
+	OwnerID     ID
+	AgentID     ID
+	SessionID   ID
+	RequestedBy AuthorKind // human or super
+	Title       string
+	Prompt      string
+	State       JobState
+	Result      string // the last agent message of the last turn
+	Error       string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// Input is one entry in the inbox of a session. The delivery loop sends
+// pending inputs in order. The ID is the ir.Input ref, so a redelivery
+// after a lost ack is dropped by the daemon.
+type Input struct {
+	ID        ID
+	SessionID ID
+	Text      string
+	Sent      bool
+	CreatedAt time.Time
 }
 
 // Cursor tracks delivery of one task stream to one session.

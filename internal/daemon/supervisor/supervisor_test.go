@@ -2,65 +2,146 @@ package supervisor
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/austiecodes/solax/internal/agent"
+	"github.com/austiecodes/solax/internal/agent/agenttest"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// fakeSession records Close calls and never emits events.
-type fakeSession struct{ closed bool }
-
-func (s *fakeSession) Ref() ir.SessionRef { return ir.SessionRef{} }
-func (s *fakeSession) Caps() ir.Caps      { return ir.Caps{} }
-func (s *fakeSession) Send(context.Context, ir.Input) (agent.Accepted, error) {
-	return agent.Accepted{}, nil
+// sink collects the records for the server.
+type sink struct {
+	mu  sync.Mutex
+	evs []ir.Event
 }
-func (s *fakeSession) Resolve(context.Context, string, ir.Decision) error { return nil }
-func (s *fakeSession) Events() <-chan ir.Event                            { return nil }
-func (s *fakeSession) Close(context.Context) error                        { s.closed = true; return nil }
 
-type fakeSink struct{}
+func (s *sink) Send(_ context.Context, env protocol.Envelope) error {
+	if env.Type != protocol.TypeSessionEvent {
+		return nil
+	}
+	var se protocol.SessionEvent
+	_ = json.Unmarshal(env.Payload, &se)
+	s.mu.Lock()
+	s.evs = append(s.evs, se.Event)
+	s.mu.Unlock()
+	return nil
+}
 
-func (fakeSink) Send(context.Context, protocol.Envelope) error { return nil }
+func (s *sink) messages() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []string
+	for _, e := range s.evs {
+		if e.Type == ir.ItemCompleted && e.Item.Kind == ir.ItemAgentMessage {
+			out = append(out, e.Item.Text)
+		}
+	}
+	return out
+}
 
-// UpdateSpecs keeps the sessions of surviving agents and closes the
-// sessions of removed agents, without holding the lock while closing.
-func TestUpdateSpecs(t *testing.T) {
-	s := New([]AgentSpec{{Name: "a"}, {Name: "b"}}, 2, nil)
+func cmd(typ protocol.MessageType, v any) protocol.Envelope {
+	b, _ := json.Marshal(v)
+	return protocol.Envelope{Type: typ, Payload: b}
+}
 
-	keep, drop := &fakeSession{}, &fakeSession{}
-	s.sessions["ses_1"] = &running{agentName: "a", sess: keep}
-	s.sessions["ses_2"] = &running{agentName: "b", sess: drop}
+func wait(t *testing.T, ok func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); !ok(); time.Sleep(10 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("timeout")
+		}
+	}
+}
 
-	if err := s.UpdateSpecs(context.Background(), []AgentSpec{{Name: "a"}}, 1); err != nil {
+// Input to an idle session is a prompt. Input to a busy session of a
+// driver without native follow_up waits in the queue and goes out as one
+// prompt when the turn ends. A redelivered ref is dropped.
+func TestDeliverModes(t *testing.T) {
+	fake := &agenttest.FakeDriver{KindV: ir.KindClaude, TurnDelay: 100 * time.Millisecond,
+		Reply: func(_ agent.SessionSpec, text string) string { return "re: " + text }}
+	sk := &sink{}
+	ctx := context.Background()
+	s := New(ctx, Config{Registry: agent.NewRegistry(fake), MaxSlots: 1, Sink: sk})
+
+	ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Driver: ir.KindClaude, Dir: "/x"}
+	if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
+		t.Fatal(ack.Error)
+	}
+	// Ensure is idempotent and does not take a second slot.
+	if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
+		t.Fatal(ack.Error)
+	}
+	wait(t, func() bool { return s.States()["ses_1"] == ir.SessionIdle })
+
+	deliver := func(ref, text string) protocol.Ack {
+		return s.Handle(ctx, cmd(protocol.TypeSessionDeliver, protocol.SessionDeliver{
+			SessionID: "ses_1", Input: ir.Input{Mode: ir.ModeFollowUp, Text: text, Ref: ref}}))
+	}
+	if ack := deliver("in_1", "one"); !ack.OK {
+		t.Fatal(ack.Error)
+	}
+	// Busy now: these two wait and go out together.
+	for _, in := range [][2]string{{"in_2", "two"}, {"in_3", "three"}, {"in_2", "two"}} {
+		if ack := deliver(in[0], in[1]); !ack.OK {
+			t.Fatal(ack.Error)
+		}
+	}
+	wait(t, func() bool { return len(sk.messages()) == 2 })
+	got := sk.messages()
+	if got[0] != "re: one" || !strings.Contains(got[1], "two") || !strings.Contains(got[1], "three") || strings.Count(got[1], "two") != 1 {
+		t.Fatalf("agent messages = %q", got)
+	}
+	// A redelivery of a sent batch is dropped.
+	if ack := deliver("in_1", "one"); !ack.OK {
+		t.Fatal(ack.Error)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if n := len(sk.messages()); n != 2 {
+		t.Fatalf("redelivery ran another turn: %d messages", n)
+	}
+
+	// A deliver for a session that does not run asks the server to start it.
+	ack := s.Handle(ctx, cmd(protocol.TypeSessionDeliver, protocol.SessionDeliver{SessionID: "ses_9"}))
+	if ack.OK || !strings.Contains(ack.Error, ErrUnknownSession.Error()) {
+		t.Fatalf("unknown session ack = %+v", ack)
+	}
+	if err := s.Shutdown(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, ok := s.sessions["ses_1"]; !ok {
-		t.Fatal("the session of a surviving agent was removed")
-	}
-	if _, ok := s.sessions["ses_2"]; ok {
-		t.Fatal("the session of a removed agent survived")
-	}
-	if !drop.closed {
-		t.Fatal("the session of a removed agent was not closed")
-	}
-	if keep.closed {
-		t.Fatal("the session of a surviving agent was closed")
-	}
-	if got := s.FreeSlots(); got != 0 {
-		t.Fatalf("FreeSlots = %d, want 0 (1 session, 1 slot)", got)
-	}
 }
 
-func TestFreeSlots(t *testing.T) {
-	s := New(nil, 3, nil)
-	if got := s.FreeSlots(); got != 3 {
-		t.Fatalf("FreeSlots = %d, want 3", got)
+// When all slots are full, a new session evicts the idle worker session
+// that waited longest. The Super Agent session and busy sessions stay.
+func TestEvictIdle(t *testing.T) {
+	fake := &agenttest.FakeDriver{KindV: ir.KindClaude, TurnDelay: time.Second}
+	ctx := context.Background()
+	s := New(ctx, Config{Registry: agent.NewRegistry(fake), MaxSlots: 2, Sink: &sink{}})
+	ensure := func(id string, role protocol.SessionRole) protocol.Ack {
+		return s.Handle(ctx, cmd(protocol.TypeSessionEnsure, protocol.SessionEnsure{SessionID: id, Role: role, Driver: ir.KindClaude}))
 	}
-	s.sessions["x"] = &running{}
-	if got := s.FreeSlots(); got != 2 {
-		t.Fatalf("FreeSlots = %d, want 2", got)
+	if !ensure("super", protocol.RoleSuper).OK || !ensure("w1", protocol.RoleMember).OK {
+		t.Fatal("start failed")
+	}
+	wait(t, func() bool { return s.States()["w1"] == ir.SessionIdle && s.States()["super"] == ir.SessionIdle })
+	if ack := ensure("w2", protocol.RoleMember); !ack.OK {
+		t.Fatalf("w2: %s", ack.Error)
+	}
+	st := s.States()
+	if _, ok := st["w1"]; ok {
+		t.Fatalf("idle worker w1 was not evicted: %v", st)
+	}
+	if _, ok := st["super"]; !ok {
+		t.Fatal("the Super Agent session was evicted")
+	}
+	// w2 is busy and super is protected: no slot for w3.
+	_ = s.Handle(ctx, cmd(protocol.TypeSessionDeliver, protocol.SessionDeliver{SessionID: "w2", Input: ir.Input{Mode: ir.ModeFollowUp, Text: "x"}}))
+	if ack := ensure("w3", protocol.RoleMember); ack.OK {
+		t.Fatal("w3 started although no session was idle")
 	}
 }

@@ -25,6 +25,8 @@ const (
 	PrefixMessage   Prefix = "msg"
 	PrefixSession   Prefix = "ses"
 	PrefixBatch     Prefix = "bat"
+	PrefixJob       Prefix = "job"
+	PrefixInput     Prefix = "in"
 )
 
 // idTimeWidth is the width of the base-36 timestamp in an ID. It is fixed

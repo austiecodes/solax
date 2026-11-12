@@ -7,15 +7,13 @@ import (
 
 // Mapping from core values to wire DTOs. Handlers never expose core types.
 
-func machineDTO(m core.Machine, agents []core.Agent) protocol.Machine {
-	out := protocol.Machine{ID: string(m.ID), Name: m.Name, State: protocol.MachineState(m.State),
-		Online: m.Online, LastSeen: m.LastSeen, Agents: []protocol.AgentInfo{}}
-	for _, a := range agents {
-		if a.MachineID == m.ID {
-			out.Agents = append(out.Agents, protocol.AgentInfo{Name: a.Name, Driver: a.Driver, Role: string(a.Role), Dir: a.Dir, Model: a.Model})
-		}
+func machineDTO(m core.Machine) protocol.Machine {
+	drivers := m.Drivers
+	if drivers == nil {
+		drivers = []protocol.DriverProbe{}
 	}
-	return out
+	return protocol.Machine{ID: string(m.ID), Name: m.Name, State: protocol.MachineState(m.State),
+		Online: m.Online, LastSeen: m.LastSeen, Drivers: drivers}
 }
 
 func enrolledDTO(m core.Machine) protocol.MachineEnrolled {
@@ -23,8 +21,11 @@ func enrolledDTO(m core.Machine) protocol.MachineEnrolled {
 		PairCode: m.PairCode, PairUntil: m.PairUntil}
 }
 
-func agentDTO(a core.Agent) protocol.Agent {
-	return protocol.Agent{ID: string(a.ID), Name: a.Name, MachineID: string(a.MachineID), Driver: a.Driver, Role: string(a.Role)}
+func agentDTO(v core.AgentView) protocol.Agent {
+	return protocol.Agent{
+		ID: string(v.ID), Name: v.Name, Description: v.Description, MachineID: string(v.MachineID), Machine: v.MachineName,
+		Online: v.Online, Driver: v.Driver, Role: string(v.Role), Dir: v.Dir, Model: v.Model, Options: v.Options,
+	}
 }
 
 func workspaceDTO(w core.Workspace, members []core.Member) protocol.Workspace {

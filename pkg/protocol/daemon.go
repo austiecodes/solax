@@ -45,8 +45,10 @@ type Hello struct {
 	MachineName   string        `json:"machine_name"`
 	DaemonVersion string        `json:"daemon_version"`
 	Drivers       []DriverProbe `json:"drivers"`
-	Agents        []AgentInfo   `json:"agents"`
 	FreeSlots     int           `json:"free_slots"`
+	// Sessions are the sessions that still run on the machine, for example
+	// after a network drop. The server does not start them again.
+	Sessions map[string]ir.SessionState `json:"sessions,omitempty"`
 }
 
 // DriverProbe is the result of a driver probe on the machine.
@@ -56,16 +58,6 @@ type DriverProbe struct {
 	OK      bool    `json:"ok"`
 	Problem string  `json:"problem,omitempty"`
 	Caps    ir.Caps `json:"caps"`
-}
-
-// AgentInfo is the part of a local agent definition that the daemon
-// reports. The definition itself stays in the local config of the machine.
-type AgentInfo struct {
-	Name   string  `json:"name"`
-	Driver ir.Kind `json:"driver"`
-	Role   string  `json:"role,omitempty"` // "" or "super"
-	Dir    string  `json:"dir"`
-	Model  string  `json:"model,omitempty"`
 }
 
 // Heartbeat is sent every 15 seconds.
@@ -86,23 +78,28 @@ const (
 	RoleSuper  SessionRole = "super"
 )
 
-// SessionEnsure asks the daemon to start or resume a session.
+// SessionEnsure asks the daemon to start or resume a session. The server
+// defines the agent, so the command carries all of its settings. It is
+// idempotent: a session that runs is not started again.
 type SessionEnsure struct {
 	SessionID  string         `json:"session_id"`
-	Agent      string         `json:"agent"`
+	Agent      string         `json:"agent"` // agent name
 	Role       SessionRole    `json:"role"`
-	Workspace  string         `json:"workspace"`
-	Task       string         `json:"task"`
+	Job        string         `json:"job,omitempty"` // empty for the Super Agent
 	AgentToken string         `json:"agent_token"`
 	Resume     *ir.SessionRef `json:"resume,omitempty"`
+	Driver     ir.Kind        `json:"driver"`
+	Dir        string         `json:"dir"`
+	Model      string         `json:"model,omitempty"`
+	Options    map[string]any `json:"options,omitempty"`
 }
 
-// SessionDeliver delivers one rendered batch to a session.
+// SessionDeliver delivers one batch of inputs to a session. Mode
+// follow_up means "as soon as possible": the daemon sends a prompt when
+// the session is idle and queues the input when it is busy.
 type SessionDeliver struct {
-	SessionID  string   `json:"session_id"`
-	Input      ir.Input `json:"input"` // Input.Ref is the batch ID
-	MessageIDs []string `json:"message_ids"`
-	LastSeq    int64    `json:"last_seq"` // workspace seq of the last message in the batch
+	SessionID string   `json:"session_id"`
+	Input     ir.Input `json:"input"` // Input.Ref is the first input ID
 }
 
 // SessionResolve answers an open request of a session.

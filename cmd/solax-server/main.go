@@ -27,7 +27,11 @@ func main() {
 	var cfg server.Config
 	root := &cobra.Command{Use: "solax-server", Short: "The Solax server", SilenceUsage: true, SilenceErrors: true}
 	root.PersistentFlags().StringVar(&cfg.DBPath, "db", "solax.db", "SQLite database path")
-	root.PersistentPreRun = func(*cobra.Command, []string) { cfg.Secret = []byte(os.Getenv("SOLAX_SECRET")) }
+	root.PersistentPreRunE = func(*cobra.Command, []string) error {
+		var err error
+		cfg.Secret, err = server.LoadSecret(os.Getenv("SOLAX_SECRET"), cfg.DBPath+".secret")
+		return err
+	}
 
 	run := &cobra.Command{
 		Use:   "run",

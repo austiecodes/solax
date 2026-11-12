@@ -1,0 +1,23 @@
+# Hot reload of solax-server for development: `air` in the repo root.
+# The server data lives in ~/.solax-dev (see the tmux session "solax").
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/solax-server ./cmd/solax-server"
+  bin = "./tmp/solax-server"
+  # full_bin runs in a shell, so $HOME expands.
+  full_bin = "./tmp/solax-server --db $HOME/.solax-dev/solax.db run --addr 127.0.0.1:8740"
+  include_ext = ["go", "sql", "md"]
+  exclude_dir = ["tmp", "apps", "docs", "reference-repo", "testdata", "node_modules", ".git"]
+  exclude_regex = ["_test\\.go$"]
+  delay = 500
+  kill_delay = "2s"
+  send_interrupt = true
+  stop_on_error = true
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true

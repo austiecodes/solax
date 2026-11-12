@@ -224,7 +224,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	if c.Token == "" {
 		return nil
 	}
-	return c.do(ctx, http.MethodGet, "/v1/workspaces", nil, nil, nil)
+	return c.do(ctx, http.MethodGet, "/v1/agents", nil, nil, nil)
 }
 
 func (c *Client) Recall(ctx context.Context, id string) (protocol.Object, error) {

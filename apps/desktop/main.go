@@ -1,62 +1,39 @@
-// Command desktop is the Solax desktop client. It is the entry point for
-// the user: the conversation with the Super Agent, the workspaces and the
-// machines.
+// Command desktop is the Solax desktop client for macOS: the conversation
+// with the Super Agent, the jobs it gives to agents with their live
+// events, and the setup of agents and machines. The UI is native Go
+// (mygo/ui), with no webview.
 package main
 
 import (
-	"context"
-	"github.com/austiecodes/solax/pkg/protocol"
-	"github.com/egoist/mygo/ui"
 	"log"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
 	"github.com/austiecodes/solax/apps/desktop/internal/profile"
 )
+
+// keychainService names the keychain items that hold the client tokens.
+const keychainService = "dev.austiecodes.solax"
 
 func main() {
 	path, err := profile.DefaultPath()
 	if err != nil {
 		log.Fatal(err)
 	}
-	profiles, err := profile.Open(path, profile.Keychain{Service: "dev.austiecodes.solax"})
+	profiles, err := profile.Open(path, profile.Keychain{Service: keychainService})
 	if err != nil {
 		log.Fatal(err)
 	}
-	a := &app{profiles: profiles, stream: &stream{}}
-
-	d := &desktop{a: a, page: "Settings", name: "default", connection: Connection{State: Disconnected}}
+	d := newDesktop(profiles)
 	mygo.App.WhenReady(func() {
-		d.win = mygo.NewWindow(mygo.WindowOptions{Title: "Solax", Width: 1200, Height: 780, MinWidth: 720, MinHeight: 480, StateKey: "main", Content: ui.View(d.view)})
-		ConnectionChanged.listen(func(v Connection) { d.win.Update(func() { d.connection = v }) })
-		MessageCreated.listen(func(v protocol.Message) {
-			d.win.Update(func() {
-				if d.page == "Workspaces" {
-					d.appendMessage(v)
-				}
-			})
+		d.win = mygo.NewWindow(mygo.WindowOptions{
+			Title: "Solax", Width: 1240, Height: 820, MinWidth: 820, MinHeight: 520,
+			StateKey: "main", Content: ui.View(d.view),
 		})
-		SuperReplied.listen(func(v protocol.Message) {
-			d.win.Update(func() {
-				if d.page == "Super" {
-					d.appendMessage(v)
-				}
-			})
-		})
-		MachineUpdated.listen(func(v protocol.Machine) { d.win.Update(func() { d.upsertMachine(v) }) })
-		d.run(func(ctx context.Context) (func(), error) {
-			ps := a.profiles.List()
-			err := a.connect()
-			return func() {
-				d.profiles = ps
-				if err != nil {
-					d.status = err.Error()
-				}
-			}, nil
-		})
+		go d.connect()
 	})
-	defer a.stream.Stop()
-
+	defer d.stop()
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}

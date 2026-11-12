@@ -102,3 +102,11 @@ func (r *Registry) Get(k ir.Kind) (Driver, error) {
 
 // All returns all drivers in registration order.
 func (r *Registry) All() []Driver { return r.order }
+
+// Option returns a string option of the spec, or def.
+func (s SessionSpec) Option(key, def string) string {
+	if v, ok := s.Options[key].(string); ok && v != "" {
+		return v
+	}
+	return def
+}

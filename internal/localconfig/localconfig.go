@@ -11,8 +11,6 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
-
-	"github.com/austiecodes/solax/pkg/ir"
 )
 
 // EnvHome overrides the local state directory.
@@ -49,7 +47,6 @@ func (p Paths) State() string       { return filepath.Join(p.Dir, "state") }
 type Config struct {
 	Backend Backend `yaml:"backend,omitempty" json:"backend"`
 	Machine Machine `yaml:"machine,omitempty" json:"machine"`
-	Agents  []Agent `yaml:"agents,omitempty" json:"agents,omitempty"`
 }
 
 // Backend is the server that this machine uses.
@@ -62,19 +59,6 @@ type Machine struct {
 	Name        string `yaml:"name,omitempty" json:"name,omitempty"`
 	MaxSessions int    `yaml:"max_sessions,omitempty" json:"max_sessions,omitempty"`
 	StateDir    string `yaml:"state_dir,omitempty" json:"state_dir,omitempty"`
-}
-
-// Agent is one local agent definition. The machine defines its agents,
-// not the server.
-type Agent struct {
-	Name       string         `yaml:"name" json:"name"`
-	Driver     ir.Kind        `yaml:"driver" json:"driver"`
-	Role       string         `yaml:"role,omitempty" json:"role,omitempty"` // "" or "super"
-	Dir        string         `yaml:"dir" json:"dir"`
-	Model      string         `yaml:"model,omitempty" json:"model,omitempty"`
-	Tools      []string       `yaml:"tools,omitempty" json:"tools,omitempty"`
-	Extensions []string       `yaml:"extensions,omitempty" json:"extensions,omitempty"` // pi only
-	Options    map[string]any `yaml:"options,omitempty" json:"options,omitempty"`       // driver-specific
 }
 
 // Credentials is credentials.yaml (mode 0600).
@@ -128,15 +112,6 @@ func (c Config) withDefaults(p Paths) Config {
 	if c.Machine.StateDir == "" {
 		c.Machine.StateDir = p.State()
 	}
-	// Agents: a hand-written config.yaml may use "~/..." for the work
-	// directory and for the extension paths. Expand both here, so every
-	// reader uses the same values (the "daemon agent add" command does too).
-	for i := range c.Agents {
-		c.Agents[i].Dir = expandHome(c.Agents[i].Dir)
-		for j, e := range c.Agents[i].Extensions {
-			c.Agents[i].Extensions[j] = expandHome(e)
-		}
-	}
 	return c
 }
 
@@ -160,47 +135,17 @@ func expandHome(p string) string {
 	return filepath.Join(home, p[2:])
 }
 
-// AgentByName returns the index of an agent, or -1.
-func (c Config) AgentByName(name string) int {
-	for i, a := range c.Agents {
-		if a.Name == name {
-			return i
-		}
-	}
-	return -1
-}
-
-// Validate checks what the daemon needs: a backend and valid agents.
+// Validate checks what the daemon needs: a backend.
 func (c Config) Validate() error {
 	if c.Backend.URL == "" {
 		return errors.New(`no backend: run "solax set backend --url URL"`)
 	}
-	return c.ValidateAgents()
-}
-
-// ValidateAgents checks the agent definitions only.
-func (c Config) ValidateAgents() error {
-	seen := map[string]bool{}
-	for _, a := range c.Agents {
-		switch {
-		case a.Name == "":
-			return errors.New("config: agent without name")
-		case seen[a.Name]:
-			return fmt.Errorf("config: duplicate agent %q", a.Name)
-		case a.Dir == "":
-			return fmt.Errorf("config: agent %q: dir is required", a.Name)
-		case a.Role == "super" && a.Driver != ir.KindPi:
-			return fmt.Errorf("config: agent %q: the Super Agent must use driver pi", a.Name)
-		}
-		switch a.Driver {
-		case ir.KindPi, ir.KindCodex, ir.KindClaude:
-		default:
-			return fmt.Errorf("config: agent %q: unknown driver %q", a.Name, a.Driver)
-		}
-		seen[a.Name] = true
-	}
 	return nil
 }
+
+// ExpandHome turns a leading "~/" into the home directory. The daemon uses
+// it for the work folder of an agent, which a person may write as "~/src".
+func ExpandHome(p string) string { return expandHome(p) }
 
 func readYAML(path string, v any) error {
 	b, err := os.ReadFile(path)

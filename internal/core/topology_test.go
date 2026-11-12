@@ -59,15 +59,30 @@ func newEnv(t *testing.T) *env {
 func hash(c byte) string { return strings.Repeat(string(c), 64) }
 
 // machine registers an approved machine with agents.
-func (e *env) machine(t *testing.T, name string, h byte, agents ...protocol.AgentInfo) core.Machine {
+// agentDef is an agent to set up on a test machine.
+type agentDef struct {
+	Name   string
+	Driver ir.Kind
+	Role   string
+}
+
+func (e *env) machine(t *testing.T, name string, h byte, agents ...agentDef) core.Machine {
 	t.Helper()
 	ctx := context.Background()
 	m, err := e.eng.RegisterMachine(ctx, e.human, name, hash(h))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.eng.MachineConnected(ctx, m.ID, protocol.Hello{MachineID: string(m.ID), Agents: agents, FreeSlots: 3}); err != nil {
+	if err := e.eng.MachineConnected(ctx, m.ID, protocol.Hello{MachineID: string(m.ID), FreeSlots: 3}); err != nil {
 		t.Fatal(err)
+	}
+	for _, a := range agents {
+		_, err := e.eng.CreateAgent(ctx, e.human, core.AgentSpec{
+			Machine: string(m.ID), Name: a.Name, Driver: a.Driver, Dir: "/src", Super: a.Role == "super",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	return m
 }
@@ -162,30 +177,43 @@ func TestEnrollBeforeInit(t *testing.T) {
 	is(t, err, errs.ErrUnavailable)
 }
 
-func TestMachineConnectedUpsertsAgents(t *testing.T) {
+// A hello stores the detected drivers. An agent is online only when its
+// machine is connected and has a working CLI for its driver. Agents stay
+// across hellos: the server defines them, not the daemon.
+func TestMachineConnectedStoresDrivers(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	m := e.machine(t, "mac", 'a',
-		protocol.AgentInfo{Name: "backend", Driver: ir.KindClaude, Dir: "/api"},
-		protocol.AgentInfo{Name: "super", Driver: ir.KindPi, Role: "super"})
+		agentDef{Name: "backend", Driver: ir.KindClaude},
+		agentDef{Name: "super", Driver: ir.KindPi, Role: "super"})
+	err := e.eng.MachineConnected(ctx, m.ID, protocol.Hello{FreeSlots: 3, Drivers: []protocol.DriverProbe{
+		{Kind: ir.KindClaude, OK: true, Version: "2.1"}, {Kind: ir.KindPi, OK: false, Problem: "not found"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	agents, err := e.eng.Agents(ctx, e.human)
 	if err != nil || len(agents) != 2 {
 		t.Fatalf("agents = %+v, %v", agents, err)
 	}
-	first := agents[0].ID
-
-	// A second hello updates in place and keeps IDs.
-	err = e.eng.MachineConnected(ctx, m.ID, protocol.Hello{FreeSlots: 3, Agents: []protocol.AgentInfo{
-		{Name: "backend", Driver: ir.KindCodex, Dir: "/api2"}}})
+	online := map[string]bool{}
+	for _, a := range agents {
+		online[a.Name] = a.Online
+	}
+	if !online["backend"] || online["super"] {
+		t.Fatalf("online = %v, want backend only", online)
+	}
+	// Names are unique across machines.
+	other, err := e.eng.RegisterMachine(ctx, e.human, "linux", hash('b'))
 	if err != nil {
 		t.Fatal(err)
 	}
-	agents, _ = e.eng.Agents(ctx, e.human)
-	if len(agents) != 2 || agents[0].ID != first || agents[0].Driver != ir.KindCodex || agents[0].Dir != "/api2" {
-		t.Fatalf("after second hello = %+v", agents)
-	}
+	_, err = e.eng.CreateAgent(ctx, e.human, core.AgentSpec{Machine: "linux", Name: "backend", Driver: ir.KindCodex, Dir: "/x"})
+	is(t, err, errs.ErrConflict)
 	machines, _ := e.eng.Machines(ctx, e.human)
-	if len(machines) != 1 || !machines[0].Online || machines[0].Slots != 3 {
+	if len(machines) != 2 || other.Online {
+		t.Fatalf("machines = %+v", machines)
+	}
+	if mac := machines[1]; mac.Name != "mac" || !mac.Online || mac.Slots != 3 {
 		t.Fatalf("machines = %+v", machines)
 	}
 	if err := e.eng.MachineDisconnected(ctx, m.ID); err != nil {
@@ -201,10 +229,10 @@ func TestWorkspacesAndMembers(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	e.machine(t, "mac", 'a',
-		protocol.AgentInfo{Name: "backend", Driver: ir.KindClaude},
-		protocol.AgentInfo{Name: "infra", Driver: ir.KindCodex},
-		protocol.AgentInfo{Name: "super", Driver: ir.KindPi, Role: "super"})
-	e.machine(t, "linux", 'b', protocol.AgentInfo{Name: "infra", Driver: ir.KindPi})
+		agentDef{Name: "backend", Driver: ir.KindClaude},
+		agentDef{Name: "infra", Driver: ir.KindCodex},
+		agentDef{Name: "super", Driver: ir.KindPi, Role: "super"})
+	e.machine(t, "linux", 'b', agentDef{Name: "ops", Driver: ir.KindPi})
 
 	// Worker agents cannot manage workspaces.
 	worker := core.Actor{Kind: core.AuthorAgent, ID: "agt_w", OwnerID: e.owner.ID, Workspace: "ws_x"}
@@ -223,11 +251,11 @@ func TestWorkspacesAndMembers(t *testing.T) {
 	_, err = e.eng.CreateWorkspace(ctx, e.human, "api", "")
 	is(t, err, errs.ErrConflict)
 
-	// Ambiguous, qualified, super and unknown references.
-	is(t, e.eng.AddMember(ctx, e.human, w.ID, "infra", false), errs.ErrInvalid)
+	// Super and unknown references. (Agent names are unique, so a name is
+	// never ambiguous.)
 	is(t, e.eng.AddMember(ctx, e.human, w.ID, "super", false), errs.ErrInvalid)
 	is(t, e.eng.AddMember(ctx, e.human, w.ID, "nobody", false), errs.ErrNotFound)
-	if err := e.eng.AddMember(ctx, e.human, "api", "@infra@linux", false); err != nil { // by name, with @
+	if err := e.eng.AddMember(ctx, e.human, "api", "@ops@linux", false); err != nil { // by name, with @
 		t.Fatal(err)
 	}
 
@@ -246,8 +274,8 @@ func TestWorkspacesAndMembers(t *testing.T) {
 	// The leader can only leave last.
 	is(t, e.eng.RemoveMember(ctx, e.human, w.ID, string(leader)), errs.ErrConflict)
 
-	// Promote infra@linux; backend becomes a plain member.
-	if err := e.eng.AddMember(ctx, e.human, w.ID, "infra@linux", true); err != nil {
+	// Promote ops@linux; backend becomes a plain member.
+	if err := e.eng.AddMember(ctx, e.human, w.ID, "ops@linux", true); err != nil {
 		t.Fatal(err)
 	}
 	got, members, _ = e.eng.Workspace(ctx, e.human, w.ID)
@@ -269,7 +297,7 @@ func TestWorkspacesAndMembers(t *testing.T) {
 	if err := e.eng.RemoveMember(ctx, e.human, w.ID, string(leader)); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.eng.RemoveMember(ctx, e.human, w.ID, "infra@linux"); err != nil {
+	if err := e.eng.RemoveMember(ctx, e.human, w.ID, "ops@linux"); err != nil {
 		t.Fatal(err)
 	}
 	got, members, _ = e.eng.Workspace(ctx, e.human, w.ID)
@@ -289,7 +317,7 @@ func TestWorkspacesAndMembers(t *testing.T) {
 func TestScopesAndRecall(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
-	e.machine(t, "mac", 'a', protocol.AgentInfo{Name: "backend", Driver: ir.KindClaude})
+	e.machine(t, "mac", 'a', agentDef{Name: "backend", Driver: ir.KindClaude})
 	api, err := e.eng.CreateWorkspace(ctx, e.human, "api", "backend")
 	if err != nil {
 		t.Fatal(err)

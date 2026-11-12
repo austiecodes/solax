@@ -52,7 +52,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	eng := core.NewEngine(core.Deps{Store: store, Dispatcher: nopDispatcher{}, Tokens: svc})
 	srv := httptest.NewServer(api.NewRouter(api.Deps{
 		Commands: eng, Enrollment: eng, Queries: eng, Auth: svc,
-		Daemon: http.NotFoundHandler(), Stream: http.NotFoundHandler(),
+		Daemon: http.NotFoundHandler(), Stream: noStream{},
 	}))
 	defer srv.Close()
 
@@ -100,19 +100,27 @@ func TestTopologyOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The daemon of "mac" connects and reports its agents.
-	if err := eng.MachineConnected(ctx, core.ID(reg.MachineID), protocol.Hello{Agents: []protocol.AgentInfo{
-		{Name: "backend", Driver: ir.KindClaude}, {Name: "infra", Driver: ir.KindCodex}}}); err != nil {
+	// The daemon of "mac" connects and reports its agent CLIs; a person
+	// sets up the agents.
+	if err := eng.MachineConnected(ctx, core.ID(reg.MachineID), protocol.Hello{Drivers: []protocol.DriverProbe{
+		{Kind: ir.KindClaude, OK: true}, {Kind: ir.KindCodex, OK: true}}}); err != nil {
 		t.Fatal(err)
+	}
+	for _, a := range []protocol.CreateAgentRequest{
+		{Machine: "mac", Name: "backend", Driver: ir.KindClaude, Dir: "/api", Description: "Go backend"},
+		{Machine: reg.MachineID, Name: "infra", Driver: ir.KindCodex, Dir: "/infra"},
+	} {
+		if _, err := c.CreateAgent(ctx, a); err != nil {
+			t.Fatalf("create agent %s: %v", a.Name, err)
+		}
 	}
 	machines, err := c.Machines(ctx)
 	if err != nil || len(machines) != 2 {
 		t.Fatalf("machines = %+v, %v", machines, err)
 	}
-	for _, m := range machines {
-		if m.ID == reg.MachineID && (len(m.Agents) != 2 || !m.Online) {
-			t.Fatalf("mac = %+v", m)
-		}
+	agents, err := c.Agents(ctx)
+	if err != nil || len(agents) != 2 || !agents[0].Online || agents[0].Machine != "mac" {
+		t.Fatalf("agents = %+v, %v", agents, err)
 	}
 
 	// Workspaces.
@@ -192,3 +200,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 		t.Fatalf("revoked client = %d", code)
 	}
 }
+
+type noStream struct{}
+
+func (noStream) Serve(w http.ResponseWriter, _ *http.Request, _ core.ID) { http.NotFound(w, nil) }
