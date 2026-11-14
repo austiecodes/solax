@@ -77,6 +77,7 @@ func eventBlocks(evs []ir.Event, live map[string]*liveText, busy bool) []block {
 				t.item(e.Item, took(started[e.Item.ID], e.At))
 			}
 		case ir.TurnCompleted:
+			t.endTurn(e.Turn)
 			if e.Turn != nil && e.Turn.Error != nil {
 				t.note(block{key: "turn-" + e.TurnID, text: "The turn failed: " + e.Turn.Error.Message, warn: true})
 			}
@@ -113,6 +114,24 @@ func eventBlocks(evs []ir.Event, live map[string]*liveText, busy bool) []block {
 
 // transcript collects blocks.
 type transcript struct{ blocks []block }
+
+// endTurn stops the steps that are still running when their turn ends. A
+// step can miss its completion, for example when the daemon could not
+// decode it; it must not spin for ever. After a good turn the agent went
+// on, so the step finished; else it was stopped.
+func (t *transcript) endTurn(turn *ir.Turn) {
+	status := ir.StatusInterrupted
+	if turn != nil && turn.Status == ir.TurnOK {
+		status = ir.StatusCompleted
+	}
+	for i := range t.blocks {
+		for j := range t.blocks[i].steps {
+			if s := &t.blocks[i].steps[j]; s.running() {
+				s.status = status
+			}
+		}
+	}
+}
 
 func (t *transcript) item(it *ir.Item, d time.Duration) {
 	switch it.Kind {

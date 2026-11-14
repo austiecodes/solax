@@ -72,6 +72,36 @@ func TestEventBlocks(t *testing.T) {
 	}
 }
 
+// A tool call that never got its completion stops when its turn ends: it
+// must not spin for ever. After a good turn it counts as done; after an
+// interrupted one, as stopped.
+func TestEndTurnStopsOpenSteps(t *testing.T) {
+	t0 := time.Unix(1000, 0)
+	open := func(seq uint64, id string) ir.Event {
+		return ir.Event{Seq: seq, Type: ir.ItemStarted, Item: &ir.Item{ID: id, Kind: ir.ItemToolCall, Status: ir.StatusInProgress, Tool: shell("cat x")}, At: t0}
+	}
+	end := func(seq uint64, st ir.TurnStatus) ir.Event {
+		return ir.Event{Seq: seq, Type: ir.TurnCompleted, TurnID: "turn-1", Turn: &ir.Turn{Status: st}, At: t0}
+	}
+	for _, tc := range []struct {
+		turn ir.TurnStatus
+		want ir.ItemStatus
+	}{
+		{ir.TurnOK, ir.StatusCompleted},
+		{ir.TurnInterrupted, ir.StatusInterrupted},
+		{ir.TurnFailed, ir.StatusInterrupted},
+	} {
+		bs := eventBlocks([]ir.Event{open(1, "t1"), end(2, tc.turn)}, nil, false)
+		if len(bs) != 1 || bs[0].live || bs[0].steps[0].status != tc.want {
+			t.Errorf("turn %s: blocks %+v; want one stopped step with status %s", tc.turn, bs, tc.want)
+		}
+	}
+	// Before the turn ends, the step runs.
+	if bs := eventBlocks([]ir.Event{open(1, "t1")}, nil, true); !bs[0].steps[0].running() {
+		t.Error("open turn: the step does not run")
+	}
+}
+
 // The chat takes the messages as they are and puts the steps of the
 // Super Agent above the reply each led to. Steps with no reply yet come
 // last; a turn that only dispatched joins the steps of the next reply.
