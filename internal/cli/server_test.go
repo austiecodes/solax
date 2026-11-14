@@ -74,3 +74,22 @@ func TestServerDBFlag(t *testing.T) {
 		t.Error("--db set, but the default database was created too")
 	}
 }
+
+func TestLocalURL(t *testing.T) {
+	for _, tc := range []struct{ addr, want string }{
+		{":8740", "http://127.0.0.1:8740"},
+		{"0.0.0.0:8740", "http://127.0.0.1:8740"},
+		{"[::]:8740", "http://127.0.0.1:8740"},
+		{"127.0.0.1:9000", "http://127.0.0.1:9000"},
+		{"[::1]:9000", "http://[::1]:9000"},
+		{"10.0.0.5:8740", "http://10.0.0.5:8740"},
+	} {
+		got, err := localURL(tc.addr)
+		if err != nil || got != tc.want {
+			t.Errorf("localURL(%q) = %q, %v; want %q", tc.addr, got, err, tc.want)
+		}
+	}
+	if _, err := localURL("8740"); err == nil {
+		t.Error(`localURL("8740"): want an error`)
+	}
+}

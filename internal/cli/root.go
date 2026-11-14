@@ -33,8 +33,6 @@ const (
 	EnvAgent     = "SOLAX_AGENT"
 )
 
-var errNotImplemented = errors.New("not implemented")
-
 type globals struct {
 	server string
 	token  string
@@ -69,7 +67,7 @@ func NewRoot() *cobra.Command {
 	}
 	add("config", setCmd(g), configCmd(g))
 	add("daemon", daemonCmd(g), tryCmd(g))
-	add("server", serverCmd())
+	add("server", serverCmd(g))
 	add("client", chatCmd(g), agentCmd(g), jobCmd(g), watchCmd(g), machineCmd(g), recallCmd(g))
 	// Workspaces and team tasks come back with agent teams. Hidden until then.
 	for _, c := range []*cobra.Command{wsCmd(g), taskCmd(g)} {
@@ -82,7 +80,9 @@ func NewRoot() *cobra.Command {
 // Execute runs the root command and exits on error.
 func Execute() {
 	if err := NewRoot().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "solax:", err)
+		if !errors.Is(err, errSilent) {
+			fmt.Fprintln(os.Stderr, "solax:", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -130,15 +130,6 @@ func (g *globals) print(w io.Writer, v any, text func(io.Writer)) error {
 	}
 	text(w)
 	return nil
-}
-
-// stub returns a command that has no body yet.
-func stub(use, short string) *cobra.Command {
-	return &cobra.Command{
-		Use:   use,
-		Short: short,
-		RunE:  func(cmd *cobra.Command, args []string) error { return errNotImplemented },
-	}
 }
 
 func first(vs ...string) string {

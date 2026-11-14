@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"github.com/austiecodes/solax/internal/daemon"
 	"github.com/austiecodes/solax/internal/daemon/control"
 	"github.com/austiecodes/solax/internal/localconfig"
+	"github.com/austiecodes/solax/internal/svc"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -26,15 +28,13 @@ func daemonCmd(g *globals) *cobra.Command {
 	cmd.AddCommand(
 		daemonRunCmd(),
 		daemonStartCmd(g),
-		daemonCtlCmd("stop", "Stop the daemon", func(ctx context.Context, c *control.Client, _ io.Writer) error {
-			return c.Stop(ctx)
-		}),
+		daemonStopCmd(),
+		daemonRestartCmd(g),
 		daemonCtlCmd("reload", "Reload config.yaml and probe the agent CLIs again", func(ctx context.Context, c *control.Client, _ io.Writer) error {
 			return c.Reload(ctx)
 		}),
 		daemonStatusCmd(g),
 		daemonLogsCmd(),
-		stub("restart", "Stop and start the daemon"),
 	)
 	return cmd
 }
@@ -48,6 +48,13 @@ func daemonRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Take the lock first: two daemons of one home would remove
+			// each other's control socket.
+			lock, err := svc.Acquire("daemon", p.PID())
+			if err != nil {
+				return err
+			}
+			defer lock.Release()
 			log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 			d, err := daemon.New(p, log)
 			if err != nil {
@@ -72,38 +79,92 @@ sends only its hash to the server:
   - With a client token on this machine, the machine is approved at once.
   - Without one, the machine enrolls as pending and start prints a pairing
     code. Approve it from any client: solax machine approve <code>.`,
+		RunE: func(cmd *cobra.Command, args []string) error { return startDaemon(cmd, g) },
+	}
+}
+
+// startDaemon sets up the machine on first use, then starts the daemon in
+// the background and waits until its control socket answers.
+func startDaemon(cmd *cobra.Command, g *globals) error {
+	p, err := paths()
+	if err != nil {
+		return err
+	}
+	cfg, err := p.LoadEffective()
+	if err != nil {
+		return err
+	}
+	// Resolve the server the same way the client commands do:
+	// flag, then environment, then config.yaml.
+	if s := first(g.server, os.Getenv(EnvServer)); s != "" {
+		cfg.Backend.URL = strings.TrimRight(s, "/")
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	creds, err := p.LoadCredentials()
+	if err != nil {
+		return err
+	}
+	if creds.MachineID == "" {
+		if err := setupMachine(cmd, g, p, cfg, &creds); err != nil {
+			return fmt.Errorf("set up machine: %w", err)
+		}
+	}
+	pid, err := daemonService(p).Start(cmd.Context())
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "daemon started (pid %d), log: %s\n", pid, p.Log())
+	return nil
+}
+
+// daemonService is "solax daemon run" as a background service.
+func daemonService(p localconfig.Paths) svc.Service {
+	ctl := control.NewClient(p.Socket())
+	return svc.Service{
+		Name:    "daemon",
+		PIDFile: p.PID(),
+		LogFile: p.Log(),
+		Args:    []string{"daemon", "run"},
+		Ready: func(ctx context.Context) error {
+			_, err := ctl.Status(ctx)
+			return err
+		},
+	}
+}
+
+func daemonStopCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the daemon and wait until it ends",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := paths()
 			if err != nil {
 				return err
 			}
-			cfg, err := p.LoadEffective()
-			if err != nil {
+			if err := daemonService(p).Stop(cmd.Context()); err != nil {
 				return err
 			}
-			// Resolve the server the same way the client commands do:
-			// flag, then environment, then config.yaml.
-			if s := first(g.server, os.Getenv(EnvServer)); s != "" {
-				cfg.Backend.URL = strings.TrimRight(s, "/")
-			}
-			if err := cfg.Validate(); err != nil {
-				return err
-			}
-			creds, err := p.LoadCredentials()
-			if err != nil {
-				return err
-			}
-			if creds.MachineID == "" {
-				if err := setupMachine(cmd, g, p, cfg, &creds); err != nil {
-					return fmt.Errorf("set up machine: %w", err)
-				}
-			}
-			pid, err := daemon.Start(p)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "daemon started (pid %d), log: %s\n", pid, p.Log())
+			fmt.Fprintln(cmd.OutOrStdout(), "daemon stopped")
 			return nil
+		},
+	}
+}
+
+func daemonRestartCmd(g *globals) *cobra.Command {
+	return &cobra.Command{
+		Use:   "restart",
+		Short: "Stop the daemon if it runs, then start it",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p, err := paths()
+			if err != nil {
+				return err
+			}
+			if err := daemonService(p).Stop(cmd.Context()); err != nil && !errors.Is(err, svc.ErrNotRunning) {
+				return err
+			}
+			return startDaemon(cmd, g)
 		},
 	}
 }
@@ -152,6 +213,9 @@ func daemonStatusCmd(g *globals) *cobra.Command {
 		Use:   "status",
 		Short: "Show the daemon status",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireDaemon(); err != nil {
+				return err
+			}
 			c, err := ctlClient()
 			if err != nil {
 				return err
@@ -177,12 +241,14 @@ func daemonLogsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "logs",
 		Short: "Show the daemon log",
+		// Read the file, not the control socket: the log matters most
+		// when the daemon has stopped.
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := ctlClient()
+			p, err := paths()
 			if err != nil {
 				return err
 			}
-			return c.Logs(cmd.Context(), cmd.OutOrStdout(), follow)
+			return svc.Tail(cmd.Context(), p.Log(), cmd.OutOrStdout(), follow)
 		},
 	}
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow the log")
@@ -194,6 +260,9 @@ func daemonCtlCmd(use, short string, fn func(context.Context, *control.Client, i
 		Use:   use,
 		Short: short,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := requireDaemon(); err != nil {
+				return err
+			}
 			c, err := ctlClient()
 			if err != nil {
 				return err
@@ -201,6 +270,21 @@ func daemonCtlCmd(use, short string, fn func(context.Context, *control.Client, i
 			return fn(cmd.Context(), c, cmd.OutOrStdout())
 		},
 	}
+}
+
+// requireDaemon returns a clear error when the daemon does not run, in
+// place of a socket error.
+func requireDaemon() error {
+	p, err := paths()
+	if err != nil {
+		return err
+	}
+	if _, ok, err := svc.Running(p.PID()); err != nil {
+		return err
+	} else if !ok {
+		return errors.New(`daemon is not running: run "solax daemon start"`)
+	}
+	return nil
 }
 
 func ctlClient() (*control.Client, error) {
