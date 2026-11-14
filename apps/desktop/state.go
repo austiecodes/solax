@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -27,6 +29,25 @@ const (
 	pageSettings = "settings"
 )
 
+// navPage is one page of the sidebar: the action that opens it and the
+// icon of its row. A new page is one entry here, one action in
+// internal/actions, and its view in pageView.
+type navPage struct {
+	id, action string
+	icon       *ui.SVG
+}
+
+var navPages = []navPage{
+	{pageChat, "nav.chat", sparklesIcon},
+	{pageJobs, "nav.jobs", jobsIcon},
+	{pageAgents, "nav.agents", agentIcon},
+	{pageMachines, "nav.machines", machineIcon},
+}
+
+func validPage(id string) bool {
+	return id == pageSettings || slices.ContainsFunc(navPages, func(p navPage) bool { return p.id == id })
+}
+
 // connState is the state of the server stream.
 type connState struct {
 	State  string // connecting | connected | disconnected
@@ -37,8 +58,19 @@ type connState struct {
 // desktop is the whole state of the window. The view reads it on the UI
 // thread; background work changes it only through update.
 type desktop struct {
-	profiles *profile.Store
-	win      *mygo.Window
+	profiles  *profile.Store
+	win       *mygo.Window
+	prefs     prefs
+	prefsPath string  // "" in tests: nothing is saved
+	sideDrag  float32 // the sidebar width when a drag of its edge began
+	shown     float32 // how far the sidebar shows, 0 to 1, as last drawn
+	focused   bool    // the window is in front
+	notes     notifier
+	loaded    bool // the jobs of this server came at least once
+
+	// Over the page: the command palette and a pending question.
+	pal     paletteState
+	confirm *confirmation
 
 	// client and the stream are replaced when the profile changes.
 	mu       sync.Mutex
@@ -56,14 +88,17 @@ type desktop struct {
 	sending   bool
 	chatList  ui.ListState
 	superBusy bool   // its session runs a turn
-	superNote string // what it does now, for example a command it runs
+	superSes  string // its session: its events fill the chat with steps
 
 	// Jobs.
-	jobs       []protocol.Job
-	jobSel     string
-	events     map[string][]ir.Event      // session ID → stored and live events
-	live       map[string]map[string]string // session ID → item ID → streamed text
+	jobs        []protocol.Job
+	jobSel      string
+	unread      map[string]bool                 // jobs that ended while the user was not on them
+	events      map[string][]ir.Event           // session ID → stored and live events
+	live        map[string]map[string]*liveText // session ID → item ID → streamed text
+	folds       map[string]*fold                // block or step key → open or closed (transcript_view.go)
 	followDraft string
+	jobList     ui.ListState
 
 	// Agents and machines.
 	agents   []protocol.Agent
@@ -73,6 +108,7 @@ type desktop struct {
 
 	// Settings.
 	setName, setServer, setToken string
+	setAppearance                string // the Appearance choice, bound to its select
 }
 
 // agentForm is the "add agent" form.
@@ -82,11 +118,28 @@ type agentForm struct {
 	busy                                    bool
 }
 
-func newDesktop(profiles *profile.Store) *desktop {
+// newDesktop makes the state. prefsPath is where the window prefs live;
+// "" keeps them in memory only.
+func newDesktop(profiles *profile.Store, prefsPath string) *desktop {
+	p := loadPrefs(prefsPath)
+	unread := map[string]bool{}
+	for _, id := range p.Unread {
+		unread[id] = true
+	}
 	return &desktop{
-		profiles: profiles, page: pageChat,
-		conn:   connState{State: "disconnected"},
-		events: map[string][]ir.Event{}, live: map[string]map[string]string{},
+		profiles: profiles, prefs: p, prefsPath: prefsPath, notes: noNotifier{},
+		page: p.Page, jobSel: p.Job, setAppearance: appearanceLabel(p.Appearance),
+		conn: connState{State: "disconnected"}, focused: true, unread: unread,
+		events: map[string][]ir.Event{}, live: map[string]map[string]*liveText{}, folds: map[string]*fold{},
+	}
+}
+
+// savePrefs writes the prefs with the page and job in view.
+func (d *desktop) savePrefs() {
+	d.prefs.Page, d.prefs.Job = d.page, d.jobSel
+	d.prefs.Unread, d.prefs.SeenAt = d.unreadIDs(), d.seenNow()
+	if err := d.prefs.save(d.prefsPath); err != nil {
+		log.Printf("solax: save prefs: %v", err)
 	}
 }
 
@@ -154,7 +207,11 @@ func (d *desktop) connect() {
 	d.update(func() {
 		d.setName, d.setServer = p.Name, p.Server
 		d.messages, d.jobs, d.agents, d.machines = nil, nil, nil, nil
-		d.events, d.live, d.jobSel = map[string][]ir.Event{}, map[string]map[string]string{}, ""
+		d.loaded = false // the first load of this server marks what ended since SeenAt
+		// jobSel stays: after a restart it names the job last open, and
+		// reloadAll loads its events. A job of another server shows as
+		// "Choose a job".
+		d.events, d.live, d.superSes = map[string][]ir.Event{}, map[string]map[string]*liveText{}, ""
 	})
 	go d.feed(ctx, c, p.Server)
 }
@@ -213,7 +270,12 @@ func (d *desktop) reloadAll() {
 		}
 		machines, err := c.Machines(ctx)
 		return func() {
-			d.messages, d.jobs, d.agents, d.machines = msgs, jobs, agents, machines
+			d.messages, d.agents, d.machines = msgs, agents, machines
+			d.setJobs(jobs)
+			if sa := d.superAgent(); sa != nil && sa.SessionID != "" {
+				d.superSes = sa.SessionID
+				d.loadSession(sa.SessionID)
+			}
 			if d.jobSel != "" {
 				d.loadEvents(d.jobSel)
 			}
@@ -265,14 +327,25 @@ func (d *desktop) addMessage(m protocol.Message) {
 	sort.SliceStable(d.messages, func(i, j int) bool { return d.messages[i].Seq < d.messages[j].Seq })
 }
 
+// upsertJob adds or replaces a job. A job that comes to an end goes to
+// jobEnded (unread.go).
 func (d *desktop) upsertJob(j protocol.Job) {
 	for i := range d.jobs {
 		if d.jobs[i].ID == j.ID {
+			ended := jobLive(d.jobs[i].State) && !jobLive(j.State)
 			d.jobs[i] = j
+			if ended {
+				d.jobEnded(j, true)
+			}
 			return
 		}
 	}
 	d.jobs = append([]protocol.Job{j}, d.jobs...)
+}
+
+// watching tells whether the user sees a job now.
+func (d *desktop) watching(id string) bool {
+	return d.focused && d.page == pageJobs && d.jobSel == id
 }
 
 func (d *desktop) job(id string) (protocol.Job, bool) {
@@ -284,30 +357,36 @@ func (d *desktop) job(id string) (protocol.Job, bool) {
 	return protocol.Job{}, false
 }
 
-// sessionEvent tracks the Super Agent activity and the live events of
-// job sessions.
+// sessionEvent keeps the events of the sessions in view: the Super
+// Agent's, for the chat, and those of jobs. Deltas stream text in until
+// their item completes.
 func (d *desktop) sessionEvent(n protocol.SessionEventNote) {
 	e := n.Event
 	if n.Super {
+		if n.SessionID != "" && d.superSes != n.SessionID {
+			// The first event of a new session: read what came before it.
+			d.superSes = n.SessionID
+			d.loadSession(n.SessionID)
+		}
 		switch e.Type {
 		case ir.TurnStarted:
-			d.superBusy, d.superNote = true, "thinking…"
-		case ir.TurnCompleted:
-			d.superBusy, d.superNote = false, ""
-		case ir.ItemStarted:
-			if e.Item != nil && e.Item.Tool != nil {
-				d.superNote = "running " + toolSummary(e.Item.Tool)
-			}
+			d.superBusy = true
+		case ir.TurnCompleted, ir.SessionExitedEvent:
+			d.superBusy = false
 		}
-		return
 	}
 	if e.Type == ir.ItemDelta && e.Delta != nil {
 		m := d.live[n.SessionID]
 		if m == nil {
-			m = map[string]string{}
+			m = map[string]*liveText{}
 			d.live[n.SessionID] = m
 		}
-		m[e.Delta.ItemID] += e.Delta.Text
+		l := m[e.Delta.ItemID]
+		if l == nil {
+			l = &liveText{kind: e.Delta.Kind}
+			m[e.Delta.ItemID] = l
+		}
+		l.text += e.Delta.Text
 		return
 	}
 	if e.Type == ir.ItemCompleted && e.Item != nil {
@@ -322,24 +401,27 @@ func (d *desktop) sessionEvent(n protocol.SessionEventNote) {
 
 // loadEvents reads the stored events of the session of a job.
 func (d *desktop) loadEvents(jobID string) {
-	j, ok := d.job(jobID)
-	if !ok {
-		return
+	if j, ok := d.job(jobID); ok {
+		d.loadSession(j.SessionID)
 	}
+}
+
+// loadSession reads the stored events of a session, and keeps the live
+// events that came after them.
+func (d *desktop) loadSession(id string) {
 	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
-		evs, err := c.SessionEvents(ctx, j.SessionID, 0)
+		evs, err := c.SessionEvents(ctx, id, 0)
 		return func() {
-			// Keep live events that came after the stored ones.
 			var last uint64
 			if len(evs) > 0 {
 				last = evs[len(evs)-1].Seq
 			}
-			for _, e := range d.events[j.SessionID] {
+			for _, e := range d.events[id] {
 				if e.Seq > last {
 					evs = append(evs, e)
 				}
 			}
-			d.events[j.SessionID] = evs
+			d.events[id] = evs
 		}, err
 	})
 }

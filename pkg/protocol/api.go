@@ -63,6 +63,9 @@ type Agent struct {
 	Dir         string         `json:"dir"`
 	Model       string         `json:"model,omitempty"`
 	Options     map[string]any `json:"options,omitempty"`
+	// SessionID is the conversation session of the Super Agent, to read
+	// its events (reasoning, tool calls). Empty for other agents.
+	SessionID string `json:"session_id,omitempty"`
 }
 
 // CreateAgentRequest is the body of POST /v1/agents.

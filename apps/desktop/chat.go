@@ -5,50 +5,84 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/egoist/mygo/ui/markdown"
 
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// chatPage is the conversation with the Super Agent.
+// chatPage is the conversation with the Super Agent: its messages, with
+// what it did in between folded into groups, and the composer.
 func (d *desktop) chatPage(c *ui.Context) {
-	t := c.Theme()
-	sub := "Talk to the router. It gives jobs to your agents and reports back."
-	if d.superAgent() == nil {
-		sub = "No Super Agent yet: add one on the Agents page (check \"Super Agent\")."
+	pal := paletteFor(c)
+	sa := d.superAgent()
+	sub := ""
+	switch {
+	case sa == nil:
+		sub = "No Super Agent yet"
+	case d.superBusy:
+		sub = "Working…"
+	case len(d.messages) > 0:
+		sub = plural(len(d.messages), "message")
 	}
-	header(c, "Super Agent", sub, nil)
-	d.activeJobs(c)
+	d.header(c, "Super Agent", sub, nil)
 
-	d.chatList.Key = func(i int) any { return d.messages[i].ID }
-	d.chatList.FollowEnd = true
-	ui.List(c, &d.chatList, len(d.messages), func(i int) {
-		d.message(c, d.messages[i])
-	}).Grow(1).Padding(16, 24).Gap(14).Justify(ui.End).Children(func() {
-		if len(d.messages) == 0 {
-			ui.Text(c, "Ask for something, for example: \"Ask coder to add a README to the repo\".").TextColor(t.TextMuted).Margin(ui.Auto)
-		}
-	})
+	blocks := chatBlocks(d.messages, d.events[d.superSes], d.live[d.superSes], d.superBusy)
+	d.transcriptView(c, pal, &d.chatList, blocks, func() { d.chatEmpty(c, pal, sa != nil) })
 
-	if d.superBusy {
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(6, 24).Children(func() {
-			ui.Spinner(c)
-			ui.Text(c, d.superNote).FontSize(12).TextColor(t.TextMuted).SingleLine()
+	composer{
+		key: "composer", placeholder: "Message the Super Agent", draft: &d.draft,
+		disabled: sa == nil, busy: d.sending, focus: true, send: d.send,
+		info: func() {
+			if sa == nil {
+				return
+			}
+			ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).Children(func() {
+				ui.Icon(c, sparklesIcon).Size(12, 12).TextColor(pal.textMuted)
+				ui.Text(c, sa.Name+" on "+sa.Machine).FontSize(12).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
+			})
+		},
+	}.view(c, pal)
+}
+
+// suggestions start an empty chat.
+var suggestions = []string{
+	"Ask coder to add a README to the repo",
+	"What are my agents doing?",
+	"Which jobs failed today?",
+}
+
+// chatEmpty fills the chat before the first message.
+func (d *desktop) chatEmpty(c *ui.Context, pal *palette, ready bool) {
+	if !ready {
+		emptyState(c, pal, sparklesIcon, "No Super Agent yet",
+			"The Super Agent takes your requests and gives jobs to your agents. Add one on the Agents page, and check \"Super Agent\".", "")
+		return
+	}
+	ui.Column(c.Key("empty")).Fill().Center().Padding(24).Gap(8).Children(func() {
+		ui.Box(c).Size(52, 52).Radius(14).Center().Background(pal.chip).TextColor(pal.textMuted).Margin(0, 0, 10, 0).Children(func() {
+			ui.Icon(c, sparklesIcon).Size(26, 26)
 		})
-	}
-	ui.Row(c).Gap(8).Padding(12, 20).BorderWidth(1, 0, 0, 0).BorderColor(t.Border).Children(func() {
-		in := ui.TextInput(c, &d.draft).Placeholder("Message the Super Agent").Grow(1).AutoFocus()
-		send := ui.PrimaryButton(c, "Send").Disabled(d.sending || strings.TrimSpace(d.draft) == "").Clicked()
-		if (send || in.Submitted()) && !d.sending && strings.TrimSpace(d.draft) != "" {
-			d.send()
-		}
+		ui.Text(c, "What should your agents do?").FontSize(19).FontWeight(650).TextColor(pal.text)
+		ui.Text(c, "The Super Agent gives jobs to your agents and tells you when they are done.").
+			FontSize(13.5).TextColor(pal.textMuted).MaxWidth(420).TextAlign(ui.Center).LineHeight(1.45)
+		ui.Row(c).Gap(8).Wrap().Justify(ui.Center).MaxWidth(560).Margin(14, 0, 0, 0).Children(func() {
+			for i, s := range suggestions {
+				b := ui.ButtonBase(c.Key(i)).Padding(6, 12).Radius(15).Label(s).Background(pal.chip).TextColor(pal.textMuted)
+				if b.Hovered() {
+					b.Background(pal.rowHover).TextColor(pal.text)
+				}
+				b.Children(func() { ui.Text(c, s).FontSize(12.5).SingleLine() })
+				if b.Clicked() {
+					d.draft = s
+				}
+			}
+		})
 	})
 }
 
-// send posts the draft. The reply comes on the stream.
-func (d *desktop) send() {
-	text := strings.TrimSpace(d.draft)
+// send posts text to the Super Agent. The draft stays until the server
+// has it; the reply comes on the stream.
+func (d *desktop) send(text string) {
 	d.sending = true
 	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 		m, err := c.SendToSuper(ctx, text)
@@ -65,50 +99,6 @@ func (d *desktop) send() {
 	if _, err := d.api(); err != nil {
 		d.sending = false
 	}
-}
-
-func (d *desktop) message(c *ui.Context, m protocol.Message) {
-	t := c.Theme()
-	switch m.Author.Kind {
-	case "human":
-		ui.Row(c).Children(func() {
-			ui.Spacer(c)
-			ui.Text(c, m.Text).Selectable().Padding(8, 12).Radius(14).Background(t.Surface).MaxWidth(560)
-		})
-	case "system":
-		// A job note: "[job job_x] agent coder: done". A click opens the job.
-		jobID := jobOf(m.Text)
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, "•").TextColor(t.TextMuted)
-			ui.Text(c, strings.TrimPrefix(m.Text, "[job "+jobID+"] ")).FontSize(12).TextColor(t.TextMuted)
-			if jobID != "" && ui.Button(c, "Open job").Clicked() {
-				d.openJob(jobID)
-			}
-		})
-	default:
-		ui.Column(c).MaxWidth(780).Selectable().Children(func() {
-			markdown.View(c, m.Text, &d.md)
-		})
-	}
-}
-
-// activeJobs is a strip of the jobs that run now.
-func (d *desktop) activeJobs(c *ui.Context) {
-	if d.runningJobs() == 0 {
-		return
-	}
-	t := c.Theme()
-	ui.Row(c).Gap(8).Padding(8, 20).AlignItems(ui.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border).Children(func() {
-		ui.Text(c, "Running:").FontSize(12).TextColor(t.TextMuted)
-		for _, j := range d.jobs {
-			if j.State != "queued" && j.State != "running" {
-				continue
-			}
-			if ui.Button(c.Key(j.ID), j.Agent+" · "+clip(j.Title, 32)).Clicked() {
-				d.openJob(j.ID)
-			}
-		}
-	})
 }
 
 func (d *desktop) superAgent() *protocol.Agent {
