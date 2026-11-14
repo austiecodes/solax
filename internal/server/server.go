@@ -1,5 +1,5 @@
-// Package server builds the solax-server process: store, engine, outbox,
-// hub, client stream and the gin router.
+// Package server builds the server process ("solax server run"): store,
+// engine, outbox, hub, client stream and the gin router.
 package server
 
 import (
@@ -30,7 +30,7 @@ type Config struct {
 }
 
 // Init creates the owner and the first client token in a new database. It
-// prints the token once. "solax-server init" calls it.
+// prints the token once. "solax server init" calls it.
 func Init(ctx context.Context, cfg Config, clientName string) (token string, err error) {
 	store, err := sqlite.Open(ctx, cfg.DBPath)
 	if err != nil {
@@ -45,7 +45,7 @@ func Init(ctx context.Context, cfg Config, clientName string) (token string, err
 	return token, err
 }
 
-// Admin opens the database for "solax-server token ..." commands. They
+// Admin opens the database for "solax server token ..." commands. They
 // run on the server host and need no token.
 func Admin(ctx context.Context, cfg Config) (*auth.Service, func() error, error) {
 	store, err := sqlite.Open(ctx, cfg.DBPath)

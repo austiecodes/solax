@@ -8,7 +8,7 @@ import (
 )
 
 // InitOwner creates the owner of a new installation. v1 has one owner, so a
-// second call fails with ErrConflict. "solax-server init" calls it on the
+// second call fails with ErrConflict. "solax server init" calls it on the
 // server host; it needs no actor.
 func (e *Engine) InitOwner(ctx context.Context) (Owner, error) {
 	var o Owner

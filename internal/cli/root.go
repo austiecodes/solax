@@ -1,8 +1,11 @@
-// Package cli is the "solax" command. One binary has two roles:
+// Package cli is the "solax" command. One binary has three roles:
 //
 //   - Client commands talk only to the server (REST).
 //   - "solax daemon ..." commands control the local daemon through its
 //     control socket. "solax daemon run" is the daemon itself.
+//   - "solax server ..." commands run and manage a server. "solax server
+//     run" is the server itself. The server and the daemon are separate
+//     processes, also when they run on the same machine.
 //
 // Agents in sessions use the client commands. The daemon sets SOLAX_*
 // environment values for them.
@@ -55,6 +58,7 @@ func NewRoot() *cobra.Command {
 	root.AddGroup(
 		&cobra.Group{ID: "config", Title: "Configuration:"},
 		&cobra.Group{ID: "daemon", Title: "Local daemon:"},
+		&cobra.Group{ID: "server", Title: "Server:"},
 		&cobra.Group{ID: "client", Title: "Server commands:"},
 	)
 	add := func(group string, cmds ...*cobra.Command) {
@@ -65,6 +69,7 @@ func NewRoot() *cobra.Command {
 	}
 	add("config", setCmd(g), configCmd(g))
 	add("daemon", daemonCmd(g), tryCmd(g))
+	add("server", serverCmd())
 	add("client", chatCmd(g), agentCmd(g), jobCmd(g), watchCmd(g), machineCmd(g), recallCmd(g))
 	// Workspaces and team tasks come back with agent teams. Hidden until then.
 	for _, c := range []*cobra.Command{wsCmd(g), taskCmd(g)} {

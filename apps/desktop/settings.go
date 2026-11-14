@@ -76,7 +76,7 @@ func (d *desktop) settingsPage(c *ui.Context) {
 			ui.Field(c, "Client token", func() {
 				ui.TextInput(c, &d.setToken).Password().Placeholder("sxc_… (leave empty to keep the saved one)")
 			}).
-				Description("Create one on the server host: solax-server token create --name desktop")
+				Description("Create one on the server host: solax server token create --name desktop")
 		})
 		ready := strings.TrimSpace(d.setName) != "" && strings.TrimSpace(d.setServer) != ""
 		if button(c, "save", "Save and connect", primaryButton, !ready) {

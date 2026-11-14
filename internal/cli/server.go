@@ -1,20 +1,11 @@
-// Command solax-server is the Solax server.
-//
-//	solax-server run                     serve the API
-//	solax-server init                    new database: owner + first client token
-//	solax-server token create --name N   create a client token (printed once)
-//	solax-server token list | revoke ID
-//
-// The init and token commands run on the server host and open the database
-// directly. They need no token.
-package main
+package cli
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -23,33 +14,63 @@ import (
 	"github.com/austiecodes/solax/internal/server"
 )
 
-func main() {
+// EnvSecret overrides the secret that signs agent tokens.
+const EnvSecret = "SOLAX_SECRET"
+
+// serverCmd runs and manages a Solax server. The init and token commands
+// open the database directly, so they run on the server host and need no
+// token.
+func serverCmd() *cobra.Command {
 	var cfg server.Config
-	root := &cobra.Command{Use: "solax-server", Short: "The Solax server", SilenceUsage: true, SilenceErrors: true}
-	root.PersistentFlags().StringVar(&cfg.DBPath, "db", "solax.db", "SQLite database path")
-	root.PersistentPreRunE = func(*cobra.Command, []string) error {
+	cmd := &cobra.Command{
+		Use:   "server",
+		Short: "Run and manage a Solax server",
+		Long: `The server owns all state. Clients and daemons connect to it.
+
+On a laptop, the server and the daemon can run on the same machine.
+The server files are in ~/.solax/server/ unless you set --db.`,
+	}
+	cmd.PersistentFlags().StringVar(&cfg.DBPath, "db", "", "SQLite database path (default ~/.solax/server/solax.db)")
+	cmd.PersistentPreRunE = func(*cobra.Command, []string) error {
+		if cfg.DBPath == "" {
+			p, err := paths()
+			if err != nil {
+				return err
+			}
+			cfg.DBPath = p.ServerDB()
+		}
+		if err := os.MkdirAll(filepath.Dir(cfg.DBPath), 0o700); err != nil {
+			return err
+		}
 		var err error
-		cfg.Secret, err = server.LoadSecret(os.Getenv("SOLAX_SECRET"), cfg.DBPath+".secret")
+		cfg.Secret, err = server.LoadSecret(os.Getenv(EnvSecret), cfg.DBPath+".secret")
 		return err
 	}
+	cmd.AddCommand(serverRunCmd(&cfg), serverInitCmd(&cfg), serverTokenCmd(&cfg))
+	return cmd
+}
 
-	run := &cobra.Command{
+func serverRunCmd(cfg *server.Config) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Serve the API",
+		Short: "Run the server in the foreground",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return server.Run(ctx, cfg, slog.New(slog.NewTextHandler(os.Stderr, nil)))
+			return server.Run(ctx, *cfg, slog.New(slog.NewTextHandler(os.Stderr, nil)))
 		},
 	}
-	run.Flags().StringVar(&cfg.Addr, "addr", ":8740", "listen address")
+	cmd.Flags().StringVar(&cfg.Addr, "addr", ":8740", "listen address")
+	return cmd
+}
 
-	var initName string
-	initCmd := &cobra.Command{
+func serverInitCmd(cfg *server.Config) *cobra.Command {
+	var name string
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create the owner and the first client token",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			token, err := server.Init(cmd.Context(), cfg, initName)
+			token, err := server.Init(cmd.Context(), *cfg, name)
 			if err != nil {
 				return err
 			}
@@ -57,16 +78,11 @@ func main() {
 			return nil
 		},
 	}
-	initCmd.Flags().StringVar(&initName, "name", "admin", "name of the first client token")
-
-	root.AddCommand(run, initCmd, tokenCmd(&cfg))
-	if err := root.ExecuteContext(context.Background()); err != nil {
-		fmt.Fprintln(os.Stderr, "solax-server:", err)
-		os.Exit(1)
-	}
+	cmd.Flags().StringVar(&name, "name", "admin", "name of the first client token")
+	return cmd
 }
 
-func tokenCmd(cfg *server.Config) *cobra.Command {
+func serverTokenCmd(cfg *server.Config) *cobra.Command {
 	cmd := &cobra.Command{Use: "token", Short: "Manage client tokens"}
 
 	var name string
@@ -103,14 +119,16 @@ func tokenCmd(cfg *server.Config) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			tw := table(cmd.OutOrStdout())
+			fmt.Fprintln(tw, "ID\tNAME\tREVOKED\tLAST USED")
 			for _, t := range ts {
 				used := "never"
 				if !t.LastUsed.IsZero() {
 					used = t.LastUsed.Format("2006-01-02 15:04")
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\trevoked=%t\tlast used %s\n", t.ID, t.Name, t.Revoked, used)
+				fmt.Fprintf(tw, "%s\t%s\t%t\t%s\n", t.ID, t.Name, t.Revoked, used)
 			}
-			return nil
+			return tw.Flush()
 		},
 	}
 
