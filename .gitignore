@@ -11,3 +11,5 @@ node_modules/
 
 # Development
 /tmp/
+
+apps/desktop/desktop

@@ -52,3 +52,37 @@ func TestGoldenErrorRetry(t *testing.T) {
 		t.Fatalf("retry notices = %d, want 3", retries)
 	}
 }
+
+// structuredContent has a different shape per tool. The read tool sends a
+// string; that once failed the whole tool_execution_end record, and the
+// read call never completed.
+func TestToolEndAnyStructuredContent(t *testing.T) {
+	d := NewDecoder()
+	recs := []string{
+		`{"type":"agent_start"}`,
+		`{"type":"tool_execution_start","toolCallId":"r1","toolName":"read","args":{"path":"README.md"}}`,
+		`{"type":"tool_execution_start","toolCallId":"b1","toolName":"bash","args":{"command":"false"}}`,
+		`{"type":"tool_execution_end","toolCallId":"r1","toolName":"read","result":{"content":[{"type":"text","text":"# Title"}],"structuredContent":"# Title"},"isError":false}`,
+		`{"type":"tool_execution_end","toolCallId":"b1","toolName":"bash","result":{"content":[{"type":"text","text":""}],"structuredContent":{"exit_code":1}},"isError":true}`,
+	}
+	done := map[string]ir.Item{}
+	for _, rec := range recs {
+		evs, err := d.Decode([]byte(rec))
+		if err != nil {
+			t.Fatalf("Decode(%s): %v", rec, err)
+		}
+		for _, e := range evs {
+			if e.Type == ir.ItemCompleted {
+				done[e.Item.ID] = *e.Item
+			}
+		}
+	}
+	read, ok := done["r1"]
+	if !ok || read.Tool.Output != "# Title" || read.Tool.ExitCode != nil {
+		t.Errorf("read: completed=%t item=%+v; want output \"# Title\" and no exit code", ok, read.Tool)
+	}
+	bash, ok := done["b1"]
+	if !ok || bash.Tool.ExitCode == nil || *bash.Tool.ExitCode != 1 || bash.Status != ir.StatusFailed {
+		t.Errorf("bash: completed=%t item=%+v; want exit code 1, failed", ok, bash)
+	}
+}

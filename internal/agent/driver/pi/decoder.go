@@ -89,10 +89,23 @@ type message struct {
 }
 
 type toolResult struct {
-	Content           json.RawMessage `json:"content"`
-	StructuredContent *struct {
+	Content json.RawMessage `json:"content"`
+	// StructuredContent has a different shape per tool: bash sends an
+	// object with exit_code, read sends a string. Keep it raw, so a shape
+	// that we do not know never drops the whole record.
+	StructuredContent json.RawMessage `json:"structuredContent"`
+}
+
+// exitCode returns structuredContent.exit_code, or nil when the tool sent
+// none.
+func (t *toolResult) exitCode() *int {
+	var sc struct {
 		ExitCode *int `json:"exit_code"`
-	} `json:"structuredContent"`
+	}
+	if json.Unmarshal(t.StructuredContent, &sc) != nil {
+		return nil
+	}
+	return sc.ExitCode
 }
 
 // Decode maps one record.
@@ -254,9 +267,7 @@ func (d *Decoder) toolEnd(r record) []ir.Event {
 	tc := &ir.ToolCall{Name: r.ToolName, Class: agent.ClassOf(toolClass, r.ToolName), Input: in}
 	if r.Result != nil {
 		tc.Output = agent.CapOutput(agent.TextOf(r.Result.Content))
-		if r.Result.StructuredContent != nil {
-			tc.ExitCode = r.Result.StructuredContent.ExitCode
-		}
+		tc.ExitCode = r.Result.exitCode()
 	}
 	it := ir.Item{ID: r.ToolCallID, Kind: ir.ItemToolCall, Native: r.ToolName, Tool: tc}
 	if r.IsError {

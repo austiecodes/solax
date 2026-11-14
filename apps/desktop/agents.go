@@ -15,15 +15,15 @@ import (
 // agentsPage lists the agents and sets up new ones. The Super Agent
 // routes by the description, so the form asks for it.
 func (d *desktop) agentsPage(c *ui.Context) {
-	t := c.Theme()
-	header(c, "Agents", "Coding agents on your machines. The Super Agent picks one by its description.", func() {
-		if ui.Button(c, "Refresh").Clicked() {
+	pal := paletteFor(c)
+	d.header(c, "Agents", "Coding agents on your machines. Solax picks one by its description.", func() {
+		if button(c, "refresh", "Refresh", plainButton, false) {
 			d.reloadAgents()
 		}
 	})
 	ui.Scroll(c).Grow(1).Padding(16, 20).Gap(10).Children(func() {
 		if len(d.agents) == 0 {
-			ui.Text(c, "No agents yet. Add one below.").TextColor(t.TextMuted)
+			ui.Text(c, "No agents yet. Add one below.").TextColor(pal.textMuted)
 		}
 		for _, a := range d.agents {
 			d.agentCard(c, a)
@@ -34,31 +34,33 @@ func (d *desktop) agentsPage(c *ui.Context) {
 }
 
 func (d *desktop) agentCard(c *ui.Context, a protocol.Agent) {
-	t := c.Theme()
-	ui.Column(c.Key(a.ID)).Gap(6).Padding(12, 14).Radius(10).Border(1, t.Border).Children(func() {
+	pal := paletteFor(c)
+	ui.Column(c.Key(a.ID)).Gap(6).Padding(12, 14).Radius(10).Border(1, pal.divider).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, a.Name).Bold().FontSize(15)
 			if a.Role == "super" {
-				ui.Badge(c, "Super Agent").Background(t.Accent).TextColor(t.AccentText)
+				ui.Badge(c, "Solax").Background(pal.accent).TextColor(pal.onAccent)
 			}
 			ui.Badge(c, string(a.Driver))
 			if a.Online {
-				ui.Badge(c, "online").Background(t.Success).TextColor(t.AccentText)
+				ui.Badge(c, "online").Background(pal.success).TextColor(pal.onAccent)
 			} else {
 				ui.Badge(c, "offline")
 			}
 			ui.Spacer(c)
-			if a.Role != "super" && ui.Button(c, "Make Super Agent").Clicked() {
+			if a.Role != "super" && button(c, "make-super", "Make It Solax", plainButton, false) {
 				name, yes := a.Name, true
 				d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 					_, err := c.UpdateAgent(ctx, name, protocol.UpdateAgentRequest{Super: &yes})
 					return d.reloadAgents, err
 				})
 			}
-			if ui.Button(c, "Remove").Clicked() {
+			if button(c, "remove", "Remove", plainButton, false) {
 				name := a.Name
-				d.do(func(ctx context.Context, c *client.Client) (func(), error) {
-					return d.reloadAgents, c.DeleteAgent(ctx, name)
+				d.ask("Remove "+name+"?", "Solax can no longer give jobs to "+name+". Its past jobs stay.", "Remove", true, func() {
+					d.do(func(ctx context.Context, c *client.Client) (func(), error) {
+						return d.reloadAgents, c.DeleteAgent(ctx, name)
+					})
 				})
 			}
 		})
@@ -69,7 +71,7 @@ func (d *desktop) agentCard(c *ui.Context, a protocol.Agent) {
 		if a.Model != "" {
 			info += " · model " + a.Model
 		}
-		ui.Text(c, info).FontSize(12).TextColor(t.TextMuted).Font("monospace")
+		ui.Text(c, info).FontSize(12).TextColor(pal.textMuted).Font("monospace")
 	})
 }
 
@@ -84,16 +86,16 @@ func (d *desktop) agentFormView(c *ui.Context) {
 		f.Driver = drivers[0]
 	}
 	ui.Form(c, func() {
-		ui.Field(c, "Name", func() { ui.TextInput(c, &f.Name).Placeholder("coder") }).Description("Lower case, digits and dashes. The Super Agent uses it to route.")
+		ui.Field(c, "Name", func() { ui.TextInput(c, &f.Name).Placeholder("coder") }).Description("Lower case, digits and dashes. Solax uses it to route.")
 		ui.Field(c, "Machine", func() { ui.Select(c, &f.Machine, machines) })
 		ui.Field(c, "Driver", func() { ui.Select(c, &f.Driver, drivers) }).Description("The agent CLIs that the daemon found on this machine.")
 		ui.Field(c, "Work folder", func() { ui.TextInput(c, &f.Dir).Placeholder("~/src/my-app") })
 		ui.Field(c, "Model", func() { ui.TextInput(c, &f.Model).Placeholder("optional, for example haiku") })
 		ui.Field(c, "Description", func() { ui.TextArea(c, &f.Desc).Height(70).Placeholder("What this agent is good at") })
-		ui.Field(c, "Role", func() { ui.Checkbox(c, &f.Super, "Super Agent (the router that talks to you)") })
+		ui.Field(c, "Role", func() { ui.Checkbox(c, &f.Super, "This is Solax (the agent you talk to)") })
 	})
 	ready := !f.busy && strings.TrimSpace(f.Name) != "" && f.Machine != "" && f.Driver != "" && strings.TrimSpace(f.Dir) != ""
-	if ui.PrimaryButton(c, "Add agent").Disabled(!ready).Clicked() && ready {
+	if button(c, "add-agent", "Add agent", primaryButton, !ready) {
 		req := protocol.CreateAgentRequest{
 			Machine: f.Machine, Name: strings.TrimSpace(f.Name), Driver: ir.Kind(f.Driver), Dir: strings.TrimSpace(f.Dir),
 			Model: strings.TrimSpace(f.Model), Description: strings.TrimSpace(f.Desc), Super: f.Super,

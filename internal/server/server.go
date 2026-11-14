@@ -1,5 +1,5 @@
-// Package server builds the solax-server process: store, engine, outbox,
-// hub, client stream and the gin router.
+// Package server builds the server process ("solax server run"): store,
+// engine, outbox, hub, client stream and the gin router.
 package server
 
 import (
@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -30,7 +31,7 @@ type Config struct {
 }
 
 // Init creates the owner and the first client token in a new database. It
-// prints the token once. "solax-server init" calls it.
+// prints the token once. "solax server init" calls it.
 func Init(ctx context.Context, cfg Config, clientName string) (token string, err error) {
 	store, err := sqlite.Open(ctx, cfg.DBPath)
 	if err != nil {
@@ -45,7 +46,7 @@ func Init(ctx context.Context, cfg Config, clientName string) (token string, err
 	return token, err
 }
 
-// Admin opens the database for "solax-server token ..." commands. They
+// Admin opens the database for "solax server token ..." commands. They
 // run on the server host and need no token.
 func Admin(ctx context.Context, cfg Config) (*auth.Service, func() error, error) {
 	store, err := sqlite.Open(ctx, cfg.DBPath)
@@ -90,21 +91,33 @@ func (a *App) Start(ctx context.Context, errc chan<- error) {
 	}
 }
 
-// Run starts the server and blocks until ctx ends.
+// Run listens on cfg.Addr, starts the server and blocks until ctx ends.
 func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
+	ln, err := net.Listen("tcp", cfg.Addr)
+	if err != nil {
+		return err
+	}
+	return Serve(ctx, cfg, ln, log)
+}
+
+// Serve starts the server on ln and blocks until ctx ends. It closes ln.
+// The caller can listen first, so a busy port fails before the database
+// opens. cfg.Addr is not used.
+func Serve(ctx context.Context, cfg Config, ln net.Listener, log *slog.Logger) error {
 	store, err := sqlite.Open(ctx, cfg.DBPath)
 	if err != nil {
+		ln.Close()
 		return err
 	}
 	defer store.Close()
 	app := New(store, cfg.Secret, log)
-	srv := &http.Server{Addr: cfg.Addr, Handler: app.Handler, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: app.Handler, ReadHeaderTimeout: 10 * time.Second}
 
 	errc := make(chan error, 4)
 	app.Start(ctx, errc)
 	go func() {
-		log.Info("listening", "addr", cfg.Addr)
-		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		log.Info("listening", "addr", ln.Addr().String())
+		if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
 			errc <- err
 		}
 	}()

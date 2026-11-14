@@ -56,7 +56,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Bootstrap, as "solax-server init" does.
+	// Bootstrap, as "solax server init" does.
 	owner, err := eng.InitOwner(ctx)
 	if err != nil {
 		t.Fatal(err)

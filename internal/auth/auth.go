@@ -1,7 +1,7 @@
 // Package auth verifies the three token kinds of Solax.
 //
 //	Kind     Created by                      Server keeps        Used by
-//	client   solax-server token create       SHA-256 hash        CLI client commands, desktop app
+//	client   solax server token create       SHA-256 hash        CLI client commands, desktop app
 //	machine  the machine (solax daemon)      SHA-256 hash        solax daemon run
 //	agent    the server, per session         nothing (signed)    agent sessions (SOLAX_TOKEN)
 //
@@ -114,7 +114,7 @@ type ClientToken struct {
 // Machine token hashes live on the machine record (core.Machine.TokenHash).
 type Repo interface {
 	// DefaultOwner returns the owner of a single-owner installation, or
-	// errs.ErrNotFound before "solax-server init".
+	// errs.ErrNotFound before "solax server init".
 	DefaultOwner(ctx context.Context) (core.ID, error)
 	ClientByHash(ctx context.Context, hash string) (ClientToken, error)
 	ClientByID(ctx context.Context, id core.ID) (ClientToken, error)
@@ -158,7 +158,7 @@ func (s *Service) Verify(ctx context.Context, token string) (Claims, error) {
 }
 
 // CreateClient creates a client token. It returns the token once; the
-// server keeps only its hash. "solax-server token create" calls it.
+// server keeps only its hash. "solax server token create" calls it.
 // An empty ownerID means the default owner.
 func (s *Service) CreateClient(ctx context.Context, ownerID core.ID, name string) (string, ClientToken, error) {
 	name = strings.TrimSpace(name)
@@ -168,7 +168,7 @@ func (s *Service) CreateClient(ctx context.Context, ownerID core.ID, name string
 	if ownerID == "" {
 		var err error
 		if ownerID, err = s.repo.DefaultOwner(ctx); err != nil {
-			return "", ClientToken{}, fmt.Errorf("no owner (run solax-server init): %w", err)
+			return "", ClientToken{}, fmt.Errorf("no owner (run solax server init): %w", err)
 		}
 	}
 	token, err := NewToken(PrefixClient)

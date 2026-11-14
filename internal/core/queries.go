@@ -36,6 +36,9 @@ type AgentView struct {
 	// Online is true when the machine is connected and its daemon detected
 	// a working driver for the agent.
 	Online bool
+	// SessionID is the conversation session of the Super Agent, once it
+	// has one. It is empty for other agents: their sessions are per job.
+	SessionID ID
 }
 
 // Agents lists the live agents of the owner. The Super Agent uses it to
@@ -55,9 +58,17 @@ func (e *Engine) Agents(ctx context.Context, a Actor) ([]AgentView, error) {
 		}
 		all, err := tx.Agents().List(ctx)
 		for _, ag := range all {
-			if m, ok := byID[ag.MachineID]; ok {
-				out = append(out, AgentView{Agent: ag, MachineName: m.Name, Online: m.Online && m.HasDriver(ag.Driver)})
+			m, ok := byID[ag.MachineID]
+			if !ok {
+				continue
 			}
+			v := AgentView{Agent: ag, MachineName: m.Name, Online: m.Online && m.HasDriver(ag.Driver)}
+			if ag.Role == RoleSuper {
+				if ses, err := tx.Sessions().For(ctx, ag.ID, ""); err == nil {
+					v.SessionID = ses.ID
+				}
+			}
+			out = append(out, v)
 		}
 		return err
 	})

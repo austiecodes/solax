@@ -10,12 +10,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/austiecodes/solax/internal/agent"
@@ -25,6 +21,7 @@ import (
 	"github.com/austiecodes/solax/internal/daemon/control"
 	"github.com/austiecodes/solax/internal/daemon/supervisor"
 	"github.com/austiecodes/solax/internal/localconfig"
+	"github.com/austiecodes/solax/internal/svc"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -192,24 +189,7 @@ func (d *Daemon) Stop() {
 // Logs copies the daemon log to w. With follow, it keeps copying new
 // lines until ctx ends.
 func (d *Daemon) Logs(ctx context.Context, w io.Writer, follow bool) error {
-	f, err := os.Open(d.paths.Log())
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	for {
-		if _, err := io.Copy(w, f); err != nil {
-			return err
-		}
-		if !follow {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(500 * time.Millisecond):
-		}
-	}
+	return svc.Tail(ctx, d.paths.Log(), w, follow)
 }
 
 var _ control.Daemon = (*Daemon)(nil)
@@ -253,35 +233,4 @@ func mustJSON(v any) json.RawMessage {
 		return json.RawMessage(`null`)
 	}
 	return b
-}
-
-// Start runs "solax daemon run" as a detached background process. It
-// writes the PID file and sends the output to the daemon log. It fails when
-// a daemon of this home already runs.
-func Start(paths localconfig.Paths) (pid int, err error) {
-	if b, err := os.ReadFile(paths.PID()); err == nil {
-		if old, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && syscall.Kill(old, 0) == nil {
-			return 0, fmt.Errorf("daemon already runs (pid %d)", old)
-		}
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return 0, err
-	}
-	logf, err := os.OpenFile(paths.Log(), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return 0, err
-	}
-	defer logf.Close()
-	cmd := exec.Command(exe, "daemon", "run")
-	cmd.Stdout, cmd.Stderr = logf, logf
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
-		return 0, err
-	}
-	pid = cmd.Process.Pid
-	if err := os.WriteFile(paths.PID(), []byte(strconv.Itoa(pid)), 0o600); err != nil {
-		return pid, err
-	}
-	return pid, cmd.Process.Release()
 }

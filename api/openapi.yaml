@@ -3,7 +3,7 @@ info:
   title: Solax API
   version: 0.0.0
   description: >
-    REST API of solax-server. The Go source of truth for the shapes is
+    REST API of the Solax server. The Go source of truth for the shapes is
     pkg/protocol. Schemas are added with the implementation.
 
     Management routes (create a workspace, change members, create or cancel

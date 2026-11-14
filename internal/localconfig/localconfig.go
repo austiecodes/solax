@@ -1,5 +1,6 @@
 // Package localconfig reads and writes the local state of one machine in
-// ~/.solax (or $SOLAX_HOME). The CLI and the daemon share it.
+// ~/.solax (or $SOLAX_HOME). The CLI, the daemon and a local server share
+// it. The server keeps its files in the "server" subdirectory.
 package localconfig
 
 import (
@@ -43,6 +44,10 @@ func (p Paths) PID() string         { return filepath.Join(p.Dir, "daemon.pid") 
 func (p Paths) Log() string         { return filepath.Join(p.Dir, "daemon.log") }
 func (p Paths) State() string       { return filepath.Join(p.Dir, "state") }
 
+// Server files. The server secret is ServerDB() + ".secret".
+func (p Paths) ServerDir() string { return filepath.Join(p.Dir, "server") }
+func (p Paths) ServerDB() string  { return filepath.Join(p.ServerDir(), "solax.db") }
+
 // Config is config.yaml. It holds no secrets.
 type Config struct {
 	Backend Backend `yaml:"backend,omitempty" json:"backend"`
@@ -63,7 +68,7 @@ type Machine struct {
 
 // Credentials is credentials.yaml (mode 0600).
 //
-// ClientToken comes from the server admin ("solax-server token create").
+// ClientToken comes from the server admin ("solax server token create").
 // MachineToken is generated on this machine by "solax daemon start". The
 // server keeps only its hash.
 type Credentials struct {
