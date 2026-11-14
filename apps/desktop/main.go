@@ -31,6 +31,7 @@ func main() {
 		log.Fatal(err)
 	}
 	d := newDesktop(profiles, filepath.Join(filepath.Dir(path), "app.json"))
+	d.readLocal = profile.ReadLocal
 	d.notes = systemNotifier{d}
 	applyAppearance(d.prefs.Appearance)
 	mygo.App.SetMenu(d.menu())

@@ -109,6 +109,12 @@ type desktop struct {
 	// Settings.
 	setName, setServer, setToken string
 	setAppearance                string // the Appearance choice, bound to its select
+
+	// The server that the solax CLI of this Mac uses ("solax setup
+	// local"). readLocal reads it; nil (in tests) means none.
+	readLocal func() (profile.Local, error)
+	local     profile.Local
+	localErr  error
 }
 
 // agentForm is the "add agent" form.
@@ -131,6 +137,7 @@ func newDesktop(profiles *profile.Store, prefsPath string) *desktop {
 		page: p.Page, jobSel: p.Job, setAppearance: appearanceLabel(p.Appearance),
 		conn: connState{State: "disconnected"}, focused: true, unread: unread,
 		events: map[string][]ir.Event{}, live: map[string]map[string]*liveText{}, folds: map[string]*fold{},
+		localErr: profile.ErrNoLocal, // until checkLocal runs
 	}
 }
 
@@ -191,6 +198,17 @@ func (d *desktop) do(work func(ctx context.Context, c *client.Client) (func(), e
 // connect uses the current profile: a new client, a new stream, and a
 // full reload. It is safe to call again after the profile changed.
 func (d *desktop) connect() {
+	local, lerr := d.checkLocal()
+	if lerr == nil {
+		// With no profile yet, a local setup is the answer: no form.
+		if _, err := d.profiles.AdoptLocal(local); err != nil {
+			log.Printf("solax: use local setup: %v", err)
+		}
+		// "solax setup local" may have made a new token since.
+		if _, err := d.profiles.SyncLocal(local); err != nil {
+			log.Printf("solax: sync local token: %v", err)
+		}
+	}
 	p, token, err := d.profiles.Current()
 	if err != nil {
 		d.update(func() { d.conn = connState{State: "disconnected", Error: err.Error()}; d.page = pageSettings })
@@ -214,6 +232,31 @@ func (d *desktop) connect() {
 		d.events, d.live, d.superSes = map[string][]ir.Event{}, map[string]map[string]*liveText{}, ""
 	})
 	go d.feed(ctx, c, p.Server)
+}
+
+// checkLocal reads the local setup again and shows the result in
+// Settings.
+func (d *desktop) checkLocal() (profile.Local, error) {
+	l, err := profile.Local{}, profile.ErrNoLocal
+	if d.readLocal != nil {
+		l, err = d.readLocal()
+	}
+	d.update(func() { d.local, d.localErr = l, err })
+	return l, err
+}
+
+// useLocal switches to the local setup.
+func (d *desktop) useLocal() {
+	l, err := d.checkLocal()
+	if err == nil {
+		err = d.profiles.UseLocal(l)
+	}
+	if err != nil {
+		d.update(func() { d.status = "settings: " + err.Error() })
+		return
+	}
+	d.update(func() { d.status = ""; d.page = pageChat })
+	d.connect()
 }
 
 // stop closes the stream.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -22,7 +23,7 @@ func (d *desktop) machinesPage(c *ui.Context) {
 	})
 	ui.Scroll(c).Grow(1).Padding(16, 20).Gap(10).Children(func() {
 		if len(d.machines) == 0 {
-			ui.Text(c, "No machines yet. On a machine, run: solax daemon start").TextColor(pal.textMuted)
+			ui.Text(c, "No machines yet. On this Mac, run: solax setup local. On another machine, run: solax daemon start").TextColor(pal.textMuted)
 		}
 		for _, m := range d.machines {
 			ui.Column(c.Key(m.ID)).Gap(6).Padding(12, 14).Radius(10).Border(1, pal.divider).Children(func() {
@@ -69,6 +70,7 @@ func (d *desktop) settingsPage(c *ui.Context) {
 	d.header(c, "Settings", "The server this app talks to, and how the app looks.", nil)
 	ui.Scroll(c).Grow(1).Padding(16, 20).Gap(12).Children(func() {
 		d.lookForm(c)
+		d.localForm(c)
 		ui.Text(c, "Server").Bold().Margin(12, 0, 0, 0)
 		ui.Form(c, func() {
 			ui.Field(c, "Profile", func() { ui.TextInput(c, &d.setName).Placeholder("local") })
@@ -126,6 +128,37 @@ func (d *desktop) settingsPage(c *ui.Context) {
 		}
 		ui.Text(c, fmt.Sprintf("Connection: %s %s", d.conn.State, d.conn.Error)).FontSize(12).TextColor(pal.textMuted)
 	})
+}
+
+// localForm offers the server that the solax CLI of this Mac uses. After
+// "solax setup local", one click connects the app to it.
+func (d *desktop) localForm(c *ui.Context) {
+	pal := paletteFor(c)
+	ui.Text(c, "This Mac").Bold().Margin(12, 0, 0, 0)
+	if d.localErr != nil {
+		ui.Text(c, "To run Solax only on this Mac, run this in a terminal. It starts the server and the daemon here:").TextColor(pal.textMuted)
+		ui.Text(c, "solax setup local").Font("monospace").Selectable()
+		if !errors.Is(d.localErr, profile.ErrNoLocal) {
+			ui.Text(c, d.localErr.Error()).FontSize(12).TextColor(pal.textMuted)
+		}
+		if button(c, "local-check", "Check again", plainButton, false) {
+			go d.checkLocal()
+		}
+		return
+	}
+	if !d.local.Loopback() {
+		ui.Text(c, fmt.Sprintf("The solax CLI uses %s, on another host. To use it here, add it below with a client token.", d.local.Server)).TextColor(pal.textMuted)
+		return
+	}
+	ui.Text(c, fmt.Sprintf("The server and the daemon run on this Mac, on %s.", d.local.Server)).TextColor(pal.textMuted)
+	inUse := d.setName == profile.LocalName && d.setServer == d.local.Server
+	label := "Use this server"
+	if inUse {
+		label = "In use"
+	}
+	if button(c, "local-use", label, plainButton, inUse) {
+		go d.useLocal()
+	}
 }
 
 // appearances are the Appearance choices, as the Settings page shows them.
