@@ -6,7 +6,8 @@ You talk to one agent, the **Super Agent**. It gives jobs to coding agents
 (Claude Code, Codex and pi) that run on your machines. When a job is done,
 the result comes back to the Super Agent, and it replies to you.
 
-Solax takes ideas from Multica, Alma, Kero, and other great apps.
+Solax takes ideas from [Multica](https://multica.ai), [Alma](https://alma.now),
+[Kero](https://kero.sh), and other great apps.
 
 > **Status:** early work.
 
@@ -126,8 +127,10 @@ Commit messages use [Conventional Commits](https://www.conventionalcommits.org/)
 
 ## Credits
 
-- Multica: server, local daemon and
+- [Multica](https://multica.ai): server, local daemon and
   CLI; agents use the same CLI as humans.
-- [Kero](https://github.com/egoist/kero) by EGOIST: the desktop layout,
+- [Kero](https://kero.sh) by EGOIST: the desktop layout,
   palettes and themes.
-- Alma, and other great apps.
+- [MyGo](https://github.com/egoist/mygo) by EGOIST: the native UI
+  toolkit that the desktop app is built with.
+- [Alma](https://alma.now), and other great apps.
