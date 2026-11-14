@@ -18,19 +18,19 @@ func (d *desktop) chatPage(c *ui.Context) {
 	sub := ""
 	switch {
 	case sa == nil:
-		sub = "No Super Agent yet"
+		sub = "Not set up yet"
 	case d.superBusy:
 		sub = "Working…"
 	case len(d.messages) > 0:
 		sub = plural(len(d.messages), "message")
 	}
-	d.header(c, "Super Agent", sub, nil)
+	d.header(c, "Solax", sub, nil)
 
 	blocks := chatBlocks(d.messages, d.events[d.superSes], d.live[d.superSes], d.superBusy)
 	d.transcriptView(c, pal, &d.chatList, blocks, func() { d.chatEmpty(c, pal, sa != nil) })
 
 	composer{
-		key: "composer", placeholder: "Message the Super Agent", draft: &d.draft,
+		key: "composer", placeholder: "Message Solax", draft: &d.draft,
 		disabled: sa == nil, busy: d.sending, focus: true, send: d.send,
 		info: func() {
 			if sa == nil {
@@ -54,8 +54,8 @@ var suggestions = []string{
 // chatEmpty fills the chat before the first message.
 func (d *desktop) chatEmpty(c *ui.Context, pal *palette, ready bool) {
 	if !ready {
-		emptyState(c, pal, sparklesIcon, "No Super Agent yet",
-			"The Super Agent takes your requests and gives jobs to your agents. Add one on the Agents page, and check \"Super Agent\".", "")
+		emptyState(c, pal, sparklesIcon, "Solax is not set up yet",
+			"Solax is the agent you talk to. It gives jobs to your other agents. On the Agents page, choose the agent that is Solax.", "")
 		return
 	}
 	ui.Column(c.Key("empty")).Fill().Center().Padding(24).Gap(8).Children(func() {
@@ -63,7 +63,7 @@ func (d *desktop) chatEmpty(c *ui.Context, pal *palette, ready bool) {
 			ui.Icon(c, sparklesIcon).Size(26, 26)
 		})
 		ui.Text(c, "What should your agents do?").FontSize(19).FontWeight(650).TextColor(pal.text)
-		ui.Text(c, "The Super Agent gives jobs to your agents and tells you when they are done.").
+		ui.Text(c, "Solax gives jobs to your agents and tells you when they are done.").
 			FontSize(13.5).TextColor(pal.textMuted).MaxWidth(420).TextAlign(ui.Center).LineHeight(1.45)
 		ui.Row(c).Gap(8).Wrap().Justify(ui.Center).MaxWidth(560).Margin(14, 0, 0, 0).Children(func() {
 			for i, s := range suggestions {

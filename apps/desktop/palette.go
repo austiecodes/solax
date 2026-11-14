@@ -81,7 +81,7 @@ func (d *desktop) agentItems() []paletteItem {
 	for _, a := range d.agents {
 		detail := string(a.Driver) + " · " + a.Machine
 		if a.Role == "super" {
-			detail = "Super Agent · " + detail
+			detail = "Solax · " + detail
 		}
 		out = append(out, paletteItem{group: "Agents", title: a.Name, detail: detail, icon: agentIcon,
 			run: func() { d.goTo(pageAgents) }})

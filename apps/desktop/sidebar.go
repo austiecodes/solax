@@ -9,18 +9,14 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// The sidebar: the app name by the traffic lights, the pages, the jobs
+// The sidebar: the traffic lights and the hide button, the pages, the jobs
 // with their state (as kero lists its sessions), and a footer with the
 // counts that need the user and the connection.
 
-// trafficLightsEnd is where the traffic lights end: the title bar reports
-// less than that on some systems.
-const trafficLightsEnd = 72
-
 func (d *desktop) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	// The top bar clears the traffic lights and moves the window.
-	ui.Row(c).Height(topBar).Shrink(0).AlignItems(ui.Center).Gap(6).Padding(0, 10, 0, max(bar.Left, trafficLightsEnd)+12).DragWindow().Children(func() {
-		ui.Text(c, "Solax").FontSize(14).FontWeight(650).TextColor(pal.text).SingleLine()
+	// No app title: the first page is Solax, as in Alma.
+	ui.Row(c).Height(topBar).Shrink(0).AlignItems(ui.Center).Gap(6).Padding(0, 10, 0, max(bar.Left, 16)).DragWindow().Children(func() {
 		ui.Spacer(c)
 		iconButton(c, "hide-sidebar", sidebarIcon, tip("Hide Sidebar", "sidebar.toggle"), pal, func() { d.run("sidebar.toggle") })
 	})

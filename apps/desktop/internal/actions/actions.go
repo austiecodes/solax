@@ -28,7 +28,7 @@ var All = []Action{
 	{ID: "settings.open", Title: "Settings…", Menu: MenuApp, Keys: "CmdOrCtrl+,"},
 
 	{ID: "palette.open", Title: "Go to…", Menu: MenuGo, Keys: "CmdOrCtrl+K"},
-	{ID: "nav.chat", Title: "Super Agent", Menu: MenuGo, Keys: "CmdOrCtrl+1"},
+	{ID: "nav.chat", Title: "Solax", Menu: MenuGo, Keys: "CmdOrCtrl+1"},
 	{ID: "nav.jobs", Title: "Jobs", Menu: MenuGo, Keys: "CmdOrCtrl+2"},
 	{ID: "nav.agents", Title: "Agents", Menu: MenuGo, Keys: "CmdOrCtrl+3"},
 	{ID: "nav.machines", Title: "Machines", Menu: MenuGo, Keys: "CmdOrCtrl+4"},

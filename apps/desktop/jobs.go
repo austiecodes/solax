@@ -33,7 +33,7 @@ func (d *desktop) jobsPage(c *ui.Context) {
 	ui.Scroll(c).Grow(1).Padding(12, 16).Gap(4).Children(func() {
 		if len(d.jobs) == 0 {
 			emptyState(c, pal, jobsIcon, "No jobs yet",
-				"The Super Agent gives jobs to your agents. You can also send one from a shell:",
+				"Solax gives jobs to your agents. You can also send one from a shell:",
 				`solax job send coder "add a README"`)
 			return
 		}

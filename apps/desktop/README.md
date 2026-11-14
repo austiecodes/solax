@@ -5,7 +5,8 @@ No webview, no JavaScript.
 
 Pages:
 
-- **Super Agent**: chat with the router. Between its replies, what it
+- **Solax**: chat with Solax, the agent you talk to (the "Super Agent"
+  role on the server). It gives jobs to your other agents. Between its replies, what it
   did (reasoning and tool calls) folds into a group: "4 tools used". A
   group is open while the agent works and closes when it is done; a
   click opens or closes it, and a click on a tool call shows its output.
@@ -14,7 +15,7 @@ Pages:
   prompt, the steps of the agent, its replies and live text. It looks the
   same for Claude Code, Codex and pi. Send a follow-up or cancel.
 - **Agents**: set up agents (name, machine, driver, folder, model,
-  description) and choose the Super Agent.
+  description) and choose the agent that is Solax.
 - **Machines**: machines, the agent CLIs their daemons found, and pairing.
 - **Settings**: server URL and client token. The token is kept in the
   macOS keychain (service `dev.austiecodes.solax`), the profiles in

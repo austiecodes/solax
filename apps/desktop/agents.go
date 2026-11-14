@@ -16,7 +16,7 @@ import (
 // routes by the description, so the form asks for it.
 func (d *desktop) agentsPage(c *ui.Context) {
 	pal := paletteFor(c)
-	d.header(c, "Agents", "Coding agents on your machines. The Super Agent picks one by its description.", func() {
+	d.header(c, "Agents", "Coding agents on your machines. Solax picks one by its description.", func() {
 		if button(c, "refresh", "Refresh", plainButton, false) {
 			d.reloadAgents()
 		}
@@ -39,7 +39,7 @@ func (d *desktop) agentCard(c *ui.Context, a protocol.Agent) {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, a.Name).Bold().FontSize(15)
 			if a.Role == "super" {
-				ui.Badge(c, "Super Agent").Background(pal.accent).TextColor(pal.onAccent)
+				ui.Badge(c, "Solax").Background(pal.accent).TextColor(pal.onAccent)
 			}
 			ui.Badge(c, string(a.Driver))
 			if a.Online {
@@ -48,7 +48,7 @@ func (d *desktop) agentCard(c *ui.Context, a protocol.Agent) {
 				ui.Badge(c, "offline")
 			}
 			ui.Spacer(c)
-			if a.Role != "super" && button(c, "make-super", "Make Super Agent", plainButton, false) {
+			if a.Role != "super" && button(c, "make-super", "Make It Solax", plainButton, false) {
 				name, yes := a.Name, true
 				d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 					_, err := c.UpdateAgent(ctx, name, protocol.UpdateAgentRequest{Super: &yes})
@@ -57,7 +57,7 @@ func (d *desktop) agentCard(c *ui.Context, a protocol.Agent) {
 			}
 			if button(c, "remove", "Remove", plainButton, false) {
 				name := a.Name
-				d.ask("Remove "+name+"?", "The Super Agent can no longer give jobs to "+name+". Its past jobs stay.", "Remove", true, func() {
+				d.ask("Remove "+name+"?", "Solax can no longer give jobs to "+name+". Its past jobs stay.", "Remove", true, func() {
 					d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 						return d.reloadAgents, c.DeleteAgent(ctx, name)
 					})
@@ -86,13 +86,13 @@ func (d *desktop) agentFormView(c *ui.Context) {
 		f.Driver = drivers[0]
 	}
 	ui.Form(c, func() {
-		ui.Field(c, "Name", func() { ui.TextInput(c, &f.Name).Placeholder("coder") }).Description("Lower case, digits and dashes. The Super Agent uses it to route.")
+		ui.Field(c, "Name", func() { ui.TextInput(c, &f.Name).Placeholder("coder") }).Description("Lower case, digits and dashes. Solax uses it to route.")
 		ui.Field(c, "Machine", func() { ui.Select(c, &f.Machine, machines) })
 		ui.Field(c, "Driver", func() { ui.Select(c, &f.Driver, drivers) }).Description("The agent CLIs that the daemon found on this machine.")
 		ui.Field(c, "Work folder", func() { ui.TextInput(c, &f.Dir).Placeholder("~/src/my-app") })
 		ui.Field(c, "Model", func() { ui.TextInput(c, &f.Model).Placeholder("optional, for example haiku") })
 		ui.Field(c, "Description", func() { ui.TextArea(c, &f.Desc).Height(70).Placeholder("What this agent is good at") })
-		ui.Field(c, "Role", func() { ui.Checkbox(c, &f.Super, "Super Agent (the router that talks to you)") })
+		ui.Field(c, "Role", func() { ui.Checkbox(c, &f.Super, "This is Solax (the agent you talk to)") })
 	})
 	ready := !f.busy && strings.TrimSpace(f.Name) != "" && f.Machine != "" && f.Driver != "" && strings.TrimSpace(f.Dir) != ""
 	if button(c, "add-agent", "Add agent", primaryButton, !ready) {
