@@ -65,7 +65,7 @@ func NewRoot() *cobra.Command {
 			root.AddCommand(c)
 		}
 	}
-	add("config", setCmd(g), configCmd(g))
+	add("config", setupCmd(g), setCmd(g), configCmd(g))
 	add("daemon", daemonCmd(g), tryCmd(g))
 	add("server", serverCmd(g))
 	add("client", chatCmd(g), agentCmd(g), jobCmd(g), watchCmd(g), machineCmd(g), recallCmd(g))

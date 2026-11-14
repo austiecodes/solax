@@ -38,31 +38,14 @@ func setBackendCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg, err := p.Load()
-			if err != nil {
-				return err
-			}
-			creds, err := p.LoadCredentials()
-			if err != nil {
-				return err
-			}
-			if cfg.Backend.URL != "" && cfg.Backend.URL != strings.TrimRight(u.String(), "/") {
-				// The machine identity belongs to the old server. A new
-				// server gets a new machine token.
-				creds.MachineID, creds.MachineToken = "", ""
-			}
-			cfg.Backend.URL = strings.TrimRight(u.String(), "/")
+			token := ""
 			if tokenStdin {
-				t, err := readToken(cmd.InOrStdin())
-				if err != nil {
+				if token, err = readToken(cmd.InOrStdin()); err != nil {
 					return err
 				}
-				creds.ClientToken = t
 			}
-			if err := p.Save(cfg); err != nil {
-				return err
-			}
-			return p.SaveCredentials(creds)
+			_, err = saveBackend(p, u.String(), token, false)
+			return err
 		},
 	}
 	cmd.Flags().StringVar(&rawURL, "url", "", "server URL")
@@ -103,6 +86,34 @@ func setMachineCmd() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "machine name")
 	cmd.Flags().IntVar(&maxSessions, "max-sessions", 0, "maximum concurrent agent sessions")
 	return cmd
+}
+
+// saveBackend sets the server of this machine and, if token is not empty,
+// the client token. The machine identity belongs to one server, so a new
+// URL, or resetMachine, removes it; the next "daemon start" sets the
+// machine up again. It reports if the machine identity was removed.
+func saveBackend(p localconfig.Paths, rawURL, token string, resetMachine bool) (machineReset bool, err error) {
+	cfg, err := p.Load()
+	if err != nil {
+		return false, err
+	}
+	creds, err := p.LoadCredentials()
+	if err != nil {
+		return false, err
+	}
+	u := strings.TrimRight(rawURL, "/")
+	if resetMachine || (cfg.Backend.URL != "" && cfg.Backend.URL != u) {
+		machineReset = creds.MachineID != "" || creds.MachineToken != ""
+		creds.MachineID, creds.MachineToken = "", ""
+	}
+	cfg.Backend.URL = u
+	if token != "" {
+		creds.ClientToken = token
+	}
+	if err := p.Save(cfg); err != nil {
+		return false, err
+	}
+	return machineReset, p.SaveCredentials(creds)
 }
 
 func configCmd(g *globals) *cobra.Command {

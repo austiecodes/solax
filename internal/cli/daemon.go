@@ -79,20 +79,29 @@ sends only its hash to the server:
   - With a client token on this machine, the machine is approved at once.
   - Without one, the machine enrolls as pending and start prints a pairing
     code. Approve it from any client: solax machine approve <code>.`,
-		RunE: func(cmd *cobra.Command, args []string) error { return startDaemon(cmd, g) },
+		RunE: func(cmd *cobra.Command, args []string) error { return startDaemonCmd(cmd, g) },
 	}
 }
 
-// startDaemon sets up the machine on first use, then starts the daemon in
-// the background and waits until its control socket answers.
-func startDaemon(cmd *cobra.Command, g *globals) error {
+func startDaemonCmd(cmd *cobra.Command, g *globals) error {
 	p, err := paths()
 	if err != nil {
 		return err
 	}
-	cfg, err := p.LoadEffective()
+	pid, err := startDaemon(cmd, g, p)
 	if err != nil {
 		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "daemon started (pid %d), log: %s\n", pid, p.Log())
+	return nil
+}
+
+// startDaemon sets up the machine on first use, then starts the daemon in
+// the background and waits until its control socket answers.
+func startDaemon(cmd *cobra.Command, g *globals, p localconfig.Paths) (pid int, err error) {
+	cfg, err := p.LoadEffective()
+	if err != nil {
+		return 0, err
 	}
 	// Resolve the server the same way the client commands do:
 	// flag, then environment, then config.yaml.
@@ -100,23 +109,18 @@ func startDaemon(cmd *cobra.Command, g *globals) error {
 		cfg.Backend.URL = strings.TrimRight(s, "/")
 	}
 	if err := cfg.Validate(); err != nil {
-		return err
+		return 0, err
 	}
 	creds, err := p.LoadCredentials()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if creds.MachineID == "" {
 		if err := setupMachine(cmd, g, p, cfg, &creds); err != nil {
-			return fmt.Errorf("set up machine: %w", err)
+			return 0, fmt.Errorf("set up machine: %w", err)
 		}
 	}
-	pid, err := daemonService(p).Start(cmd.Context())
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "daemon started (pid %d), log: %s\n", pid, p.Log())
-	return nil
+	return daemonService(p).Start(cmd.Context())
 }
 
 // daemonService is "solax daemon run" as a background service.
@@ -164,7 +168,7 @@ func daemonRestartCmd(g *globals) *cobra.Command {
 			if err := daemonService(p).Stop(cmd.Context()); err != nil && !errors.Is(err, svc.ErrNotRunning) {
 				return err
 			}
-			return startDaemon(cmd, g)
+			return startDaemonCmd(cmd, g)
 		},
 	}
 }
