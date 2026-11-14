@@ -218,9 +218,13 @@ func (s *session) pump() {
 		}
 		s.mu.Lock()
 		evs, derr := s.dec.Decode(rec)
+		turn := s.dec.TurnID()
 		s.mu.Unlock()
 		if derr != nil {
+			// The record is lost. Show it in the transcript, not only in
+			// stderr.log: a lost tool result leaves the tool spinning.
 			fmt.Fprintf(s.log, "solax: %v\n", derr)
+			s.em.Emit(agent.Notice(turn, "warn", "decode_error", derr.Error()))
 			continue
 		}
 		s.em.Emit(evs...)

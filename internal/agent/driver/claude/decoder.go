@@ -54,6 +54,9 @@ func (d *Decoder) Interrupted() { d.interrupted = true }
 // Busy reports whether a turn is open.
 func (d *Decoder) Busy() bool { return d.turn != "" }
 
+// TurnID returns the open turn, or "" when idle.
+func (d *Decoder) TurnID() string { return d.turn }
+
 type record struct {
 	Type            string          `json:"type"`
 	Subtype         string          `json:"subtype"`
