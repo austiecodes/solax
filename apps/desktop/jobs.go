@@ -82,7 +82,7 @@ func (d *desktop) jobDetail(c *ui.Context, j protocol.Job) {
 			}).keep = "Keep job"
 		}
 	}})
-	blocks := jobBlocks(j, d.events[j.SessionID], d.live[j.SessionID])
+	blocks := withWorking(jobBlocks(j, d.events[j.SessionID], d.live[j.SessionID]), jobLive(j.State))
 	d.transcriptView(c, pal, &d.jobList, blocks, nil)
 	closed := j.State == "cancelled"
 	placeholder := "Send more input to " + j.Agent

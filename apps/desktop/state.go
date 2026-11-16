@@ -87,8 +87,11 @@ type desktop struct {
 	draft     string
 	sending   bool
 	chatList  ui.ListState
-	superBusy bool   // its session runs a turn
-	superSes  string // its session: its events fill the chat with steps
+	superBusy bool // its session runs a turn
+	// superWaiting is true from a send until the turn after it ends, so
+	// the chat shows "Working…" while the session starts.
+	superWaiting bool
+	superSes     string // its session: its events fill the chat with steps
 
 	// Jobs.
 	jobs        []protocol.Job
@@ -418,7 +421,7 @@ func (d *desktop) sessionEvent(n protocol.SessionEventNote) {
 		case ir.TurnStarted:
 			d.superBusy = true
 		case ir.TurnCompleted, ir.SessionExitedEvent:
-			d.superBusy = false
+			d.superBusy, d.superWaiting = false, false
 		}
 	}
 	if e.Type == ir.ItemDelta && e.Delta != nil {

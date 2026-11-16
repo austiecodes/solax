@@ -175,3 +175,27 @@ func TestComposer(t *testing.T) {
 		t.Fatalf("sent = %q, draft %q", sent, draft)
 	}
 }
+
+func TestWithWorking(t *testing.T) {
+	user := block{kind: blockUser, key: "u"}
+	cases := []struct {
+		name   string
+		blocks []block
+		busy   bool
+		want   bool
+	}{
+		{"idle", []block{user}, false, false},
+		{"sent, no turn yet", []block{user}, true, true},
+		{"empty chat, message on its way", nil, true, true},
+		{"live steps show it", []block{user, {kind: blockSteps, key: "s", live: true}}, true, false},
+		{"streaming reply shows it", []block{user, {kind: blockReply, key: "r", live: true}}, true, false},
+		{"done steps, turn still busy", []block{user, {kind: blockSteps, key: "s"}}, true, true},
+	}
+	for _, c := range cases {
+		got := withWorking(c.blocks, c.busy)
+		has := len(got) > 0 && got[len(got)-1].kind == blockWorking
+		if has != c.want {
+			t.Errorf("%s: working = %v, want %v", c.name, has, c.want)
+		}
+	}
+}

@@ -104,6 +104,8 @@ func (d *desktop) blockView(c *ui.Context, pal *palette, b block) {
 		d.stepsView(c, pal, b)
 	case blockNote:
 		d.noteView(c, pal, b)
+	case blockWorking:
+		workingView(c, pal)
 	}
 }
 
@@ -137,21 +139,19 @@ func (d *desktop) noteView(c *ui.Context, pal *palette, b block) {
 	})
 }
 
-// stepsView is a group of steps: a quiet line that tells what the agent
-// did, as the Codex app's "Ran 3 commands", which opens to show them all.
+// stepsView is a group of steps: the icons of its steps and a quiet line
+// that tells what the agent did, which opens to show them all.
 func (d *desktop) stepsView(c *ui.Context, pal *palette, b block) {
 	f := d.foldFor(b.key, b.live)
 	p := ui.CollapsibleBase(c.Key(b.key), &f.open)
-	tr := p.Trigger.Gap(6).AlignItems(ui.Center).Padding(2, 0).AlignSelf(ui.Start).
+	tr := p.Trigger.Gap(8).AlignItems(ui.Center).Padding(2, 0).AlignSelf(ui.Start).
 		Label(stepsTitle(b)).Cursor(ui.CursorPointer)
 	fg := pal.textMuted
 	if tr.Hovered() {
 		fg = pal.text
 	}
 	tr.Children(func() {
-		if b.live {
-			statusIcon(c, pal, "running", false, 12)
-		}
+		stepIcons(c, pal, b)
 		ui.Text(c, stepsTitle(b)).FontSize(13).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
 		ui.Icon(c, chevronIcon).Size(8, 8).TextColor(pal.textFaint).Rotate(90 * p.Progress()).Shrink(0)
 	})
@@ -168,6 +168,71 @@ func (d *desktop) stepsView(c *ui.Context, pal *palette, b block) {
 				d.stepView(c, pal, s)
 			}
 		})
+	})
+}
+
+// stepIcons stacks the icons of the kinds of steps of a group, as coins:
+// a turning ring first while the agent works.
+func stepIcons(c *ui.Context, pal *palette, b block) {
+	var icons []*ui.SVG
+	for _, s := range b.steps {
+		i := stepIcon(s)
+		if len(icons) == 0 || icons[len(icons)-1] != i {
+			icons = append(icons, i)
+		}
+	}
+	if len(icons) > 4 {
+		icons = icons[len(icons)-4:]
+	}
+	ui.Row(c).Shrink(0).AlignItems(ui.Center).Children(func() {
+		coin := func(i int) ui.Element {
+			e := ui.Box(c).Size(24, 24).Radius(12).Center().Shrink(0).Background(pal.card).
+				Border(1, pal.divider).TextColor(pal.textMuted)
+			if i > 0 {
+				e.Margin(0, 0, 0, -10)
+			}
+			return e
+		}
+		if b.live {
+			coin(0).Children(func() { statusIcon(c, pal, "running", false, 12) })
+		}
+		for i, svg := range icons {
+			n := i
+			if b.live {
+				n++
+			}
+			coin(n).Children(func() { ui.Icon(c, svg).Size(12, 12) })
+		}
+	})
+}
+
+func stepIcon(s step) *ui.SVG {
+	if s.kind == ir.ItemReasoning {
+		return thoughtIcon
+	}
+	switch s.tool.Class {
+	case ir.ToolShell, ir.ToolScript:
+		return agentIcon
+	case ir.ToolFileRead:
+		return docIcon
+	case ir.ToolFileSearch:
+		return searchIcon
+	case ir.ToolFileChange:
+		return pencilIcon
+	case ir.ToolWeb:
+		return globeIcon
+	case ir.ToolSubagent:
+		return sparklesIcon
+	}
+	return toolIcon
+}
+
+// workingView tells that the agent works while nothing else on screen
+// shows it: the message is on its way, or the turn has not started yet.
+func workingView(c *ui.Context, pal *palette) {
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(2, 0).Children(func() {
+		statusIcon(c, pal, "running", false, 12)
+		ui.Text(c, "Working…").FontSize(13).TextColor(pal.textMuted).SingleLine()
 	})
 }
 

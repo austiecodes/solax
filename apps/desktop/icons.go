@@ -35,7 +35,12 @@ var (
 	folderIcon   = glyph("f7-folder")
 	organizeIcon = glyph("f7-line-horizontal-3-decrease")
 
+	// The steps of a transcript.
+	thoughtIcon   = glyph("f7-lightbulb")
+	docIcon       = glyph("f7-doc")
 	pencilIcon    = glyph("f7-pencil")
+	globeIcon     = glyph("f7-globe")
+	toolIcon      = glyph("f7-wrench")
 	chevronIcon   = glyph("f7-chevron-right")
 	sendIcon      = glyph("f7-arrow-up")
 	arrowDownIcon = glyph("f7-arrow-down")

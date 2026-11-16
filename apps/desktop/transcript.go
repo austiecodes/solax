@@ -22,10 +22,11 @@ import (
 type blockKind int
 
 const (
-	blockUser  blockKind = iota // a message from the user
-	blockReply                  // text from the agent, in markdown
-	blockSteps                  // reasoning and tool calls, folded
-	blockNote                   // one line: a job that ended, an error
+	blockUser    blockKind = iota // a message from the user
+	blockReply                    // text from the agent, in markdown
+	blockSteps                    // reasoning and tool calls, folded
+	blockNote                     // one line: a job that ended, an error
+	blockWorking                  // the agent works, and nothing else shows it
 )
 
 type block struct {
@@ -274,6 +275,19 @@ func jobBlocks(j protocol.Job, evs []ir.Event, live map[string]*liveText) []bloc
 		blocks = append(blocks, block{kind: blockNote, key: "error-" + j.ID, text: j.Error, warn: true})
 	}
 	return blocks
+}
+
+// withWorking adds a "Working…" line at the end while the agent is busy
+// and the end does not show it already: live steps and a streaming reply
+// have their own motion.
+func withWorking(blocks []block, busy bool) []block {
+	if !busy {
+		return blocks
+	}
+	if n := len(blocks); n > 0 && blocks[n-1].live && (blocks[n-1].kind == blockSteps || blocks[n-1].kind == blockReply) {
+		return blocks
+	}
+	return append(blocks, block{kind: blockWorking, key: "working"})
 }
 
 // --- how a step reads ---

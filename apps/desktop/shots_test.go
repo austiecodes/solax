@@ -29,7 +29,11 @@ func TestShots(t *testing.T) {
 		shots := map[string]func(d *desktop){
 			"chat":       func(d *desktop) { d.page = pageChat },
 			"chat-empty": func(d *desktop) { d.page, d.messages = pageChat, nil },
-			"jobs":       func(d *desktop) { d.page = pageJobs },
+			"chat-working": func(d *desktop) {
+				d.page, d.superWaiting = pageChat, true
+				d.messages = append(d.messages, protocol.Message{ID: "m5", Seq: 5, Author: protocol.Author{Kind: "human"}, Text: "give coder the README job"})
+			},
+			"jobs": func(d *desktop) { d.page = pageJobs },
 			"job": func(d *desktop) {
 				d.page, d.jobSel = pageJobs, "job_3"
 				d.folds["steps-r1"] = &fold{open: true, set: true}

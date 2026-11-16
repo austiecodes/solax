@@ -15,18 +15,19 @@ import (
 func (d *desktop) chatPage(c *ui.Context) {
 	pal := paletteFor(c)
 	sa := d.superAgent()
+	busy := d.sending || d.superWaiting || d.superBusy
 	sub := ""
 	switch {
 	case sa == nil:
 		sub = "Not set up yet"
-	case d.superBusy:
+	case busy:
 		sub = "Working…"
 	case len(d.messages) > 0:
 		sub = plural(len(d.messages), "message")
 	}
 	d.header(c, pageSpec{title: "Solax", sub: sub})
 
-	blocks := chatBlocks(d.messages, d.events[d.superSes], d.live[d.superSes], d.superBusy)
+	blocks := withWorking(chatBlocks(d.messages, d.events[d.superSes], d.live[d.superSes], d.superBusy), busy)
 	d.transcriptView(c, pal, &d.chatList, blocks, func() { d.chatEmpty(c, pal, sa != nil) })
 
 	composer{
@@ -105,11 +106,11 @@ func (d *desktop) suggestionCard(c *ui.Context, pal *palette, i int, s suggestio
 // send posts text to the Super Agent. The draft stays until the server
 // has it; the reply comes on the stream.
 func (d *desktop) send(text string) {
-	d.sending = true
+	d.sending, d.superWaiting = true, true
 	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 		m, err := c.SendToSuper(ctx, text)
 		if err != nil {
-			d.update(func() { d.sending = false })
+			d.update(func() { d.sending, d.superWaiting = false, false })
 			return nil, err
 		}
 		return func() {
@@ -119,7 +120,7 @@ func (d *desktop) send(text string) {
 		}, nil
 	})
 	if _, err := d.api(); err != nil {
-		d.sending = false
+		d.sending, d.superWaiting = false, false
 	}
 }
 
