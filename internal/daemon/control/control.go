@@ -38,29 +38,20 @@ type Daemon interface {
 	Logs(ctx context.Context, w io.Writer, follow bool) error
 }
 
-// Server serves the control API on the socket.
-type Server struct {
-	path string
-	d    Daemon
-}
-
-// NewServer returns a control server for the socket at path.
-func NewServer(path string, d Daemon) *Server { return &Server{path: path, d: d} }
-
-// Serve listens on the socket until ctx ends. It removes a stale socket
-// file first and sets mode 0600.
-func (s *Server) Serve(ctx context.Context) error {
-	_ = os.Remove(s.path)
-	ln, err := net.Listen("unix", s.path)
+// Serve serves the control API of d on the socket at path until ctx ends.
+// It removes a stale socket file first and sets mode 0600.
+func Serve(ctx context.Context, path string, d Daemon) error {
+	_ = os.Remove(path)
+	ln, err := net.Listen("unix", path)
 	if err != nil {
 		return fmt.Errorf("control socket: %w", err)
 	}
-	defer os.Remove(s.path)
-	if err := os.Chmod(s.path, 0o600); err != nil {
+	defer os.Remove(path)
+	if err := os.Chmod(path, 0o600); err != nil {
 		ln.Close()
 		return err
 	}
-	srv := &http.Server{Handler: s.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	srv := &http.Server{Handler: handler(d), ReadHeaderTimeout: 5 * time.Second}
 	go func() {
 		<-ctx.Done()
 		_ = srv.Close()
@@ -71,24 +62,24 @@ func (s *Server) Serve(ctx context.Context) error {
 	return nil
 }
 
-// Handler returns the HTTP routes: GET /status, POST /reload, POST /stop,
+// handler returns the HTTP routes: GET /status, POST /reload, POST /stop,
 // GET /logs?follow=1.
-func (s *Server) Handler() http.Handler {
+func handler(d Daemon) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(s.d.Status())
+		_ = json.NewEncoder(w).Encode(d.Status())
 	})
 	mux.HandleFunc("POST /reload", func(w http.ResponseWriter, r *http.Request) {
-		if err := s.d.Reload(r.Context()); err != nil {
+		if err := d.Reload(r.Context()); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	})
 	mux.HandleFunc("POST /stop", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
-		go s.d.Stop()
+		go d.Stop()
 	})
 	mux.HandleFunc("GET /logs", func(w http.ResponseWriter, r *http.Request) {
-		_ = s.d.Logs(r.Context(), flushWriter{w}, r.URL.Query().Get("follow") == "1")
+		_ = d.Logs(r.Context(), flushWriter{w}, r.URL.Query().Get("follow") == "1")
 	})
 	return mux
 }

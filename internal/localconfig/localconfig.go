@@ -113,17 +113,18 @@ func (c Config) withDefaults(p Paths) Config {
 	if c.Machine.MaxSessions <= 0 {
 		c.Machine.MaxSessions = 4
 	}
-	c.Machine.StateDir = expandHome(c.Machine.StateDir)
+	c.Machine.StateDir = ExpandHome(c.Machine.StateDir)
 	if c.Machine.StateDir == "" {
 		c.Machine.StateDir = p.State()
 	}
 	return c
 }
 
-// expandHome turns a leading "~/" into the home directory. Any other path
+// ExpandHome turns a leading "~/" into the home directory. Any other path
 // is returned as written. A path that cannot be expanded stays as is; the
-// daemon then fails on it with a clear error.
-func expandHome(p string) string {
+// daemon then fails on it with a clear error. The daemon also uses it for
+// the work folder of an agent, which a person may write as "~/src".
+func ExpandHome(p string) string {
 	if p == "~" {
 		if home, err := os.UserHomeDir(); err == nil {
 			return home
@@ -147,10 +148,6 @@ func (c Config) Validate() error {
 	}
 	return nil
 }
-
-// ExpandHome turns a leading "~/" into the home directory. The daemon uses
-// it for the work folder of an agent, which a person may write as "~/src".
-func ExpandHome(p string) string { return expandHome(p) }
 
 func readYAML(path string, v any) error {
 	b, err := os.ReadFile(path)

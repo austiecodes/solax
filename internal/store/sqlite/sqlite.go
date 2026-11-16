@@ -122,16 +122,9 @@ func (s *Store) Close() error {
 	return errors.Join(err, s.w.Close())
 }
 
-// querier is the part of *sql.Tx that the txn methods use.
-type querier interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
 // txn implements core.Tx on one SQL transaction.
 type txn struct {
-	q querier
+	q *sql.Tx
 }
 
 func (t *txn) exec(ctx context.Context, q string, args ...any) (sql.Result, error) {

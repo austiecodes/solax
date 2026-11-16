@@ -109,9 +109,8 @@ func (d *Daemon) Run(ctx context.Context) error {
 		Log:      d.log,
 	})
 
-	ctl := control.NewServer(d.paths.Socket(), d)
 	errc := make(chan error, 2)
-	go func() { errc <- ctl.Serve(ctx) }()
+	go func() { errc <- control.Serve(ctx, d.paths.Socket(), d) }()
 	go func() { errc <- d.conn.Run(ctx) }()
 
 	var err error
