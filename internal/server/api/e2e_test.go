@@ -51,7 +51,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	svc := auth.NewService(store, []byte("secret"))
 	eng := core.NewEngine(core.Deps{Store: store, Dispatcher: nopDispatcher{}, Tokens: svc})
 	srv := httptest.NewServer(api.NewRouter(api.Deps{
-		Commands: eng, Enrollment: eng, Queries: eng, Auth: svc,
+		Engine: eng, Auth: svc,
 		Daemon: http.NotFoundHandler(), Stream: noStream{},
 	}))
 	defer srv.Close()
@@ -123,51 +123,26 @@ func TestTopologyOverHTTP(t *testing.T) {
 		t.Fatalf("agents = %+v, %v", agents, err)
 	}
 
-	// Workspaces.
-	w, err := c.CreateWorkspace(ctx, protocol.CreateWorkspaceRequest{Name: "api", Leader: "backend@mac"})
-	if err != nil || w.Name != "api" || len(w.Members) != 1 || w.Members[0].Role != "leader" {
-		t.Fatalf("create workspace = %+v, %v", w, err)
-	}
-	if _, err := c.CreateWorkspace(ctx, protocol.CreateWorkspaceRequest{Name: "api"}); status(t, err) != http.StatusConflict {
-		t.Fatalf("duplicate workspace: %v", err)
-	}
-	if err := c.AddMember(ctx, "api", protocol.AddMemberRequest{Agent: "infra"}); err != nil {
-		t.Fatal(err)
-	}
-	got, err := c.Workspace(ctx, "api")
-	if err != nil || got.ID != w.ID || len(got.Members) != 2 {
-		t.Fatalf("workspace = %+v, %v", got, err)
-	}
-	tasks, err := c.Tasks(ctx, "api")
-	if err != nil || len(tasks) != 1 || !tasks[0].General {
-		t.Fatalf("tasks = %+v, %v", tasks, err)
-	}
-	msgs, err := c.ReadMessages(ctx, "api", protocol.ReadMessagesQuery{})
-	if err != nil || msgs == nil || len(msgs) != 0 {
-		t.Fatalf("messages = %#v, %v", msgs, err)
-	}
-	obj, err := c.Recall(ctx, w.ID)
-	if err != nil || obj.Type != "workspace" {
+	// Recall follows IDs.
+	obj, err := c.Recall(ctx, agents[0].ID)
+	if err != nil || obj.Type != "agent" || obj.Links["machine"] != reg.MachineID {
 		t.Fatalf("recall = %+v, %v", obj, err)
 	}
 
-	// A worker agent token reads its workspace but cannot manage.
-	agentToken, err := svc.IssueToken(ctx, core.TokenRequest{OwnerID: owner.ID, AgentID: core.ID(w.Leader),
-		Workspace: core.ID(w.ID), Task: core.ID(tasks[0].ID)})
+	// A worker agent token reads, but cannot dispatch or manage.
+	agentToken, err := svc.IssueToken(ctx, core.TokenRequest{OwnerID: owner.ID, AgentID: core.ID(agents[0].ID), Job: "job_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	worker := client.New(srv.URL, agentToken)
-	if ws, err := worker.Workspaces(ctx); err != nil || len(ws) != 1 {
-		t.Fatalf("worker workspaces = %+v, %v", ws, err)
+	if ags, err := worker.Agents(ctx); err != nil || len(ags) != 2 {
+		t.Fatalf("worker agents = %+v, %v", ags, err)
 	}
-	if _, err := worker.CreateWorkspace(ctx, protocol.CreateWorkspaceRequest{Name: "evil"}); status(t, err) != http.StatusForbidden {
-		t.Fatalf("worker create workspace: %v", err)
+	if _, err := worker.Dispatch(ctx, "infra", "x"); status(t, err) != http.StatusForbidden {
+		t.Fatalf("worker dispatch: %v", err)
 	}
-
-	// Not built yet (A3): a clean 501.
-	if _, err := c.CreateTask(ctx, "api", protocol.CreateTaskRequest{Brief: "x"}); !errors.Is(err, client.ErrNotImplemented) {
-		t.Fatalf("create task = %v", err)
+	if _, err := worker.Jobs(ctx, 0); status(t, err) != http.StatusForbidden {
+		t.Fatalf("worker jobs: %v", err)
 	}
 
 	// A bad body is a 400, not a 500.

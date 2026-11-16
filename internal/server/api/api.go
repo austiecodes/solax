@@ -16,12 +16,10 @@ import (
 
 // Deps are the dependencies of the handlers.
 type Deps struct {
-	Commands   core.Commands
-	Enrollment core.Enrollment
-	Queries    core.Queries
-	Auth       auth.Verifier
-	Daemon     http.Handler // the hub, mounted at protocol.DaemonPath
-	Stream     Streamer     // the client stream, mounted at /v1/stream
+	Engine *core.Engine
+	Auth   auth.Verifier
+	Daemon http.Handler // the hub, mounted at protocol.DaemonPath
+	Stream Streamer     // the client stream, mounted at /v1/stream
 }
 
 // Streamer serves the client stream of one owner.
@@ -31,14 +29,12 @@ type Streamer interface {
 
 // Handlers implements the REST endpoints.
 type Handlers struct {
-	cmd    core.Commands
-	enroll core.Enrollment
-	q      core.Queries
+	eng *core.Engine
 }
 
 // NewRouter returns the gin engine with all routes.
 func NewRouter(d Deps) *gin.Engine {
-	h := &Handlers{cmd: d.Commands, enroll: d.Enrollment, q: d.Queries}
+	h := &Handlers{eng: d.Engine}
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -81,31 +77,13 @@ func NewRouter(d Deps) *gin.Engine {
 	jobs.POST("/:job/cancel", h.cancelJob)
 	v1.GET("/sessions/:session/events", RequireClientOrSuper(), h.sessionEvents)
 
-	// Reading is open to every non-machine token; a worker agent gets only
-	// its own workspace and task (the Engine enforces the scope).
-	ws := v1.Group("/workspaces")
-	ws.GET("", h.listWorkspaces)
-	ws.POST("", RequireClientOrSuper(), h.createWorkspace)
-	ws.GET("/:ws", h.getWorkspace)
-	ws.GET("/:ws/tasks", h.listTasks)
-	ws.POST("/:ws/members", RequireClientOrSuper(), h.addMember)
-	ws.DELETE("/:ws/members/:agent", RequireClientOrSuper(), h.removeMember)
-	ws.POST("/:ws/tasks", RequireClientOrSuper(), h.createTask)
-	ws.POST("/:ws/messages", h.postMessage)
-	ws.GET("/:ws/messages", h.readMessages)
-
-	tasks := v1.Group("/tasks")
-	tasks.GET("/:task", h.getTask)
-	tasks.POST("/:task/cancel", RequireClientOrSuper(), h.cancelTask)
-	tasks.POST("/:task/summarize", RequireClientOrSuper(), h.summarizeTask)
-
 	// The conversation of the user with the Super Agent.
 	super := v1.Group("/super")
 	super.GET("/messages", RequireKind(auth.KindClient), h.superMessages)
 	super.POST("/messages", RequireKind(auth.KindClient), h.sendToSuper)
 	super.POST("/replies", RequireSuper(), h.superReply)
 
-	// Chain of Recall: any object by ID.
+	// Any object by ID, with the IDs of related objects.
 	v1.GET("/objects/:id", h.recall)
 
 	return r

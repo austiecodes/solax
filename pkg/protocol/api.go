@@ -127,63 +127,19 @@ type Push struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-type Workspace struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Leader  string   `json:"leader"` // agent ID
-	Members []Member `json:"members"`
-}
-
-type Member struct {
-	AgentID string `json:"agent_id"`
-	Role    string `json:"role"` // leader | member
-}
-
-type Task struct {
-	ID            string    `json:"id"`
-	WorkspaceID   string    `json:"workspace_id"`
-	ParentID      string    `json:"parent_id,omitempty"`
-	Depth         int       `json:"depth,omitempty"`
-	Title         string    `json:"title"`
-	Brief         string    `json:"brief,omitempty"`
-	General       bool      `json:"general,omitempty"`
-	State         string    `json:"state"`                    // open | running | summarizing | blocked | done | failed | cancelled
-	BlockedReason string    `json:"blocked_reason,omitempty"` // ask | budget | fault
-	Orchestrator  string    `json:"orchestrator,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at,omitzero"`
-}
-
+// Message is one entry in the Super Agent conversation.
 type Message struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	TaskID      string    `json:"task_id"`
-	Seq         int64     `json:"seq"`
-	Author      Author    `json:"author"`
-	Kind        string    `json:"kind"`             // chat | report | summary | system
-	Status      string    `json:"status,omitempty"` // report: progress | done | blocked | failed
-	Mentions    []string  `json:"mentions,omitempty"`
-	Text        string    `json:"text"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+	Seq       int64     `json:"seq"`
+	Author    Author    `json:"author"`
+	Kind      string    `json:"kind"` // chat | system
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Author struct {
 	Kind string `json:"kind"` // human | agent | super | system
 	ID   string `json:"id,omitempty"`
-}
-
-type CreateWorkspaceRequest struct {
-	Name   string `json:"name"`
-	Leader string `json:"leader,omitempty"` // agent@machine
-}
-
-type AddMemberRequest struct {
-	Agent  string `json:"agent"` // agent@machine
-	Leader bool   `json:"leader,omitempty"`
-}
-
-type CreateTaskRequest struct {
-	Brief string `json:"brief"`
 }
 
 // TextRequest is the body of the Super Agent conversation endpoints.
@@ -197,24 +153,7 @@ type SuperMessagesQuery struct {
 	Limit int   `form:"limit"`
 }
 
-// PostMessageRequest has no author field. The server takes the author from
-// the token.
-type PostMessageRequest struct {
-	TaskID     string   `json:"task_id,omitempty"` // empty: the general task
-	Mentions   []string `json:"mentions,omitempty"`
-	Kind       string   `json:"kind,omitempty"`
-	Status     string   `json:"status,omitempty"`
-	Checkpoint bool     `json:"checkpoint,omitempty"`
-	Text       string   `json:"text"`
-}
-
-type ReadMessagesQuery struct {
-	TaskID string `form:"task"`
-	Since  int64  `form:"since"`
-	Limit  int    `form:"limit"`
-}
-
-// Object is the result of a recall by ID (Chain of Recall): a summary of
+// Object is the result of a recall by ID: a summary of
 // the object and the IDs of related objects.
 type Object struct {
 	ID      string            `json:"id"`
@@ -226,12 +165,3 @@ type Object struct {
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
-
-// Client stream (/v1/stream) event types.
-const (
-	StreamMessageCreated = "message.created"
-	StreamTaskUpdated    = "task.updated"
-	StreamSessionEvent   = "session.event"
-	StreamMachineUpdated = "machine.updated"
-	StreamSuperReply     = "super.reply"
-)

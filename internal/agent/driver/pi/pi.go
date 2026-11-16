@@ -19,8 +19,8 @@ import (
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
-// Caps is the capability set of pi. Note needs the pi-solax extension; it
-// is emulated until the extension ships.
+// Caps is the capability set of pi. Note has no native form; the session
+// queue emulates it.
 var Caps = ir.Caps{
 	Native: map[ir.InputMode]bool{
 		ir.ModePrompt:    true,  // prompt

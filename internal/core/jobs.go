@@ -515,7 +515,7 @@ func (e *Engine) planDelivery(ctx context.Context, tx Tx, sid ID) (Delivery, boo
 }
 
 func (e *Engine) ensureFor(ctx context.Context, ses Session, ag Agent, m Machine) (protocol.SessionEnsure, error) {
-	role := protocol.RoleMember
+	role := protocol.RoleWorker
 	if ag.Role == RoleSuper {
 		role = protocol.RoleSuper
 	}
@@ -524,7 +524,7 @@ func (e *Engine) ensureFor(ctx context.Context, ses Session, ag Agent, m Machine
 		Driver: ag.Driver, Dir: ag.Dir, Model: ag.Model, Options: ag.Options, Resume: ses.Ref,
 	}
 	if e.tokens != nil {
-		tok, err := e.tokens.IssueToken(ctx, TokenRequest{OwnerID: m.OwnerID, AgentID: ag.ID, SessionID: ses.ID, Task: ses.JobID, Super: ag.Role == RoleSuper})
+		tok, err := e.tokens.IssueToken(ctx, TokenRequest{OwnerID: m.OwnerID, AgentID: ag.ID, SessionID: ses.ID, Job: ses.JobID, Super: ag.Role == RoleSuper})
 		if err != nil {
 			return ens, err
 		}

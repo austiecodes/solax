@@ -1,6 +1,6 @@
 // Package hub keeps the WebSocket connections of the daemons. It
 // implements core.Dispatcher for commands to daemons, and reports what
-// daemons say to core.DaemonFacts.
+// daemons say to Facts.
 package hub
 
 import (
@@ -37,10 +37,21 @@ const (
 // origin check does not apply; the machine token authenticates them.
 var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 
+// Facts receives what daemons report. *core.Engine implements it. It is an
+// interface because the Engine and the Hub need each other: the server
+// builds the Hub first and sets the Engine with SetFacts.
+type Facts interface {
+	MachineConnected(ctx context.Context, machineID core.ID, h protocol.Hello) error
+	MachineDisconnected(ctx context.Context, machineID core.ID) error
+	Heartbeat(ctx context.Context, machineID core.ID, hb protocol.Heartbeat) error
+	SessionStateChanged(ctx context.Context, machineID core.ID, r protocol.SessionStateReport) error
+	SessionEvent(ctx context.Context, machineID core.ID, e protocol.SessionEvent) error
+}
+
 // Hub holds one connection for each online machine.
 type Hub struct {
 	auth  auth.Verifier
-	facts core.DaemonFacts
+	facts Facts
 	log   *slog.Logger
 
 	mu    sync.RWMutex
@@ -70,7 +81,7 @@ func New(v auth.Verifier, log *slog.Logger) *Hub {
 }
 
 // SetFacts sets the receiver of daemon facts.
-func (h *Hub) SetFacts(f core.DaemonFacts) { h.facts = f }
+func (h *Hub) SetFacts(f Facts) { h.facts = f }
 
 // ServeHTTP verifies the machine token (the daemon generated it; the server
 // has its hash), upgrades to WebSocket, waits for Hello, then reads records

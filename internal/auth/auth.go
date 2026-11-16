@@ -79,15 +79,14 @@ type Claims struct {
 	Subject   core.ID // client token ID, machine ID or agent ID
 	OwnerID   core.ID
 	Super     bool    // agent token of the Super Agent
-	Workspace core.ID // agent tokens only
-	Task      core.ID // agent tokens only
+	Job       core.ID // agent tokens of a job session only
 	SessionID core.ID // agent tokens only
 	Expires   time.Time
 }
 
 // Actor converts the claims to the identity that the Engine uses.
 func (c Claims) Actor() core.Actor {
-	a := core.Actor{ID: c.Subject, OwnerID: c.OwnerID, Workspace: c.Workspace, Task: c.Task}
+	a := core.Actor{ID: c.Subject, OwnerID: c.OwnerID}
 	switch {
 	case c.Kind == KindClient:
 		a.Kind = core.AuthorHuman
@@ -240,8 +239,7 @@ func (s *Service) IssueToken(ctx context.Context, r core.TokenRequest) (string, 
 		Subject:   r.AgentID,
 		OwnerID:   r.OwnerID,
 		Super:     r.Super,
-		Workspace: r.Workspace,
-		Task:      r.Task,
+		Job:       r.Job,
 		SessionID: r.SessionID,
 		Expires:   time.Now().Add(ttl),
 	})
@@ -253,8 +251,7 @@ type agentClaims struct {
 	AgentID   core.ID   `json:"a"`
 	OwnerID   core.ID   `json:"o"`
 	Super     bool      `json:"s,omitempty"`
-	Workspace core.ID   `json:"w,omitempty"`
-	Task      core.ID   `json:"t,omitempty"`
+	Job       core.ID   `json:"j,omitempty"`
 	SessionID core.ID   `json:"e,omitempty"`
 	Expires   time.Time `json:"x"`
 }
@@ -267,7 +264,7 @@ func (s *Service) signAgent(c Claims) (string, error) {
 	}
 	body, err := json.Marshal(agentClaims{
 		AgentID: c.Subject, OwnerID: c.OwnerID, Super: c.Super,
-		Workspace: c.Workspace, Task: c.Task, SessionID: c.SessionID, Expires: c.Expires,
+		Job: c.Job, SessionID: c.SessionID, Expires: c.Expires,
 	})
 	if err != nil {
 		return "", err
@@ -347,7 +344,7 @@ func (s *Service) verifyAgent(token string) (Claims, error) {
 	}
 	return Claims{
 		Kind: KindAgent, Subject: c.AgentID, OwnerID: c.OwnerID, Super: c.Super,
-		Workspace: c.Workspace, Task: c.Task, SessionID: c.SessionID, Expires: c.Expires,
+		Job: c.Job, SessionID: c.SessionID, Expires: c.Expires,
 	}, nil
 }
 

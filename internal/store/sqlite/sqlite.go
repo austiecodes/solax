@@ -27,10 +27,9 @@ import (
 
 // Store is the SQLite store.
 type Store struct {
-	path      string
-	w         *sql.DB // exactly one connection; BEGIN IMMEDIATE
-	r         *sql.DB // read-only connections
-	onEffects func()
+	path string
+	w    *sql.DB // exactly one connection; BEGIN IMMEDIATE
+	r    *sql.DB // read-only connections
 }
 
 // Open opens (and creates) the database at path and runs the migrations.
@@ -80,11 +79,6 @@ func dsn(path, txlock string, readOnly bool) string {
 	return "file:" + path + "?" + q.Encode()
 }
 
-// OnEffects sets a function that runs after every commit that enqueued an
-// effect. The server passes the Kick of its outbox, so effects run without
-// waiting for the next poll. Call it before the store is used.
-func (s *Store) OnEffects(fn func()) { s.onEffects = fn }
-
 // Atomic runs fn in one write transaction.
 func (s *Store) Atomic(ctx context.Context, fn func(tx core.Tx) error) (err error) {
 	sqlTx, err := s.w.BeginTx(ctx, nil)
@@ -105,9 +99,6 @@ func (s *Store) Atomic(ctx context.Context, fn func(tx core.Tx) error) (err erro
 	if err := sqlTx.Commit(); err != nil {
 		return mapErr(err)
 	}
-	if t.enqueued && s.onEffects != nil {
-		s.onEffects()
-	}
 	return nil
 }
 
@@ -118,7 +109,7 @@ func (s *Store) Read(ctx context.Context, fn func(tx core.Tx) error) error {
 		return mapErr(err)
 	}
 	defer sqlTx.Rollback()
-	return fn(&txn{q: sqlTx, readOnly: true})
+	return fn(&txn{q: sqlTx})
 }
 
 // Close closes the database.
@@ -139,21 +130,14 @@ type querier interface {
 
 // txn implements core.Tx on one SQL transaction.
 type txn struct {
-	q        querier
-	readOnly bool
-	enqueued bool
+	q querier
 }
 
 func (t *txn) Owners() core.OwnerRepo               { return ownerRepo{t} }
 func (t *txn) Machines() core.MachineRepo           { return machineRepo{t} }
 func (t *txn) Agents() core.AgentRepo               { return agentRepo{t} }
-func (t *txn) Workspaces() core.WorkspaceRepo       { return workspaceRepo{t} }
-func (t *txn) Tasks() core.TaskRepo                 { return taskRepo{t} }
 func (t *txn) Messages() core.MessageRepo           { return messageRepo{t} }
-func (t *txn) TaskEvents() core.TaskEventRepo       { return eventRepo{t} }
 func (t *txn) Sessions() core.SessionRepo           { return sessionRepo{t} }
-func (t *txn) Cursors() core.CursorRepo             { return cursorRepo{t} }
-func (t *txn) Effects() core.EffectRepo             { return effectRepo{t} }
 func (t *txn) Jobs() core.JobRepo                   { return jobRepo{t} }
 func (t *txn) Inputs() core.InputRepo               { return inputRepo{t} }
 func (t *txn) SessionEvents() core.SessionEventRepo { return sessionEventRepo{t} }
@@ -225,3 +209,11 @@ var (
 	_ core.Store = (*Store)(nil)
 	_ core.Tx    = (*txn)(nil)
 )
+
+// nonNil returns an empty slice for nil, so JSON is [] and not null.
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}

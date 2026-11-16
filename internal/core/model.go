@@ -4,7 +4,6 @@
 package core
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/austiecodes/solax/pkg/ir"
@@ -82,113 +81,6 @@ const (
 	RoleSuper  AgentRole = "super"
 )
 
-// Workspace is a long-lived group of agents with a shared message log.
-type Workspace struct {
-	ID       ID
-	OwnerID  ID
-	Name     string
-	LeaderID ID // agent ID; exactly one leader
-	// Orchestrator is the default orchestrator plugin of new tasks. Empty
-	// means the server default.
-	Orchestrator string
-	NextSeq      int64
-	CreatedAt    time.Time
-}
-
-// MemberRole is the role of an agent in a workspace.
-type MemberRole string
-
-const (
-	MemberLeader MemberRole = "leader"
-	MemberPlain  MemberRole = "member"
-)
-
-// Member is an agent in a workspace.
-type Member struct {
-	WorkspaceID ID
-	AgentID     ID
-	Role        MemberRole
-}
-
-// TaskState is the state of a task.
-type TaskState string
-
-const (
-	TaskOpen        TaskState = "open"
-	TaskRunning     TaskState = "running"
-	TaskSummarizing TaskState = "summarizing"
-	TaskBlocked     TaskState = "blocked" // a pause; see BlockedReason
-	TaskDone        TaskState = "done"
-	TaskFailed      TaskState = "failed"
-	TaskCancelled   TaskState = "cancelled"
-)
-
-// Terminal reports whether s is a final state. Final states are absorbing:
-// no transition leaves them.
-func (s TaskState) Terminal() bool {
-	return s == TaskDone || s == TaskFailed || s == TaskCancelled
-}
-
-// BlockedReason tells why a task is blocked. When several apply, the
-// strongest wins: fault > budget > ask.
-type BlockedReason string
-
-const (
-	BlockedNone   BlockedReason = ""
-	BlockedAsk    BlockedReason = "ask"    // waits for a human answer; the orchestrator keeps running
-	BlockedBudget BlockedReason = "budget" // a budget bound was reached
-	BlockedFault  BlockedReason = "fault"  // the orchestrator plugin faulted; it is stopped
-)
-
-// Task is one unit of work in a workspace, with its own message stream.
-// Each workspace has a general task. A task may be the child of another
-// task (a node of an orchestrator plugin).
-type Task struct {
-	ID            ID
-	WorkspaceID   ID
-	ParentID      ID     // empty for a root task
-	ParentNode    string // the orchestrator action id that spawned it
-	Depth         int    // 0 for a root task
-	TargetAgentID ID     // the agent a spawned child task is for
-	Title         string
-	Brief         string
-	General       bool
-	State         TaskState
-	BlockedReason BlockedReason
-	Budget        Budget
-	Spent         Spent
-
-	// Orchestrator is the plugin name and OrchHash the pinned bundle. They
-	// are fixed when the task is created. General tasks have none.
-	Orchestrator string
-	OrchHash     string
-	OrchState    json.RawMessage // plugin state, strict JSON
-	OrchLastSeq  int64           // last task event the orchestrator consumed
-
-	// Rev increases on every state transition and orchestrator commit.
-	// Writers that computed outside a transaction compare it on commit.
-	Rev       int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-// Budget holds the hard limits of a task. When a limit is reached, the
-// leader must write the summary.
-type Budget struct {
-	MaxAgentTurns       int
-	MaxWallTime         time.Duration
-	MaxHopsWithoutHuman int
-}
-
-// DefaultBudget is the budget of a new task.
-var DefaultBudget = Budget{MaxAgentTurns: 40, MaxWallTime: 2 * time.Hour, MaxHopsWithoutHuman: 15}
-
-// Spent is the used part of a budget.
-type Spent struct {
-	AgentTurns       int
-	HopsWithoutHuman int
-}
-
 // AuthorKind is the kind of a message author.
 type AuthorKind string
 
@@ -210,39 +102,23 @@ type Author struct {
 type MessageKind string
 
 const (
-	MessageChat    MessageKind = "chat"
-	MessageReport  MessageKind = "report"
-	MessageSummary MessageKind = "summary"
-	MessageSystem  MessageKind = "system"
+	MessageChat   MessageKind = "chat"
+	MessageSystem MessageKind = "system"
 )
 
-// ReportStatus is the status of a report message.
-type ReportStatus string
-
-const (
-	ReportProgress ReportStatus = "progress"
-	ReportDone     ReportStatus = "done"
-	ReportBlocked  ReportStatus = "blocked"
-	ReportFailed   ReportStatus = "failed"
-)
-
-// Message is one append-only entry in a task stream.
+// Message is one entry in the Super Agent conversation of an owner.
 type Message struct {
-	ID          ID
-	OwnerID     ID
-	WorkspaceID ID    // empty for the Super Agent conversation
-	TaskID      ID    // empty for the Super Agent conversation
-	Seq         int64 // per workspace, or per owner for the Super Agent conversation
-	Author      Author
-	Kind        MessageKind
-	Status      ReportStatus // report only
-	Checkpoint  bool         // summary only: keep the task running
-	Mentions    []ID         // agent IDs
-	Text        string
-	CreatedAt   time.Time
+	ID        ID
+	OwnerID   ID
+	Seq       int64 // per owner
+	Author    Author
+	Kind      MessageKind
+	Text      string
+	CreatedAt time.Time
 }
 
-// Session is one agent process for one (member, task). The daemon owns the
+// Session is one agent process: the session of a job, or the Super Agent
+// session. The daemon owns the
 // process. The server keeps its state and its native ref.
 type Session struct {
 	ID        ID
@@ -301,12 +177,4 @@ type Input struct {
 	Text      string
 	Sent      bool
 	CreatedAt time.Time
-}
-
-// Cursor tracks delivery of one task stream to one session.
-type Cursor struct {
-	SessionID    ID
-	TaskID       ID
-	DeliveredSeq int64
-	ReadSeq      int64
 }

@@ -37,7 +37,7 @@ type Daemon struct {
 	paths  localconfig.Paths
 	creds  localconfig.Credentials
 	log    *slog.Logger
-	assets string // the released embeds.FS dir: prompts, skills, extensions
+	assets string // the released embed.FS dir: the role prompts
 	bin    string // folder of the solax binary, put first on the PATH of sessions
 
 	// mu guards cfg, which Reload replaces while Status and hello read it.
@@ -73,9 +73,8 @@ func New(paths localconfig.Paths, log *slog.Logger) (*Daemon, error) {
 	}
 
 	state := cfg.Machine.StateDir
-	// The role prompts, the solax skill and the pi-solax extension travel in
-	// the binary. Release them next to the driver state, so a single binary
-	// on a fresh machine finds them.
+	// The role prompts travel in the binary. Release them next to the
+	// driver state, so a single binary on a fresh machine finds them.
 	assetsDir := filepath.Join(state, "assets")
 	if err := assets.Release(assetsDir); err != nil {
 		return nil, fmt.Errorf("release assets: %w", err)

@@ -225,142 +225,56 @@ func TestMachineConnectedStoresDrivers(t *testing.T) {
 	}
 }
 
-func TestWorkspacesAndMembers(t *testing.T) {
-	e := newEnv(t)
-	ctx := context.Background()
-	e.machine(t, "mac", 'a',
-		agentDef{Name: "backend", Driver: ir.KindClaude},
-		agentDef{Name: "infra", Driver: ir.KindCodex},
-		agentDef{Name: "super", Driver: ir.KindPi, Role: "super"})
-	e.machine(t, "linux", 'b', agentDef{Name: "ops", Driver: ir.KindPi})
-
-	// Worker agents cannot manage workspaces.
-	worker := core.Actor{Kind: core.AuthorAgent, ID: "agt_w", OwnerID: e.owner.ID, Workspace: "ws_x"}
-	_, err := e.eng.CreateWorkspace(ctx, worker, "api", "")
-	is(t, err, errs.ErrForbidden)
-
-	for _, bad := range []string{"", "has space", "ws_like-an-id", strings.Repeat("x", 65)} {
-		_, err := e.eng.CreateWorkspace(ctx, e.human, bad, "")
-		is(t, err, errs.ErrInvalid)
-	}
-
-	w, err := e.eng.CreateWorkspace(ctx, e.human, "api", "backend")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = e.eng.CreateWorkspace(ctx, e.human, "api", "")
-	is(t, err, errs.ErrConflict)
-
-	// Super and unknown references. (Agent names are unique, so a name is
-	// never ambiguous.)
-	is(t, e.eng.AddMember(ctx, e.human, w.ID, "super", false), errs.ErrInvalid)
-	is(t, e.eng.AddMember(ctx, e.human, w.ID, "nobody", false), errs.ErrNotFound)
-	if err := e.eng.AddMember(ctx, e.human, "api", "@ops@linux", false); err != nil { // by name, with @
-		t.Fatal(err)
-	}
-
-	got, members, err := e.eng.Workspace(ctx, e.human, "api")
-	if err != nil || got.ID != w.ID || len(members) != 2 {
-		t.Fatalf("workspace = %+v %+v, %v", got, members, err)
-	}
-	leader := got.LeaderID
-
-	// The general task exists from the start.
-	tasks, err := e.eng.Tasks(ctx, e.human, w.ID)
-	if err != nil || len(tasks) != 1 || !tasks[0].General || tasks[0].State != core.TaskRunning {
-		t.Fatalf("tasks = %+v, %v", tasks, err)
-	}
-
-	// The leader can only leave last.
-	is(t, e.eng.RemoveMember(ctx, e.human, w.ID, string(leader)), errs.ErrConflict)
-
-	// Promote ops@linux; backend becomes a plain member.
-	if err := e.eng.AddMember(ctx, e.human, w.ID, "ops@linux", true); err != nil {
-		t.Fatal(err)
-	}
-	got, members, _ = e.eng.Workspace(ctx, e.human, w.ID)
-	if got.LeaderID == leader {
-		t.Fatal("leader did not change")
-	}
-	leaders := 0
-	for _, m := range members {
-		if m.Role == core.MemberLeader {
-			leaders++
-			if m.AgentID != got.LeaderID {
-				t.Fatalf("leader member %s != workspace leader %s", m.AgentID, got.LeaderID)
-			}
-		}
-	}
-	if leaders != 1 {
-		t.Fatalf("%d leaders", leaders)
-	}
-	if err := e.eng.RemoveMember(ctx, e.human, w.ID, string(leader)); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.eng.RemoveMember(ctx, e.human, w.ID, "ops@linux"); err != nil {
-		t.Fatal(err)
-	}
-	got, members, _ = e.eng.Workspace(ctx, e.human, w.ID)
-	if got.LeaderID != "" || len(members) != 0 {
-		t.Fatalf("empty workspace = %+v %+v", got, members)
-	}
-	// The first member of a leaderless workspace leads.
-	if err := e.eng.AddMember(ctx, e.human, w.ID, "backend", false); err != nil {
-		t.Fatal(err)
-	}
-	got, _, _ = e.eng.Workspace(ctx, e.human, w.ID)
-	if got.LeaderID == "" {
-		t.Fatal("first member did not become leader")
-	}
-}
-
 func TestScopesAndRecall(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
-	e.machine(t, "mac", 'a', agentDef{Name: "backend", Driver: ir.KindClaude})
-	api, err := e.eng.CreateWorkspace(ctx, e.human, "api", "backend")
-	if err != nil {
-		t.Fatal(err)
+	m := e.machine(t, "mac", 'a',
+		agentDef{Name: "backend", Driver: ir.KindClaude},
+		agentDef{Name: "router", Driver: ir.KindPi, Role: "super"})
+	views, err := e.eng.Agents(ctx, e.human)
+	if err != nil || len(views) != 2 {
+		t.Fatalf("agents = %+v, %v", views, err)
 	}
-	web, err := e.eng.CreateWorkspace(ctx, e.human, "web", "")
-	if err != nil {
-		t.Fatal(err)
+	var backend core.AgentView
+	for _, v := range views {
+		if v.Name == "backend" {
+			backend = v
+		}
 	}
-	tasks, _ := e.eng.Tasks(ctx, e.human, api.ID)
-	general := tasks[0]
 
-	worker := core.Actor{Kind: core.AuthorAgent, ID: api.LeaderID, OwnerID: e.owner.ID, Workspace: api.ID, Task: general.ID}
-	ws, err := e.eng.Workspaces(ctx, worker)
-	if err != nil || len(ws) != 1 || ws[0].ID != api.ID {
-		t.Fatalf("worker sees %+v, %v", ws, err)
-	}
-	_, _, err = e.eng.Workspace(ctx, worker, web.ID)
-	is(t, err, errs.ErrForbidden)
+	// A worker agent cannot manage or dispatch.
+	worker := core.Actor{Kind: core.AuthorAgent, ID: backend.ID, OwnerID: e.owner.ID}
 	_, err = e.eng.Machines(ctx, worker)
 	is(t, err, errs.ErrForbidden)
-	if _, err := e.eng.Task(ctx, worker, general.ID); err != nil {
+	_, err = e.eng.Dispatch(ctx, worker, "backend", "x")
+	is(t, err, errs.ErrForbidden)
+	_, err = e.eng.Jobs(ctx, worker, 0)
+	is(t, err, errs.ErrForbidden)
+
+	msg, err := e.eng.SendToSuper(ctx, e.human, "hello")
+	if err != nil {
 		t.Fatal(err)
 	}
-
-	stranger := core.Actor{Kind: core.AuthorHuman, OwnerID: "own_other"}
-	_, err = e.eng.Task(ctx, stranger, general.ID)
+	obj, err := e.eng.Recall(ctx, e.human, msg.ID)
+	if err != nil || obj.Type != "message" || !strings.Contains(obj.Summary, "hello") {
+		t.Fatalf("recall message = %+v, %v", obj, err)
+	}
+	// The conversation is hidden from workers and other owners.
+	_, err = e.eng.Recall(ctx, worker, msg.ID)
 	is(t, err, errs.ErrNotFound)
-	ws, _ = e.eng.Workspaces(ctx, stranger)
-	if len(ws) != 0 {
-		t.Fatalf("stranger sees %+v", ws)
-	}
+	stranger := core.Actor{Kind: core.AuthorHuman, OwnerID: "own_other"}
+	_, err = e.eng.Recall(ctx, stranger, msg.ID)
+	is(t, err, errs.ErrNotFound)
+	_, err = e.eng.Recall(ctx, stranger, m.ID)
+	is(t, err, errs.ErrNotFound)
 
-	obj, err := e.eng.Recall(ctx, e.human, api.ID)
-	if err != nil || obj.Type != "workspace" || obj.Links["leader"] != string(api.LeaderID) || obj.Links["task.0"] != string(general.ID) {
-		t.Fatalf("recall workspace = %+v, %v", obj, err)
-	}
-	obj, err = e.eng.Recall(ctx, e.human, api.LeaderID)
-	if err != nil || obj.Type != "agent" || !strings.Contains(obj.Summary, "backend@mac") {
+	obj, err = e.eng.Recall(ctx, e.human, backend.ID)
+	if err != nil || obj.Type != "agent" || !strings.Contains(obj.Summary, "backend@mac") || obj.Links["machine"] != string(m.ID) {
 		t.Fatalf("recall agent = %+v, %v", obj, err)
 	}
-	obj, err = e.eng.Recall(ctx, e.human, general.ID)
-	if err != nil || obj.Type != "task" || obj.Links["workspace"] != string(api.ID) {
-		t.Fatalf("recall task = %+v, %v", obj, err)
+	obj, err = e.eng.Recall(ctx, e.human, m.ID)
+	if err != nil || obj.Type != "machine" {
+		t.Fatalf("recall machine = %+v, %v", obj, err)
 	}
 	_, err = e.eng.Recall(ctx, e.human, "zzz_1")
 	is(t, err, errs.ErrNotFound)

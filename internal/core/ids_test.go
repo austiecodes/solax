@@ -18,15 +18,15 @@ func TestNewIDAtSorts(t *testing.T) {
 	var prev ID
 	for _, ts := range times {
 		for range 3 {
-			id := NewIDAt(PrefixTask, ts)
+			id := NewIDAt(PrefixJob, ts)
 			if prev != "" && id <= prev {
 				t.Fatalf("ID %q does not sort after %q", id, prev)
 			}
-			if got := id.Prefix(); got != PrefixTask {
-				t.Fatalf("Prefix() = %q, want %q", got, PrefixTask)
+			if got := id.Prefix(); got != PrefixJob {
+				t.Fatalf("Prefix() = %q, want %q", got, PrefixJob)
 			}
 		}
-		prev = NewIDAt(PrefixTask, ts)
+		prev = NewIDAt(PrefixJob, ts)
 	}
 }
 
@@ -42,7 +42,7 @@ func TestNewIDAtFixedWidth(t *testing.T) {
 
 func TestPrefixesAreDistinct(t *testing.T) {
 	seen := map[Prefix]bool{}
-	for _, p := range []Prefix{PrefixOwner, PrefixClient, PrefixMachine, PrefixAgent, PrefixWorkspace, PrefixTask, PrefixMessage, PrefixSession, PrefixBatch} {
+	for _, p := range []Prefix{PrefixOwner, PrefixClient, PrefixMachine, PrefixAgent, PrefixMessage, PrefixSession, PrefixJob, PrefixInput} {
 		if p == "" || seen[p] {
 			t.Fatalf("prefix %q is empty or repeated", p)
 		}

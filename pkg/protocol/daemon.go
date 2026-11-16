@@ -67,14 +67,12 @@ type Heartbeat struct {
 }
 
 // SessionRole is the role of the agent in this session. The server decides
-// it: a worker is the leader or a plain member of the workspace, and the
-// Super Agent has its own session. The same agent can have a different
-// role in each workspace. The daemon loads prompts/<role>.md for it.
+// it: a job session is a worker, and the Super Agent has its own session.
+// The daemon loads prompts/<role>.md for it.
 type SessionRole string
 
 const (
-	RoleLeader SessionRole = "leader"
-	RoleMember SessionRole = "member"
+	RoleWorker SessionRole = "worker"
 	RoleSuper  SessionRole = "super"
 )
 

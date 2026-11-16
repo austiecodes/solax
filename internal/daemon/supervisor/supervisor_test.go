@@ -125,11 +125,11 @@ func TestEvictIdle(t *testing.T) {
 	ensure := func(id string, role protocol.SessionRole) protocol.Ack {
 		return s.Handle(ctx, cmd(protocol.TypeSessionEnsure, protocol.SessionEnsure{SessionID: id, Role: role, Driver: ir.KindClaude}))
 	}
-	if !ensure("super", protocol.RoleSuper).OK || !ensure("w1", protocol.RoleMember).OK {
+	if !ensure("super", protocol.RoleSuper).OK || !ensure("w1", protocol.RoleWorker).OK {
 		t.Fatal("start failed")
 	}
 	wait(t, func() bool { return s.States()["w1"] == ir.SessionIdle && s.States()["super"] == ir.SessionIdle })
-	if ack := ensure("w2", protocol.RoleMember); !ack.OK {
+	if ack := ensure("w2", protocol.RoleWorker); !ack.OK {
 		t.Fatalf("w2: %s", ack.Error)
 	}
 	st := s.States()
@@ -141,7 +141,7 @@ func TestEvictIdle(t *testing.T) {
 	}
 	// w2 is busy and super is protected: no slot for w3.
 	_ = s.Handle(ctx, cmd(protocol.TypeSessionDeliver, protocol.SessionDeliver{SessionID: "w2", Input: ir.Input{Mode: ir.ModeFollowUp, Text: "x"}}))
-	if ack := ensure("w3", protocol.RoleMember); ack.OK {
+	if ack := ensure("w3", protocol.RoleWorker); ack.OK {
 		t.Fatal("w3 started although no session was idle")
 	}
 }

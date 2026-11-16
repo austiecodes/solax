@@ -1,5 +1,5 @@
 // Package server builds the server process ("solax server run"): store,
-// engine, outbox, hub, client stream and the gin router.
+// engine, hub, delivery loop, client stream and the gin router.
 package server
 
 import (
@@ -15,7 +15,6 @@ import (
 
 	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/core"
-	"github.com/austiecodes/solax/internal/core/outbox"
 	"github.com/austiecodes/solax/internal/server/api"
 	"github.com/austiecodes/solax/internal/server/delivery"
 	"github.com/austiecodes/solax/internal/server/hub"
@@ -74,13 +73,11 @@ func New(store *sqlite.Store, secret []byte, log *slog.Logger) *App {
 	h.SetFacts(eng)
 	loop := delivery.New(eng, h, log)
 	eng.OnWork(loop.Kick)
-	ob := outbox.New(store, log)
-	store.OnEffects(ob.Kick)
 	return &App{
-		Handler: api.NewRouter(api.Deps{Commands: eng, Enrollment: eng, Queries: eng, Auth: verifier, Daemon: h, Stream: st}),
+		Handler: api.NewRouter(api.Deps{Engine: eng, Auth: verifier, Daemon: h, Stream: st}),
 		Engine:  eng,
 		Auth:    verifier,
-		loops:   []func(context.Context) error{ob.Run, loop.Run},
+		loops:   []func(context.Context) error{loop.Run},
 	}
 }
 
