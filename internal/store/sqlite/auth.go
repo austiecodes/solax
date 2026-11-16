@@ -7,8 +7,9 @@ import (
 	"github.com/austiecodes/solax/internal/core"
 )
 
-// auth.Repo. Token lookups run on every request, outside any domain
-// transaction, so they use the read pool; writes use the writer.
+// *Store implements auth.Store. Token lookups run on every request,
+// outside any domain transaction, so they use the read pool; writes use
+// the writer.
 
 const clientCols = `id, owner_id, name, hash, created_at, last_used, revoked`
 
@@ -53,4 +54,4 @@ func scanClient(sc scanner) (auth.ClientToken, error) {
 	return t, nil
 }
 
-var _ auth.Repo = (*Store)(nil)
+var _ auth.Store = (*Store)(nil)

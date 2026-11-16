@@ -25,7 +25,7 @@ type Delivery struct {
 func (e *Engine) PendingDeliveries(ctx context.Context) ([]Delivery, error) {
 	var out []Delivery
 	err := e.store.Read(ctx, func(tx Tx) error {
-		ids, err := tx.Inputs().PendingSessions(ctx)
+		ids, err := tx.PendingSessions(ctx)
 		if err != nil {
 			return err
 		}
@@ -44,22 +44,22 @@ func (e *Engine) PendingDeliveries(ctx context.Context) ([]Delivery, error) {
 }
 
 func (e *Engine) planDelivery(ctx context.Context, tx Tx, sid ID) (Delivery, bool, error) {
-	ses, err := tx.Sessions().Get(ctx, sid)
+	ses, err := tx.Session(ctx, sid)
 	if err != nil {
 		return Delivery{}, false, err
 	}
-	ag, err := tx.Agents().Get(ctx, ses.AgentID)
+	ag, err := tx.Agent(ctx, ses.AgentID)
 	if err != nil {
 		return Delivery{}, false, err
 	}
-	m, err := tx.Machines().Get(ctx, ag.MachineID)
+	m, err := tx.Machine(ctx, ag.MachineID)
 	if err != nil {
 		return Delivery{}, false, err
 	}
 	if ag.Deleted || !m.Online || m.State != MachineApproved || (e.dispatch != nil && !e.dispatch.Online(m.ID)) {
 		return Delivery{}, false, nil
 	}
-	pending, err := tx.Inputs().Pending(ctx, sid)
+	pending, err := tx.PendingInputs(ctx, sid)
 	if err != nil || len(pending) == 0 {
 		return Delivery{}, false, err
 	}
@@ -104,15 +104,15 @@ func (e *Engine) ensureFor(ctx context.Context, ses Session, ag Agent, m Machine
 // Delivered records that the daemon accepted a batch.
 func (e *Engine) Delivered(ctx context.Context, sessionID ID, inputIDs []ID) error {
 	return e.store.Atomic(ctx, func(tx Tx) error {
-		if err := tx.Inputs().MarkSent(ctx, inputIDs); err != nil {
+		if err := tx.MarkInputsSent(ctx, inputIDs); err != nil {
 			return err
 		}
-		ses, err := tx.Sessions().Get(ctx, sessionID)
+		ses, err := tx.Session(ctx, sessionID)
 		if err != nil {
 			return err
 		}
 		ses.Live, ses.UpdatedAt = true, e.clock()
-		return tx.Sessions().Save(ctx, ses)
+		return tx.SaveSession(ctx, ses)
 	})
 }
 
@@ -120,12 +120,12 @@ func (e *Engine) Delivered(ctx context.Context, sessionID ID, inputIDs []ID) err
 // server thought was live. The next delivery pass starts it again.
 func (e *Engine) SessionLost(ctx context.Context, sessionID ID) error {
 	return e.store.Atomic(ctx, func(tx Tx) error {
-		ses, err := tx.Sessions().Get(ctx, sessionID)
+		ses, err := tx.Session(ctx, sessionID)
 		if err != nil {
 			return err
 		}
 		ses.Live, ses.State, ses.UpdatedAt = false, SessionStopped, e.clock()
-		return tx.Sessions().Save(ctx, ses)
+		return tx.SaveSession(ctx, ses)
 	})
 }
 
@@ -137,18 +137,18 @@ func (e *Engine) DeliveryFailed(ctx context.Context, sessionID ID, reason string
 	var post afterCommit
 	err := e.store.Atomic(ctx, func(tx Tx) error {
 		post, job = nil, nil
-		ses, err := tx.Sessions().Get(ctx, sessionID)
+		ses, err := tx.Session(ctx, sessionID)
 		if err != nil {
 			return err
 		}
 		if ses.JobID == "" {
 			return nil
 		}
-		j, err := tx.Jobs().Get(ctx, ses.JobID)
+		j, err := tx.Job(ctx, ses.JobID)
 		if err != nil {
 			return err
 		}
-		pending, err := tx.Inputs().Pending(ctx, sessionID)
+		pending, err := tx.PendingInputs(ctx, sessionID)
 		if err != nil {
 			return err
 		}
@@ -156,16 +156,16 @@ func (e *Engine) DeliveryFailed(ctx context.Context, sessionID ID, reason string
 		for i, in := range pending {
 			ids[i] = in.ID
 		}
-		if err := tx.Inputs().MarkSent(ctx, ids); err != nil {
+		if err := tx.MarkInputsSent(ctx, ids); err != nil {
 			return err
 		}
-		ag, err := tx.Agents().Get(ctx, j.AgentID)
+		ag, err := tx.Agent(ctx, j.AgentID)
 		if err != nil {
 			return err
 		}
 		j.State, j.Error, j.UpdatedAt = JobFailed, reason, e.clock()
 		job, name = &j, ag.Name
-		if err := tx.Jobs().Save(ctx, j); err != nil {
+		if err := tx.SaveJob(ctx, j); err != nil {
 			return err
 		}
 		return e.jobFinished(ctx, tx, j, ag, &post)

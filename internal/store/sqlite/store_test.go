@@ -45,10 +45,10 @@ func seed(t *testing.T, s *Store) (core.Owner, core.Agent, core.Agent) {
 	b := core.Agent{ID: "agt_b", MachineID: m.ID, Name: "infra", Driver: ir.KindCodex}
 	atomic_(t, s, func(tx core.Tx) error {
 		return errors.Join(
-			tx.Owners().Save(ctx, o),
-			tx.Machines().Save(ctx, m),
-			tx.Agents().Save(ctx, a),
-			tx.Agents().Save(ctx, b),
+			tx.SaveOwner(ctx, o),
+			tx.SaveMachine(ctx, m),
+			tx.SaveAgent(ctx, a),
+			tx.SaveAgent(ctx, b),
 		)
 	})
 	return o, a, b
@@ -74,14 +74,14 @@ func TestTopology(t *testing.T) {
 	o, a, _ := seed(t, s)
 
 	err := s.Read(ctx, func(tx core.Tx) error {
-		got, err := tx.Agents().ByName(ctx, "mch_1", "backend")
+		got, err := tx.AgentByName(ctx, "backend")
 		if err != nil || got.ID != a.ID || got.Driver != ir.KindClaude {
-			t.Fatalf("ByName = %+v, %v", got, err)
+			t.Fatalf("AgentByName = %+v, %v", got, err)
 		}
-		if _, err := tx.Machines().Get(ctx, "mch_x"); !errors.Is(err, errs.ErrNotFound) {
+		if _, err := tx.Machine(ctx, "mch_x"); !errors.Is(err, errs.ErrNotFound) {
 			t.Fatalf("missing machine: %v", err)
 		}
-		owners, err := tx.Owners().List(ctx)
+		owners, err := tx.Owners(ctx)
 		if err != nil || len(owners) != 1 || owners[0].ID != o.ID || !owners[0].CreatedAt.Equal(t0) {
 			t.Fatalf("owners = %+v, %v", owners, err)
 		}
@@ -93,7 +93,7 @@ func TestTopology(t *testing.T) {
 
 	// A second agent with the same (machine, name) is a conflict.
 	err = s.Atomic(ctx, func(tx core.Tx) error {
-		return tx.Agents().Save(ctx, core.Agent{ID: "agt_dup", MachineID: "mch_1", Name: "backend", Driver: ir.KindPi})
+		return tx.SaveAgent(ctx, core.Agent{ID: "agt_dup", MachineID: "mch_1", Name: "backend", Driver: ir.KindPi})
 	})
 	if !errors.Is(err, errs.ErrConflict) {
 		t.Fatalf("duplicate agent: %v", err)
@@ -102,13 +102,13 @@ func TestTopology(t *testing.T) {
 	// Pairing codes and token hashes.
 	pending := core.Machine{ID: "mch_2", OwnerID: o.ID, Name: "pi", State: core.MachinePending, TokenHash: "h2",
 		PairCode: "ABCD-1234", PairUntil: t0.Add(core.PairTTL)}
-	atomic_(t, s, func(tx core.Tx) error { return tx.Machines().Save(ctx, pending) })
+	atomic_(t, s, func(tx core.Tx) error { return tx.SaveMachine(ctx, pending) })
 	atomic_(t, s, func(tx core.Tx) error {
-		got, err := tx.Machines().ByPairCode(ctx, "ABCD-1234")
+		got, err := tx.MachineByPairCode(ctx, "ABCD-1234")
 		if err != nil || got.ID != pending.ID || !got.PairUntil.Equal(pending.PairUntil) {
 			t.Fatalf("ByPairCode = %+v, %v", got, err)
 		}
-		if _, err := tx.Machines().ByPairCode(ctx, ""); !errors.Is(err, errs.ErrNotFound) {
+		if _, err := tx.MachineByPairCode(ctx, ""); !errors.Is(err, errs.ErrNotFound) {
 			t.Fatalf("empty code matched: %v", err)
 		}
 		return nil
@@ -153,7 +153,7 @@ func TestMessageSeqs(t *testing.T) {
 			defer wg.Done()
 			m := core.Message{ID: core.NewID(core.PrefixMessage), OwnerID: o.ID,
 				Author: core.Author{Kind: core.AuthorHuman, ID: o.ID}, Kind: core.MessageChat, Text: "hi", CreatedAt: t0}
-			if err := s.Atomic(ctx, func(tx core.Tx) error { _, err := tx.Messages().Append(ctx, m); return err }); err != nil {
+			if err := s.Atomic(ctx, func(tx core.Tx) error { _, err := tx.AppendMessage(ctx, m); return err }); err != nil {
 				t.Error(err)
 			}
 		}()
@@ -161,7 +161,7 @@ func TestMessageSeqs(t *testing.T) {
 	wg.Wait()
 
 	err := s.Read(ctx, func(tx core.Tx) error {
-		all, err := tx.Messages().Since(ctx, o.ID, 0, 0)
+		all, err := tx.Messages(ctx, o.ID, 0, 0)
 		if err != nil {
 			return err
 		}
@@ -173,11 +173,11 @@ func TestMessageSeqs(t *testing.T) {
 				t.Fatalf("message %d has seq %d", i, m.Seq)
 			}
 		}
-		tail, err := tx.Messages().Since(ctx, o.ID, n-5, 2)
+		tail, err := tx.Messages(ctx, o.ID, n-5, 2)
 		if err != nil || len(tail) != 2 || tail[0].Seq != n-4 {
 			t.Fatalf("Since tail = %+v, %v", tail, err)
 		}
-		if other, err := tx.Messages().Since(ctx, "own_x", 0, 0); err != nil || len(other) != 0 {
+		if other, err := tx.Messages(ctx, "own_x", 0, 0); err != nil || len(other) != 0 {
 			t.Fatalf("other owner = %+v, %v", other, err)
 		}
 		return nil
@@ -193,13 +193,13 @@ func TestSessions(t *testing.T) {
 	_, a, _ := seed(t, s)
 	ses := core.Session{ID: "ses_1", AgentID: a.ID, JobID: "job_1", State: ir.SessionIdle,
 		Ref: &ir.SessionRef{Kind: ir.KindClaude, NativeID: "abc"}, UpdatedAt: t0}
-	atomic_(t, s, func(tx core.Tx) error { return tx.Sessions().Save(ctx, ses) })
+	atomic_(t, s, func(tx core.Tx) error { return tx.SaveSession(ctx, ses) })
 	err := s.Read(ctx, func(tx core.Tx) error {
-		got, err := tx.Sessions().For(ctx, a.ID, "job_1")
+		got, err := tx.SessionFor(ctx, a.ID, "job_1")
 		if err != nil || got.ID != ses.ID || got.JobID != "job_1" || got.Ref == nil || got.Ref.NativeID != "abc" {
 			t.Fatalf("For = %+v, %v", got, err)
 		}
-		on, err := tx.Sessions().OnMachine(ctx, "mch_1")
+		on, err := tx.SessionsOnMachine(ctx, "mch_1")
 		if err != nil || len(on) != 1 {
 			t.Fatalf("OnMachine = %+v, %v", on, err)
 		}
@@ -251,11 +251,11 @@ func TestMigrateDropsTasks(t *testing.T) {
 	}
 	defer s.Close()
 	err = s.Read(ctx, func(tx core.Tx) error {
-		msgs, err := tx.Messages().Since(ctx, "own_1", 0, 0)
+		msgs, err := tx.Messages(ctx, "own_1", 0, 0)
 		if err != nil || len(msgs) != 1 || msgs[0].Text != "hello super" {
 			t.Fatalf("messages = %+v, %v", msgs, err)
 		}
-		ses, err := tx.Sessions().For(ctx, "agt_a", "job_1")
+		ses, err := tx.SessionFor(ctx, "agt_a", "job_1")
 		if err != nil || ses.ID != "ses_1" {
 			t.Fatalf("session = %+v, %v", ses, err)
 		}
@@ -266,7 +266,7 @@ func TestMigrateDropsTasks(t *testing.T) {
 	}
 	// The next message continues the owner sequence.
 	atomic_(t, s, func(tx core.Tx) error {
-		m, err := tx.Messages().Append(ctx, core.Message{ID: "msg_2", OwnerID: "own_1",
+		m, err := tx.AppendMessage(ctx, core.Message{ID: "msg_2", OwnerID: "own_1",
 			Author: core.Author{Kind: core.AuthorHuman}, Kind: core.MessageChat, Text: "again", CreatedAt: t0})
 		if err != nil || m.Seq != 2 {
 			t.Fatalf("Append = %+v, %v", m, err)
@@ -280,7 +280,7 @@ func TestAtomicRollsBackAndReadIsReadOnly(t *testing.T) {
 	ctx := context.Background()
 	boom := errors.New("boom")
 	err := s.Atomic(ctx, func(tx core.Tx) error {
-		if err := tx.Owners().Save(ctx, core.Owner{ID: "own_x", CreatedAt: t0}); err != nil {
+		if err := tx.SaveOwner(ctx, core.Owner{ID: "own_x", CreatedAt: t0}); err != nil {
 			return err
 		}
 		return boom
@@ -289,10 +289,10 @@ func TestAtomicRollsBackAndReadIsReadOnly(t *testing.T) {
 		t.Fatalf("Atomic = %v", err)
 	}
 	err = s.Read(ctx, func(tx core.Tx) error {
-		if _, err := tx.Owners().Get(ctx, "own_x"); !errors.Is(err, errs.ErrNotFound) {
-			t.Fatalf("rolled back owner exists: %v", err)
+		if owners, err := tx.Owners(ctx); err != nil || len(owners) != 0 {
+			t.Fatalf("rolled back owner exists: %+v, %v", owners, err)
 		}
-		return tx.Owners().Save(ctx, core.Owner{ID: "own_y", CreatedAt: t0})
+		return tx.SaveOwner(ctx, core.Owner{ID: "own_y", CreatedAt: t0})
 	})
 	if err == nil {
 		t.Fatal("write in Read succeeded")

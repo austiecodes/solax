@@ -13,7 +13,7 @@ import (
 func (e *Engine) InitOwner(ctx context.Context) (Owner, error) {
 	var o Owner
 	err := e.store.Atomic(ctx, func(tx Tx) error {
-		owners, err := tx.Owners().List(ctx)
+		owners, err := tx.Owners(ctx)
 		if err != nil {
 			return err
 		}
@@ -22,7 +22,7 @@ func (e *Engine) InitOwner(ctx context.Context) (Owner, error) {
 		}
 		now := e.clock()
 		o = Owner{ID: NewIDAt(PrefixOwner, now), CreatedAt: now}
-		return tx.Owners().Save(ctx, o)
+		return tx.SaveOwner(ctx, o)
 	})
 	return o, err
 }

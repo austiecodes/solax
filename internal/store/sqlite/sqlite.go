@@ -11,6 +11,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -121,7 +122,7 @@ func (s *Store) Close() error {
 	return errors.Join(err, s.w.Close())
 }
 
-// querier is the part of *sql.Tx that the repos use.
+// querier is the part of *sql.Tx that the txn methods use.
 type querier interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
@@ -132,15 +133,6 @@ type querier interface {
 type txn struct {
 	q querier
 }
-
-func (t *txn) Owners() core.OwnerRepo               { return ownerRepo{t} }
-func (t *txn) Machines() core.MachineRepo           { return machineRepo{t} }
-func (t *txn) Agents() core.AgentRepo               { return agentRepo{t} }
-func (t *txn) Messages() core.MessageRepo           { return messageRepo{t} }
-func (t *txn) Sessions() core.SessionRepo           { return sessionRepo{t} }
-func (t *txn) Jobs() core.JobRepo                   { return jobRepo{t} }
-func (t *txn) Inputs() core.InputRepo               { return inputRepo{t} }
-func (t *txn) SessionEvents() core.SessionEventRepo { return sessionEventRepo{t} }
 
 func (t *txn) exec(ctx context.Context, q string, args ...any) (sql.Result, error) {
 	res, err := t.q.ExecContext(ctx, q, args...)
@@ -216,4 +208,30 @@ func nonNil[T any](s []T) []T {
 		return []T{}
 	}
 	return s
+}
+
+// scanner is *sql.Row or *sql.Rows.
+type scanner interface{ Scan(dest ...any) error }
+
+// collect scans all rows with scan.
+func collect[T any](rows *sql.Rows, err error, scan func(scanner) (T, error)) ([]T, error) {
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	defer rows.Close()
+	var out []T
+	for rows.Next() {
+		v, err := scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, mapErr(rows.Err())
+}
+
+// jsonText encodes v for a JSON TEXT column.
+func jsonText(v any) (string, error) {
+	b, err := json.Marshal(v)
+	return string(b), err
 }

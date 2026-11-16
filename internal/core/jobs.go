@@ -35,13 +35,13 @@ func (e *Engine) Dispatch(ctx context.Context, a Actor, agentRef, prompt string)
 			RequestedBy: a.Kind, Title: clip(firstLine(prompt), 80), Prompt: prompt, State: JobQueued,
 			CreatedAt: now, UpdatedAt: now,
 		}
-		if err := tx.Sessions().Save(ctx, Session{ID: j.SessionID, AgentID: ag.ID, JobID: j.ID, State: SessionStopped, UpdatedAt: now}); err != nil {
+		if err := tx.SaveSession(ctx, Session{ID: j.SessionID, AgentID: ag.ID, JobID: j.ID, State: SessionStopped, UpdatedAt: now}); err != nil {
 			return err
 		}
-		if err := tx.Jobs().Save(ctx, j); err != nil {
+		if err := tx.SaveJob(ctx, j); err != nil {
 			return err
 		}
-		return tx.Inputs().Add(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: j.SessionID, Text: prompt, CreatedAt: now})
+		return tx.AddInput(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: j.SessionID, Text: prompt, CreatedAt: now})
 	})
 	if err != nil {
 		return Job{}, err
@@ -75,10 +75,10 @@ func (e *Engine) FollowUp(ctx context.Context, a Actor, jobID ID, text string) (
 			j.State, j.Error = JobQueued, ""
 		}
 		j.UpdatedAt = now
-		if err := tx.Jobs().Save(ctx, j); err != nil {
+		if err := tx.SaveJob(ctx, j); err != nil {
 			return err
 		}
-		return tx.Inputs().Add(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: j.SessionID, Text: text, CreatedAt: now})
+		return tx.AddInput(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: j.SessionID, Text: text, CreatedAt: now})
 	})
 	if err != nil {
 		return Job{}, err
@@ -107,7 +107,7 @@ func (e *Engine) CancelJob(ctx context.Context, a Actor, jobID ID) (Job, error) 
 		if j.State.Terminal() && j.State != JobDone {
 			return nil
 		}
-		pending, err := tx.Inputs().Pending(ctx, j.SessionID)
+		pending, err := tx.PendingInputs(ctx, j.SessionID)
 		if err != nil {
 			return err
 		}
@@ -115,18 +115,18 @@ func (e *Engine) CancelJob(ctx context.Context, a Actor, jobID ID) (Job, error) 
 		for i, in := range pending {
 			ids[i] = in.ID
 		}
-		if err := tx.Inputs().MarkSent(ctx, ids); err != nil {
+		if err := tx.MarkInputsSent(ctx, ids); err != nil {
 			return err
 		}
 		j.State, j.UpdatedAt = JobCancelled, e.clock()
-		if err := tx.Jobs().Save(ctx, j); err != nil {
+		if err := tx.SaveJob(ctx, j); err != nil {
 			return err
 		}
-		ses, err := tx.Sessions().Get(ctx, j.SessionID)
+		ses, err := tx.Session(ctx, j.SessionID)
 		if err != nil {
 			return err
 		}
-		ag, err := tx.Agents().Get(ctx, j.AgentID)
+		ag, err := tx.Agent(ctx, j.AgentID)
 		if err != nil {
 			return err
 		}
@@ -152,7 +152,7 @@ func (e *Engine) Jobs(ctx context.Context, a Actor, limit int) ([]Job, error) {
 	var out []Job
 	err := e.store.Read(ctx, func(tx Tx) error {
 		var err error
-		out, err = tx.Jobs().List(ctx, a.OwnerID, limit)
+		out, err = tx.Jobs(ctx, a.OwnerID, limit)
 		return err
 	})
 	return out, err
@@ -179,29 +179,29 @@ func (e *Engine) SessionEvents(ctx context.Context, a Actor, sessionID ID, after
 	}
 	var out []ir.Event
 	err := e.store.Read(ctx, func(tx Tx) error {
-		ses, err := tx.Sessions().Get(ctx, sessionID)
+		ses, err := tx.Session(ctx, sessionID)
 		if err != nil {
 			return err
 		}
-		ag, err := tx.Agents().Get(ctx, ses.AgentID)
+		ag, err := tx.Agent(ctx, ses.AgentID)
 		if err != nil {
 			return err
 		}
-		m, err := tx.Machines().Get(ctx, ag.MachineID)
+		m, err := tx.Machine(ctx, ag.MachineID)
 		if err != nil {
 			return err
 		}
 		if err := owned(a, m.OwnerID); err != nil {
 			return err
 		}
-		out, err = tx.SessionEvents().Since(ctx, sessionID, after, limit)
+		out, err = tx.SessionEvents(ctx, sessionID, after, limit)
 		return err
 	})
 	return out, err
 }
 
 func ownedJob(ctx context.Context, tx Tx, a Actor, id ID) (Job, error) {
-	j, err := tx.Jobs().Get(ctx, id)
+	j, err := tx.Job(ctx, id)
 	if err != nil {
 		return Job{}, fmt.Errorf("job %s: %w", id, err)
 	}
@@ -214,7 +214,7 @@ func ownedJob(ctx context.Context, tx Tx, a Actor, id ID) (Job, error) {
 func (e *Engine) publishJob(ctx context.Context, j Job) {
 	var name string
 	_ = e.store.Read(ctx, func(tx Tx) error {
-		ag, err := tx.Agents().Get(ctx, j.AgentID)
+		ag, err := tx.Agent(ctx, j.AgentID)
 		name = ag.Name
 		return err
 	})

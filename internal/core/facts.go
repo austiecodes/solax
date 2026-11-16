@@ -20,7 +20,7 @@ import (
 func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.Hello) error {
 	var owner ID
 	err := e.store.Atomic(ctx, func(tx Tx) error {
-		m, err := tx.Machines().Get(ctx, machineID)
+		m, err := tx.Machine(ctx, machineID)
 		if err != nil {
 			return err
 		}
@@ -29,10 +29,10 @@ func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.
 		}
 		m.Online, m.LastSeen, m.Slots, m.Drivers = true, e.clock(), h.FreeSlots, h.Drivers
 		owner = m.OwnerID
-		if err := tx.Machines().Save(ctx, m); err != nil {
+		if err := tx.SaveMachine(ctx, m); err != nil {
 			return err
 		}
-		sessions, err := tx.Sessions().OnMachine(ctx, machineID)
+		sessions, err := tx.SessionsOnMachine(ctx, machineID)
 		if err != nil {
 			return err
 		}
@@ -47,7 +47,7 @@ func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.
 			} else {
 				ses.State = SessionStopped
 			}
-			if err := tx.Sessions().Save(ctx, ses); err != nil {
+			if err := tx.SaveSession(ctx, ses); err != nil {
 				return err
 			}
 		}
@@ -64,13 +64,13 @@ func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.
 func (e *Engine) MachineDisconnected(ctx context.Context, machineID ID) error {
 	var owner ID
 	err := e.store.Atomic(ctx, func(tx Tx) error {
-		m, err := tx.Machines().Get(ctx, machineID)
+		m, err := tx.Machine(ctx, machineID)
 		if err != nil {
 			return err
 		}
 		owner = m.OwnerID
 		m.Online, m.LastSeen = false, e.clock()
-		return tx.Machines().Save(ctx, m)
+		return tx.SaveMachine(ctx, m)
 	})
 	if err == nil {
 		e.publish(ctx, owner, PushMachines, nil)
@@ -82,12 +82,12 @@ func (e *Engine) MachineDisconnected(ctx context.Context, machineID ID) error {
 // heartbeat are reconciled by the delivery engine.
 func (e *Engine) Heartbeat(ctx context.Context, machineID ID, hb protocol.Heartbeat) error {
 	return e.store.Atomic(ctx, func(tx Tx) error {
-		m, err := tx.Machines().Get(ctx, machineID)
+		m, err := tx.Machine(ctx, machineID)
 		if err != nil {
 			return err
 		}
 		m.Online, m.LastSeen, m.Slots = true, e.clock(), hb.FreeSlots
-		return tx.Machines().Save(ctx, m)
+		return tx.SaveMachine(ctx, m)
 	})
 }
 
@@ -107,7 +107,7 @@ func (e *Engine) SessionStateChanged(ctx context.Context, machineID ID, r protoc
 		if r.Ref != nil {
 			ses.Ref = r.Ref
 		}
-		return tx.Sessions().Save(ctx, ses)
+		return tx.SaveSession(ctx, ses)
 	})
 	if err == nil {
 		e.wake()
@@ -133,11 +133,11 @@ func (e *Engine) SessionEvent(ctx context.Context, machineID ID, se protocol.Ses
 		if err != nil {
 			return err
 		}
-		ag, err := tx.Agents().Get(ctx, ses.AgentID)
+		ag, err := tx.Agent(ctx, ses.AgentID)
 		if err != nil {
 			return err
 		}
-		m, err := tx.Machines().Get(ctx, machineID)
+		m, err := tx.Machine(ctx, machineID)
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (e *Engine) SessionEvent(ctx context.Context, machineID ID, se protocol.Ses
 		if !ev.Type.Reliable() {
 			return nil
 		}
-		if fresh, err = tx.SessionEvents().Add(ctx, ses.ID, ev); err != nil || !fresh {
+		if fresh, err = tx.AddSessionEvent(ctx, ses.ID, ev); err != nil || !fresh {
 			return err
 		}
 		now := e.clock()
@@ -166,13 +166,13 @@ func (e *Engine) SessionEvent(ctx context.Context, machineID ID, se protocol.Ses
 			ses.State, ses.Live = SessionStopped, false
 		}
 		ses.UpdatedAt = now
-		if err := tx.Sessions().Save(ctx, ses); err != nil {
+		if err := tx.SaveSession(ctx, ses); err != nil {
 			return err
 		}
 		if ses.JobID == "" {
 			return e.superEvent(ctx, tx, ses, ev, &post)
 		}
-		j, err := tx.Jobs().Get(ctx, ses.JobID)
+		j, err := tx.Job(ctx, ses.JobID)
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func (e *Engine) SessionEvent(ctx context.Context, machineID ID, se protocol.Ses
 			return nil
 		}
 		j.UpdatedAt = now
-		if err := tx.Jobs().Save(ctx, j); err != nil {
+		if err := tx.SaveJob(ctx, j); err != nil {
 			return err
 		}
 		job = &j
@@ -252,11 +252,11 @@ func applyJobEvent(j *Job, ev ir.Event) bool {
 // sessionOn returns a session that runs on the machine. A daemon cannot
 // report events for sessions of another machine.
 func sessionOn(ctx context.Context, tx Tx, machineID, sessionID ID) (Session, error) {
-	ses, err := tx.Sessions().Get(ctx, sessionID)
+	ses, err := tx.Session(ctx, sessionID)
 	if err != nil {
 		return Session{}, fmt.Errorf("session %s: %w", sessionID, err)
 	}
-	ag, err := tx.Agents().Get(ctx, ses.AgentID)
+	ag, err := tx.Agent(ctx, ses.AgentID)
 	if err != nil {
 		return Session{}, err
 	}

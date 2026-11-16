@@ -19,7 +19,7 @@ func (e *Engine) Machines(ctx context.Context, a Actor) ([]Machine, error) {
 	}
 	var out []Machine
 	err := e.store.Read(ctx, func(tx Tx) error {
-		all, err := tx.Machines().List(ctx)
+		all, err := tx.Machines(ctx)
 		for _, m := range all {
 			if m.OwnerID == a.OwnerID {
 				out = append(out, m)
@@ -47,7 +47,7 @@ type AgentView struct {
 func (e *Engine) Agents(ctx context.Context, a Actor) ([]AgentView, error) {
 	var out []AgentView
 	err := e.store.Read(ctx, func(tx Tx) error {
-		machines, err := tx.Machines().List(ctx)
+		machines, err := tx.Machines(ctx)
 		if err != nil {
 			return err
 		}
@@ -57,7 +57,7 @@ func (e *Engine) Agents(ctx context.Context, a Actor) ([]AgentView, error) {
 				byID[m.ID] = m
 			}
 		}
-		all, err := tx.Agents().List(ctx)
+		all, err := tx.Agents(ctx)
 		for _, ag := range all {
 			m, ok := byID[ag.MachineID]
 			if !ok {
@@ -65,7 +65,7 @@ func (e *Engine) Agents(ctx context.Context, a Actor) ([]AgentView, error) {
 			}
 			v := AgentView{Agent: ag, MachineName: m.Name, Online: m.Online && m.HasDriver(ag.Driver)}
 			if ag.Role == RoleSuper {
-				if ses, err := tx.Sessions().For(ctx, ag.ID, ""); err == nil {
+				if ses, err := tx.SessionFor(ctx, ag.ID, ""); err == nil {
 					v.SessionID = ses.ID
 				}
 			}
@@ -85,7 +85,7 @@ func (e *Engine) SuperMessages(ctx context.Context, a Actor, since int64, limit 
 	var out []Message
 	err := e.store.Read(ctx, func(tx Tx) error {
 		var err error
-		out, err = tx.Messages().Since(ctx, a.OwnerID, since, limit)
+		out, err = tx.Messages(ctx, a.OwnerID, since, limit)
 		return err
 	})
 	return out, err
@@ -107,7 +107,7 @@ func recall(ctx context.Context, tx Tx, a Actor, id ID) (protocol.Object, error)
 	obj := protocol.Object{ID: string(id), Links: map[string]string{}}
 	switch id.Prefix() {
 	case PrefixMessage:
-		m, err := tx.Messages().Get(ctx, id)
+		m, err := tx.Message(ctx, id)
 		if err != nil {
 			return obj, err
 		}
@@ -123,11 +123,11 @@ func recall(ctx context.Context, tx Tx, a Actor, id ID) (protocol.Object, error)
 			obj.Links["author"] = string(m.Author.ID)
 		}
 	case PrefixAgent:
-		ag, err := tx.Agents().Get(ctx, id)
+		ag, err := tx.Agent(ctx, id)
 		if err != nil {
 			return obj, err
 		}
-		m, err := tx.Machines().Get(ctx, ag.MachineID)
+		m, err := tx.Machine(ctx, ag.MachineID)
 		if err != nil {
 			return obj, err
 		}
@@ -138,7 +138,7 @@ func recall(ctx context.Context, tx Tx, a Actor, id ID) (protocol.Object, error)
 		obj.Summary = fmt.Sprintf("Agent %s@%s (%s, %s).", ag.Name, m.Name, ag.Driver, onlineWord(m.Online))
 		obj.Links["machine"] = string(m.ID)
 	case PrefixMachine:
-		m, err := tx.Machines().Get(ctx, id)
+		m, err := tx.Machine(ctx, id)
 		if err != nil {
 			return obj, err
 		}

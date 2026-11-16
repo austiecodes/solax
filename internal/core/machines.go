@@ -22,7 +22,7 @@ func (e *Engine) RegisterMachine(ctx context.Context, a Actor, name, tokenHash s
 	}
 	var m Machine
 	err := e.store.Atomic(ctx, func(tx Tx) error {
-		existing, err := tx.Machines().ByTokenHash(ctx, tokenHash)
+		existing, err := tx.MachineByTokenHash(ctx, tokenHash)
 		switch {
 		case err == nil:
 			if existing.OwnerID != a.OwnerID || existing.State == MachineRevoked {
@@ -38,7 +38,7 @@ func (e *Engine) RegisterMachine(ctx context.Context, a Actor, name, tokenHash s
 		default:
 			return err
 		}
-		return tx.Machines().Save(ctx, m)
+		return tx.SaveMachine(ctx, m)
 	})
 	return m, err
 }
@@ -52,14 +52,14 @@ func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (Mac
 	}
 	var m Machine
 	err := e.store.Atomic(ctx, func(tx Tx) error {
-		owners, err := tx.Owners().List(ctx)
+		owners, err := tx.Owners(ctx)
 		if err != nil {
 			return err
 		}
 		if len(owners) == 0 {
 			return fmt.Errorf("%w: server not initialised", errs.ErrUnavailable)
 		}
-		existing, err := tx.Machines().ByTokenHash(ctx, tokenHash)
+		existing, err := tx.MachineByTokenHash(ctx, tokenHash)
 		switch {
 		case err == nil:
 			if existing.State != MachinePending {
@@ -78,7 +78,7 @@ func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (Mac
 		default:
 			return err
 		}
-		return tx.Machines().Save(ctx, m)
+		return tx.SaveMachine(ctx, m)
 	})
 	return m, err
 }
@@ -95,7 +95,7 @@ func (e *Engine) ApproveMachine(ctx context.Context, a Actor, code string) (Mach
 	var m Machine
 	err := e.store.Atomic(ctx, func(tx Tx) error {
 		var err error
-		m, err = tx.Machines().ByPairCode(ctx, code)
+		m, err = tx.MachineByPairCode(ctx, code)
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func (e *Engine) ApproveMachine(ctx context.Context, a Actor, code string) (Mach
 			return fmt.Errorf("%w: pairing code expired", errs.ErrNotFound)
 		}
 		m.State, m.PairCode, m.PairUntil = MachineApproved, "", zeroTime
-		return tx.Machines().Save(ctx, m)
+		return tx.SaveMachine(ctx, m)
 	})
 	return m, err
 }
@@ -118,7 +118,7 @@ func (e *Engine) RevokeMachine(ctx context.Context, a Actor, machineID ID) error
 		return err
 	}
 	err := e.store.Atomic(ctx, func(tx Tx) error {
-		m, err := tx.Machines().Get(ctx, machineID)
+		m, err := tx.Machine(ctx, machineID)
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (e *Engine) RevokeMachine(ctx context.Context, a Actor, machineID ID) error
 			return err
 		}
 		m.State, m.Online, m.PairCode, m.PairUntil = MachineRevoked, false, "", zeroTime
-		return tx.Machines().Save(ctx, m)
+		return tx.SaveMachine(ctx, m)
 	})
 	if err != nil {
 		return err

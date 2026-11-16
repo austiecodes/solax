@@ -38,13 +38,13 @@ func (e *Engine) SendToSuper(ctx context.Context, a Actor, text string) (Message
 			return err
 		}
 		now := e.clock()
-		m, err = tx.Messages().Append(ctx, Message{
+		m, err = tx.AppendMessage(ctx, Message{
 			ID: NewIDAt(PrefixMessage, now), OwnerID: a.OwnerID, Author: a.Author(), Kind: MessageChat, Text: text, CreatedAt: now,
 		})
 		if err != nil {
 			return err
 		}
-		return tx.Inputs().Add(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: ses.ID, Text: "[user] " + text, CreatedAt: now})
+		return tx.AddInput(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: ses.ID, Text: "[user] " + text, CreatedAt: now})
 	})
 	if err != nil {
 		return Message{}, err
@@ -79,7 +79,7 @@ func (e *Engine) superSession(ctx context.Context, tx Tx) (Session, error) {
 	if err != nil {
 		return Session{}, err
 	}
-	ses, err := tx.Sessions().For(ctx, ag.ID, "")
+	ses, err := tx.SessionFor(ctx, ag.ID, "")
 	if err == nil {
 		return ses, nil
 	}
@@ -88,12 +88,12 @@ func (e *Engine) superSession(ctx context.Context, tx Tx) (Session, error) {
 	}
 	now := e.clock()
 	ses = Session{ID: NewIDAt(PrefixSession, now), AgentID: ag.ID, State: SessionStopped, UpdatedAt: now}
-	return ses, tx.Sessions().Save(ctx, ses)
+	return ses, tx.SaveSession(ctx, ses)
 }
 
 func (e *Engine) appendSuper(ctx context.Context, tx Tx, owner ID, author Author, kind MessageKind, text string) (Message, error) {
 	now := e.clock()
-	return tx.Messages().Append(ctx, Message{
+	return tx.AppendMessage(ctx, Message{
 		ID: NewIDAt(PrefixMessage, now), OwnerID: owner, Author: author, Kind: kind, Text: text, CreatedAt: now,
 	})
 }
@@ -107,11 +107,11 @@ func (e *Engine) superEvent(ctx context.Context, tx Tx, ses Session, ev ir.Event
 	if text == "" {
 		return nil
 	}
-	ag, err := tx.Agents().Get(ctx, ses.AgentID)
+	ag, err := tx.Agent(ctx, ses.AgentID)
 	if err != nil {
 		return err
 	}
-	m, err := tx.Machines().Get(ctx, ag.MachineID)
+	m, err := tx.Machine(ctx, ag.MachineID)
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func (e *Engine) jobFinished(ctx context.Context, tx Tx, j Job, ag Agent, post *
 	}
 	post.add(func() { e.publish(context.WithoutCancel(ctx), j.OwnerID, PushMessage, WireMessage(note)) })
 	now := e.clock()
-	return tx.Inputs().Add(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: ses.ID, Text: b.String(), CreatedAt: now})
+	return tx.AddInput(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: ses.ID, Text: b.String(), CreatedAt: now})
 }
 
 // afterCommit collects actions that must run only after the transaction

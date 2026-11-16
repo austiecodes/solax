@@ -109,9 +109,9 @@ type ClientToken struct {
 	Revoked   bool
 }
 
-// Repo is what auth needs from storage. internal/store/sqlite implements it.
+// Store is what auth needs from storage. internal/store/sqlite implements it.
 // Machine token hashes live on the machine record (core.Machine.TokenHash).
-type Repo interface {
+type Store interface {
 	// DefaultOwner returns the owner of a single-owner installation, or
 	// errs.ErrNotFound before "solax server init".
 	DefaultOwner(ctx context.Context) (core.ID, error)
@@ -125,12 +125,12 @@ type Repo interface {
 // Tokens verifies the tokens of Solax and creates client and agent tokens:
 // hash lookups for client and machine tokens, HMAC-signed agent tokens.
 type Tokens struct {
-	repo   Repo
+	store  Store
 	secret []byte // signs agent tokens
 }
 
 // NewTokens returns a Tokens.
-func NewTokens(repo Repo, secret []byte) *Tokens { return &Tokens{repo: repo, secret: secret} }
+func NewTokens(store Store, secret []byte) *Tokens { return &Tokens{store: store, secret: secret} }
 
 // Verify returns the claims of a token. A machine that is not approved
 // gives errs.ErrForbidden.
@@ -159,7 +159,7 @@ func (t *Tokens) CreateClient(ctx context.Context, ownerID core.ID, name string)
 	}
 	if ownerID == "" {
 		var err error
-		if ownerID, err = t.repo.DefaultOwner(ctx); err != nil {
+		if ownerID, err = t.store.DefaultOwner(ctx); err != nil {
 			return "", ClientToken{}, fmt.Errorf("no owner (run solax server init): %w", err)
 		}
 	}
@@ -174,7 +174,7 @@ func (t *Tokens) CreateClient(ctx context.Context, ownerID core.ID, name string)
 		Hash:      Hash(token),
 		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
-	if err := t.repo.SaveClient(ctx, ct); err != nil {
+	if err := t.store.SaveClient(ctx, ct); err != nil {
 		return "", ClientToken{}, err
 	}
 	return token, ct, nil
@@ -182,7 +182,7 @@ func (t *Tokens) CreateClient(ctx context.Context, ownerID core.ID, name string)
 
 // RevokeClient makes a client token invalid.
 func (t *Tokens) RevokeClient(ctx context.Context, id core.ID) error {
-	ct, err := t.repo.ClientByID(ctx, id)
+	ct, err := t.store.ClientByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (t *Tokens) RevokeClient(ctx context.Context, id core.ID) error {
 		return nil
 	}
 	ct.Revoked = true
-	return t.repo.SaveClient(ctx, ct)
+	return t.store.SaveClient(ctx, ct)
 }
 
 // Clients lists the client tokens of an owner. An empty ownerID means the
@@ -198,11 +198,11 @@ func (t *Tokens) RevokeClient(ctx context.Context, id core.ID) error {
 func (t *Tokens) Clients(ctx context.Context, ownerID core.ID) ([]ClientToken, error) {
 	if ownerID == "" {
 		var err error
-		if ownerID, err = t.repo.DefaultOwner(ctx); err != nil {
+		if ownerID, err = t.store.DefaultOwner(ctx); err != nil {
 			return nil, err
 		}
 	}
-	return t.repo.Clients(ctx, ownerID)
+	return t.store.Clients(ctx, ownerID)
 }
 
 // sessionTTL is the default lifetime of an agent token. A session that
@@ -267,7 +267,7 @@ const lastUsedEvery = time.Minute
 
 // verifyClient looks up the hash and rejects revoked tokens.
 func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error) {
-	ct, err := t.repo.ClientByHash(ctx, Hash(token))
+	ct, err := t.store.ClientByHash(ctx, Hash(token))
 	if errors.Is(err, errs.ErrNotFound) || (err == nil && ct.Revoked) {
 		return Claims{}, errs.ErrUnauthorized
 	}
@@ -276,7 +276,7 @@ func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error)
 	}
 	if now := time.Now().UTC(); now.Sub(ct.LastUsed) > lastUsedEvery {
 		ct.LastUsed = now.Truncate(time.Millisecond)
-		_ = t.repo.SaveClient(ctx, ct) // best effort; never fails a request
+		_ = t.store.SaveClient(ctx, ct) // best effort; never fails a request
 	}
 	return Claims{Kind: KindClient, Subject: ct.ID, OwnerID: ct.OwnerID}, nil
 }
@@ -284,7 +284,7 @@ func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error)
 // verifyMachine looks up the hash on the machine record. Pending and
 // revoked machines give errs.ErrForbidden.
 func (t *Tokens) verifyMachine(ctx context.Context, token string) (Claims, error) {
-	m, err := t.repo.MachineByTokenHash(ctx, Hash(token))
+	m, err := t.store.MachineByTokenHash(ctx, Hash(token))
 	if errors.Is(err, errs.ErrNotFound) {
 		return Claims{}, errs.ErrUnauthorized
 	}

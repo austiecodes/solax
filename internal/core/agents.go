@@ -60,7 +60,7 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Agents().Named(ctx, spec.Name); err == nil {
+		if _, err := tx.AgentByName(ctx, spec.Name); err == nil {
 			return fmt.Errorf("%w: agent %q exists", errs.ErrConflict, spec.Name)
 		} else if !errors.Is(err, errs.ErrNotFound) {
 			return err
@@ -76,7 +76,7 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 			}
 			ag.Role = RoleSuper
 		}
-		return tx.Agents().Save(ctx, ag)
+		return tx.SaveAgent(ctx, ag)
 	})
 	if err == nil {
 		e.publish(ctx, a.OwnerID, PushAgents, nil)
@@ -121,7 +121,7 @@ func (e *Engine) UpdateAgent(ctx context.Context, a Actor, ref string, p AgentPa
 				ag.Role = RoleWorker
 			}
 		}
-		return tx.Agents().Save(ctx, ag)
+		return tx.SaveAgent(ctx, ag)
 	})
 	if err == nil {
 		e.publish(ctx, a.OwnerID, PushAgents, nil)
@@ -140,7 +140,7 @@ func (e *Engine) DeleteAgent(ctx context.Context, a Actor, ref string) error {
 			return err
 		}
 		ag.Deleted = true
-		return tx.Agents().Save(ctx, ag)
+		return tx.SaveAgent(ctx, ag)
 	})
 	if err == nil {
 		e.publish(ctx, a.OwnerID, PushAgents, nil)
@@ -149,14 +149,14 @@ func (e *Engine) DeleteAgent(ctx context.Context, a Actor, ref string) error {
 }
 
 func clearSuper(ctx context.Context, tx Tx) error {
-	all, err := tx.Agents().List(ctx)
+	all, err := tx.Agents(ctx)
 	if err != nil {
 		return err
 	}
 	for _, old := range all {
 		if old.Role == RoleSuper {
 			old.Role = RoleWorker
-			if err := tx.Agents().Save(ctx, old); err != nil {
+			if err := tx.SaveAgent(ctx, old); err != nil {
 				return err
 			}
 		}
@@ -171,13 +171,13 @@ func resolveMachine(ctx context.Context, tx Tx, a Actor, ref string) (Machine, e
 		return Machine{}, fmt.Errorf("%w: machine is required", errs.ErrInvalid)
 	}
 	if ID(ref).Prefix() == PrefixMachine {
-		m, err := tx.Machines().Get(ctx, ID(ref))
+		m, err := tx.Machine(ctx, ID(ref))
 		if err != nil {
 			return Machine{}, err
 		}
 		return m, owned(a, m.OwnerID)
 	}
-	all, err := tx.Machines().List(ctx)
+	all, err := tx.Machines(ctx)
 	if err != nil {
 		return Machine{}, err
 	}
@@ -204,17 +204,17 @@ func resolveAgentRef(ctx context.Context, tx Tx, a Actor, ref string) (Agent, er
 		err error
 	)
 	if ID(ref).Prefix() == PrefixAgent {
-		ag, err = tx.Agents().Get(ctx, ID(ref))
+		ag, err = tx.Agent(ctx, ID(ref))
 		if err == nil && ag.Deleted {
 			err = errs.ErrNotFound
 		}
 	} else {
-		ag, err = tx.Agents().Named(ctx, ref)
+		ag, err = tx.AgentByName(ctx, ref)
 	}
 	if err != nil {
 		return Agent{}, fmt.Errorf("agent %q: %w", ref, err)
 	}
-	m, err := tx.Machines().Get(ctx, ag.MachineID)
+	m, err := tx.Machine(ctx, ag.MachineID)
 	if err != nil {
 		return Agent{}, err
 	}
@@ -226,7 +226,7 @@ func resolveAgentRef(ctx context.Context, tx Tx, a Actor, ref string) (Agent, er
 
 // superAgent returns the Super Agent, or ErrNotFound.
 func superAgent(ctx context.Context, tx Tx) (Agent, error) {
-	all, err := tx.Agents().List(ctx)
+	all, err := tx.Agents(ctx)
 	if err != nil {
 		return Agent{}, err
 	}
