@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/austiecodes/solax v0.0.0
-	github.com/egoist/mygo v0.9.0
+	github.com/egoist/mygo v0.9.2
 )
 
 require (
