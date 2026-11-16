@@ -30,11 +30,12 @@ type palette struct {
 	floatShadow ui.Color
 	divider     ui.Color
 	chip        ui.Color // quiet fills: code blocks, empty icons
+	panel       ui.Color // a section on a page, over the card
+	composer    ui.Color // the fill of the box to write to an agent
 
-	// Controls: light ones stand on a soft shadow, dark ones on a lit edge.
-	control       ui.Color
-	controlHover  ui.Color
-	controlShadow bool
+	// Controls: flat, on a hairline edge.
+	control      ui.Color
+	controlHover ui.Color
 
 	accent    ui.Color
 	success   ui.Color
@@ -65,10 +66,11 @@ var lightPalette = palette{
 	floatShadow: ui.RGBA(20, 20, 40, 0.14),
 	divider:     ui.RGBA(0, 0, 0, 0.06),
 	chip:        ui.RGBA(0, 0, 0, 0.045),
+	panel:       ui.RGBA(0, 0, 0, 0.018),
+	composer:    ui.Hex("#ffffff"),
 
-	control:       ui.Hex("#ffffff"),
-	controlHover:  ui.Hex("#f7f7f9"),
-	controlShadow: true,
+	control:      ui.Hex("#ffffff"),
+	controlHover: ui.Hex("#f7f7f9"),
 
 	accent:    ui.Hex("#3b6cf6"),
 	success:   ui.Hex("#22863a"),
@@ -100,6 +102,8 @@ var darkPalette = palette{
 	floatShadow: ui.RGBA(0, 0, 0, 0.45),
 	divider:     ui.RGBA(255, 255, 255, 0.07),
 	chip:        ui.RGBA(255, 255, 255, 0.07),
+	panel:       ui.RGBA(255, 255, 255, 0.025),
+	composer:    ui.RGBA(255, 255, 255, 0.045),
 
 	control:      ui.Hex("#404047"),
 	controlHover: ui.Hex("#4a4a52"),
@@ -118,6 +122,80 @@ var darkPalette = palette{
 	kbd:     ui.RGBA(255, 255, 255, 0.06),
 }
 
+// The graphite palettes are flat and neutral, as the Codex app: no tint,
+// no wash, gray ink on a white or near-black page, and a sidebar a step
+// away from the page. The ink, not a hue, marks the main action.
+var graphiteLight = palette{
+	backdrop:    ui.Hex("#f5f5f5"),
+	text:        ui.Hex("#0d0d0d"),
+	textMuted:   ui.Hex("#6b6b6b"),
+	textFaint:   ui.Hex("#a1a1a1"),
+	rowHover:    ui.RGBA(0, 0, 0, 0.04),
+	rowSelected: ui.RGBA(0, 0, 0, 0.065),
+	rowShadow:   ui.RGBA(0, 0, 0, 0.06),
+
+	card:        ui.Hex("#ffffff"),
+	cardShadow:  ui.RGBA(0, 0, 0, 0.06),
+	cardShadow2: ui.RGBA(0, 0, 0, 0.03),
+	floatShadow: ui.RGBA(0, 0, 0, 0.12),
+	divider:     ui.RGBA(0, 0, 0, 0.08),
+	chip:        ui.RGBA(0, 0, 0, 0.045),
+	panel:       ui.RGBA(0, 0, 0, 0.015),
+	composer:    ui.Hex("#ffffff"),
+
+	control:      ui.Hex("#ffffff"),
+	controlHover: ui.Hex("#f5f5f5"),
+
+	accent:    ui.Hex("#2f6fed"),
+	success:   ui.Hex("#1f883d"),
+	attention: ui.Hex("#bf7a0f"),
+	danger:    ui.Hex("#d1242f"),
+	dangerBg:  ui.RGBA(209, 36, 47, 0.08),
+	done:      ui.Hex("#0d0d0d"),
+	onDone:    ui.Hex("#ffffff"),
+	onAccent:  ui.Hex("#ffffff"),
+
+	overlay: ui.RGBA(0, 0, 0, 0.12),
+	popover: ui.Hex("#ffffff"),
+	kbd:     ui.RGBA(0, 0, 0, 0.05),
+}
+
+var graphiteDark = palette{
+	dark:        true,
+	backdrop:    ui.Hex("#1f1f1f"),
+	text:        ui.Hex("#ececec"),
+	textMuted:   ui.Hex("#a3a3a3"),
+	textFaint:   ui.Hex("#6f6f6f"),
+	rowHover:    ui.RGBA(255, 255, 255, 0.045),
+	rowSelected: ui.RGBA(255, 255, 255, 0.08),
+	rowShadow:   ui.RGBA(0, 0, 0, 0.25),
+
+	card:        ui.Hex("#181818"),
+	cardShadow:  ui.RGBA(0, 0, 0, 0.35),
+	cardShadow2: ui.RGBA(0, 0, 0, 0.2),
+	floatShadow: ui.RGBA(0, 0, 0, 0.5),
+	divider:     ui.RGBA(255, 255, 255, 0.075),
+	chip:        ui.RGBA(255, 255, 255, 0.065),
+	panel:       ui.RGBA(255, 255, 255, 0.02),
+	composer:    ui.Hex("#212121"),
+
+	control:      ui.Hex("#2e2e2e"),
+	controlHover: ui.Hex("#373737"),
+
+	accent:    ui.Hex("#5a95ff"),
+	success:   ui.Hex("#4ac26b"),
+	attention: ui.Hex("#e3a33a"),
+	danger:    ui.Hex("#ff6b6b"),
+	dangerBg:  ui.RGBA(255, 107, 107, 0.12),
+	done:      ui.Hex("#ececec"),
+	onDone:    ui.Hex("#181818"),
+	onAccent:  ui.Hex("#ffffff"),
+
+	overlay: ui.RGBA(0, 0, 0, 0.45),
+	popover: ui.Hex("#222222"),
+	kbd:     ui.RGBA(255, 255, 255, 0.07),
+}
+
 // --- themes ---
 
 // A look is a theme in one appearance: its palette, and the wash under
@@ -129,11 +207,11 @@ type look struct {
 	plain      bool // the window's material under the sidebar's color
 }
 
-// defaultTheme is Kero's default.
-const defaultTheme = "paper"
+// defaultTheme is the flat, neutral look of the Codex app.
+const defaultTheme = "graphite"
 
 // themeNames are the themes, in the order the Settings page lists them.
-var themeNames = []string{"paper", "mist", "meadow", "dusk", "tide", "apricot", "aurora", "dune", "petal", "plain"}
+var themeNames = []string{"graphite", "paper", "mist", "meadow", "dusk", "tide", "apricot", "aurora", "dune", "petal", "plain"}
 
 // currentTheme is the theme the window draws. The view sets it from the
 // prefs; paletteFor reads it.
@@ -245,15 +323,21 @@ var washes = map[string]wash{
 		dark: []string{"#141416", "#151517", "#161618"}, darkGlow: ui.RGBA(90, 120, 200, 0.1),
 		tone: tone{260, 0, 262},
 	},
-	"plain": {
-		light: []string{"#eceef4", "#eceef4"}, lightGlow: ui.RGBA(0, 0, 0, 0),
-		dark: []string{"#141418", "#141418"}, darkGlow: ui.RGBA(0, 0, 0, 0),
-	},
+}
+
+// solid are the themes with a palette of their own and no wash: the
+// sidebar is the palette's backdrop, flat.
+var solid = map[string][2]*palette{
+	"graphite": {&graphiteLight, &graphiteDark},
+	"plain":    {&lightPalette, &darkPalette},
 }
 
 // looks are the themes' looks, light and dark, made once.
 var looks = func() map[string][2]*look {
 	m := map[string][2]*look{}
+	for name, pals := range solid {
+		m[name] = [2]*look{{pal: pals[0], plain: true}, {pal: pals[1], plain: true}}
+	}
 	for name, w := range washes {
 		var both [2]*look
 		for i, dark := range []bool{false, true} {
@@ -265,20 +349,11 @@ var looks = func() map[string][2]*look {
 			for j, h := range hexes {
 				stops[j] = ui.GradientStop{Color: ui.Hex(h), At: float32(j) / float32(len(hexes)-1)}
 			}
-			l := &look{
-				base:  ui.LinearGradient{Angle: 180, Oklab: true, Stops: stops},
-				glow:  ui.LinearGradient{Angle: 225, Oklab: true, Stops: []ui.GradientStop{{Color: glow, At: 0}, {Color: glow.Alpha(0), At: 0.5}}},
-				plain: name == "plain",
+			both[i] = &look{
+				pal:  tinted(toneColors(w.tone, dark)),
+				base: ui.LinearGradient{Angle: 180, Oklab: true, Stops: stops},
+				glow: ui.LinearGradient{Angle: 225, Oklab: true, Stops: []ui.GradientStop{{Color: glow, At: 0}, {Color: glow.Alpha(0), At: 0.5}}},
 			}
-			if l.plain {
-				l.pal = &lightPalette
-				if dark {
-					l.pal = &darkPalette
-				}
-			} else {
-				l.pal = tinted(toneColors(w.tone, dark))
-			}
-			both[i] = l
 		}
 		m[name] = both
 	}
@@ -360,48 +435,8 @@ func themed(c *ui.Context, pal *palette) *ui.Theme {
 
 // --- elevation ---
 
-// raised lifts a surface off what is under it.
-func raised(e ui.Element, pal *palette) ui.Element {
-	if pal.dark {
-		return darkShadow(litEdge(e, pal))
-	}
-	return e.Shadow(0, 1, 2, 0, pal.cardShadow).Shadow(0, 1, 6, 0, pal.cardShadow2)
-}
-
-// paned edges the page's card on the wash: in the light a hairline and no
-// shadow; in the dark, as raised.
-func paned(e ui.Element, pal *palette) ui.Element {
-	if pal.dark {
-		return raised(e, pal)
-	}
-	return e.Border(0.5, ui.RGBA(0, 0, 0, 0.106)).InsetShadow(0, 0, 0, 0.5, ui.RGBA(0, 0, 0, 0.063))
-}
-
-// chosen lifts the chosen row of the sidebar a hair.
-func chosen(e ui.Element, pal *palette) ui.Element {
-	if pal.dark {
-		return raised(e, pal)
-	}
-	return e.Shadow(0, 0, 0, 0.5, ui.RGBA(0, 0, 0, 0.06)).Shadow(0, 0.5, 2, 0, ui.RGBA(0, 0, 0, 0.05))
-}
-
-// floating lifts a surface above the window: the palette, dialogs.
+// floating lifts a surface above the window: the palette, dialogs and
+// menus. As the Codex app's: a hairline edge and a wide, soft shadow.
 func floating(e ui.Element, pal *palette) ui.Element {
-	if pal.dark {
-		return darkShadow(litEdge(e, pal)).Shadow(0, 16, 40, 0, pal.floatShadow)
-	}
-	return e.Shadow(0, 1, 3, 0, pal.cardShadow).Shadow(0, 16, 40, 0, pal.floatShadow)
-}
-
-// litEdge draws a dark surface's edge as if lit from above: a border in
-// the text color, 18% at the top fading to 6% at the bottom.
-func litEdge(e ui.Element, pal *palette) ui.Element {
-	return e.Border(1, pal.text.Alpha(0.12)).BorderLinearGradient(ui.LinearGradient{
-		Angle: 180, From: pal.text.Alpha(0.18), To: pal.text.Alpha(0.06),
-	})
-}
-
-// darkShadow is a surface's shadow in the dark: three tight layers.
-func darkShadow(e ui.Element) ui.Element {
-	return e.Shadow(0, 1, 1, 0, ui.RGBA(0, 0, 0, 0.2)).Shadow(0, 2, 2, -1, ui.RGBA(0, 0, 0, 0.2)).Shadow(0, 4, 6, -3, ui.RGBA(0, 0, 0, 0.24))
+	return e.Border(1, pal.text.Alpha(0.1)).Shadow(0, 1, 3, 0, pal.cardShadow).Shadow(0, 16, 48, 0, pal.floatShadow)
 }

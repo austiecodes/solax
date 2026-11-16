@@ -24,7 +24,7 @@ func (d *desktop) chatPage(c *ui.Context) {
 	case len(d.messages) > 0:
 		sub = plural(len(d.messages), "message")
 	}
-	d.header(c, "Solax", sub, nil)
+	d.header(c, pageSpec{title: "Solax", sub: sub})
 
 	blocks := chatBlocks(d.messages, d.events[d.superSes], d.live[d.superSes], d.superBusy)
 	d.transcriptView(c, pal, &d.chatList, blocks, func() { d.chatEmpty(c, pal, sa != nil) })
@@ -37,47 +37,69 @@ func (d *desktop) chatPage(c *ui.Context) {
 				return
 			}
 			ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).Children(func() {
-				ui.Icon(c, sparklesIcon).Size(12, 12).TextColor(pal.textMuted)
-				ui.Text(c, sa.Name+" on "+sa.Machine).FontSize(12).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
+				ui.Icon(c, sparklesIcon).Size(13, 13).TextColor(pal.textMuted)
+				ui.Text(c, sa.Name+" on "+sa.Machine).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
 			})
 		},
 	}.view(c, pal)
 }
 
-// suggestions start an empty chat.
-var suggestions = []string{
-	"Ask coder to add a README to the repo",
-	"What are my agents doing?",
-	"Which jobs failed today?",
+// suggestion is a prompt that starts an empty chat.
+type suggestion struct {
+	icon *ui.SVG
+	text string
 }
 
-// chatEmpty fills the chat before the first message.
+var suggestions = []suggestion{
+	{pencilIcon, "Ask coder to add a README to the repo"},
+	{agentIcon, "What are my agents doing?"},
+	{jobsIcon, "Which jobs failed today?"},
+}
+
+// chatEmpty fills the chat before the first message, as the Codex app's
+// new thread: a large question in the middle, and the suggestions in a
+// row of cards just over the composer.
 func (d *desktop) chatEmpty(c *ui.Context, pal *palette, ready bool) {
 	if !ready {
-		emptyState(c, pal, sparklesIcon, "Solax is not set up yet",
-			"Solax is the agent you talk to. It gives jobs to your other agents. On the Agents page, choose the agent that is Solax.", "")
+		emptyState(c, pal, emptySpec{
+			icon: sparklesIcon, title: "Solax is not set up yet",
+			detail: "Solax is the agent you talk to. It gives jobs to your other agents. On the Agents page, choose the agent that is Solax.",
+			action: "Open Agents", run: func() { d.goTo(pageAgents) },
+		})
 		return
 	}
-	ui.Column(c.Key("empty")).Fill().Center().Padding(24).Gap(8).Children(func() {
-		ui.Box(c).Size(52, 52).Radius(14).Center().Background(pal.chip).TextColor(pal.textMuted).Margin(0, 0, 10, 0).Children(func() {
-			ui.Icon(c, sparklesIcon).Size(26, 26)
+	ui.Column(c.Key("empty")).Fill().Padding(0, gutter, 14, gutter).Children(func() {
+		ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
+			ui.Icon(c, sparklesIcon).Size(28, 28).TextColor(pal.text).Margin(0, 0, 6, 0)
+			ui.Text(c, "What should your agents do?").FontSize(26).FontWeight(600).TextColor(pal.text).TextAlign(ui.Center)
+			ui.Text(c, "Solax gives jobs to your agents and tells you when they are done.").
+				FontSize(14).TextColor(pal.textMuted).MaxWidth(440).TextAlign(ui.Center).LineHeight(1.45)
 		})
-		ui.Text(c, "What should your agents do?").FontSize(19).FontWeight(650).TextColor(pal.text)
-		ui.Text(c, "Solax gives jobs to your agents and tells you when they are done.").
-			FontSize(13.5).TextColor(pal.textMuted).MaxWidth(420).TextAlign(ui.Center).LineHeight(1.45)
-		ui.Row(c).Gap(8).Wrap().Justify(ui.Center).MaxWidth(560).Margin(14, 0, 0, 0).Children(func() {
-			for i, s := range suggestions {
-				b := ui.ButtonBase(c.Key(i)).Padding(6, 12).Radius(15).Label(s).Background(pal.chip).TextColor(pal.textMuted)
-				if b.Hovered() {
-					b.Background(pal.rowHover).TextColor(pal.text)
+		ui.Row(c).Justify(ui.Center).Children(func() {
+			ui.Row(c).Grow(1).MinWidth(0).MaxWidth(readW).Gap(10).AlignItems(ui.Stretch).Children(func() {
+				for i, s := range suggestions {
+					d.suggestionCard(c, pal, i, s)
 				}
-				b.Children(func() { ui.Text(c, s).FontSize(12.5).SingleLine() })
-				if b.Clicked() {
-					d.draft = s
-				}
-			}
+			})
 		})
 	})
+}
+
+// suggestionCard is a prompt to start with. A click puts it in the
+// composer, to change before it goes.
+func (d *desktop) suggestionCard(c *ui.Context, pal *palette, i int, s suggestion) {
+	b := ui.ButtonBase(c.Key(i)).Grow(1).Basis(0).MinWidth(0).Column().AlignItems(ui.Start).Justify(ui.Start).Padding(12, 14).Gap(8).Radius(14).Label(s.text).
+		Border(1, pal.divider)
+	if b.Hovered() {
+		b.Background(pal.rowHover)
+	}
+	b.Children(func() {
+		ui.Icon(c, s.icon).Size(14, 14).TextColor(pal.textMuted)
+		ui.Text(c, s.text).FontSize(13).LineHeight(1.4).TextColor(pal.text).TextAlign(ui.Start).MaxLines(2).Ellipsis("…")
+	})
+	if b.Clicked() {
+		d.draft = s.text
+	}
 }
 
 // send posts text to the Super Agent. The draft stays until the server

@@ -16,9 +16,16 @@ import (
 // an animation, and the composer under it.
 
 const (
-	readW  = 740 // the width of a transcript and of its composer
+	readW  = 720 // the width of a transcript and of its composer
 	stepsW = 640 // the width of the text in a group of steps
 )
+
+// fadeEnds fades a transcript out at its ends, so text that scrolls
+// under the header or the composer does not end on a hard cut.
+var fadeEnds = ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
+	{Color: ui.Transparent, At: 0}, {Color: ui.RGB(0, 0, 0), At: 0.025},
+	{Color: ui.RGB(0, 0, 0), At: 0.95}, {Color: ui.Transparent, At: 1},
+}}
 
 // fold is the open state of a group of steps, or of the output of a tool
 // call. A group is open while the agent works on it and closes when it is
@@ -59,7 +66,7 @@ func (d *desktop) transcriptView(c *ui.Context, pal *palette, list *ui.ListState
 					d.blockView(c, pal, blocks[i])
 				})
 			})
-		}).Grow(1).Padding(8, 24, 24, 24).Gap(16)
+		}).Grow(1).Padding(12, gutter, 28, gutter).Gap(18).MaskLinearGradient(fadeEnds)
 		if len(blocks) > 0 && !list.AtEnd() {
 			// A button to go back to the end floats over the list.
 			ui.Row(c.Key("to-end")).Absolute().Left(0).Right(0).Bottom(10).Justify(ui.Center).Children(func() {
@@ -80,10 +87,10 @@ func (d *desktop) transcriptView(c *ui.Context, pal *palette, list *ui.ListState
 func (d *desktop) blockView(c *ui.Context, pal *palette, b block) {
 	switch b.kind {
 	case blockUser:
-		ui.Row(c).Justify(ui.End).Padding(0, 0, 0, 80).Children(func() {
-			// Kero's chip: a tint of the text, not the accent.
-			ui.Text(c, b.text).Selectable().FontSize(14).LineHeight(1.45).TextColor(pal.text).
-				Padding(9, 15).Radius(18).Background(pal.chip).MinWidth(0)
+		ui.Row(c).Justify(ui.End).Padding(0, 0, 0, 96).Children(func() {
+			// A tint of the text, not the accent, as the Codex app.
+			ui.Text(c, b.text).Selectable().FontSize(14).LineHeight(1.5).TextColor(pal.text).
+				Padding(8, 14).Radius(16).Background(pal.chip).MinWidth(0)
 		})
 	case blockReply:
 		ui.Column(c).Selectable().Children(func() {
@@ -130,23 +137,23 @@ func (d *desktop) noteView(c *ui.Context, pal *palette, b block) {
 	})
 }
 
-// stepsView is a group of steps: a line that tells what the agent did,
-// with the icons of its steps, which opens to show them all.
+// stepsView is a group of steps: a quiet line that tells what the agent
+// did, as the Codex app's "Ran 3 commands", which opens to show them all.
 func (d *desktop) stepsView(c *ui.Context, pal *palette, b block) {
 	f := d.foldFor(b.key, b.live)
 	p := ui.CollapsibleBase(c.Key(b.key), &f.open)
-	tr := p.Trigger.Gap(8).AlignItems(ui.Center).Padding(3, 10, 3, 3).Radius(14).AlignSelf(ui.Start).
+	tr := p.Trigger.Gap(6).AlignItems(ui.Center).Padding(2, 0).AlignSelf(ui.Start).
 		Label(stepsTitle(b)).Cursor(ui.CursorPointer)
+	fg := pal.textMuted
 	if tr.Hovered() {
-		tr.Background(pal.rowHover)
+		fg = pal.text
 	}
 	tr.Children(func() {
-		stepIcons(c, pal, b)
-		t := ui.Text(c, stepsTitle(b)).FontSize(13.5).FontWeight(550).TextColor(pal.text).SingleLine().Ellipsis("…").MinWidth(0)
 		if b.live {
-			t.TextColor(pal.textMuted)
+			statusIcon(c, pal, "running", false, 12)
 		}
-		ui.Icon(c, chevronIcon).Size(9, 9).TextColor(pal.textFaint).Rotate(90 * p.Progress()).Shrink(0)
+		ui.Text(c, stepsTitle(b)).FontSize(13).TextColor(fg).SingleLine().Ellipsis("…").MinWidth(0)
+		ui.Icon(c, chevronIcon).Size(8, 8).TextColor(pal.textFaint).Rotate(90 * p.Progress()).Shrink(0)
 	})
 	if tr.Changed() {
 		f.set = true
@@ -155,69 +162,13 @@ func (d *desktop) stepsView(c *ui.Context, pal *palette, b block) {
 		return
 	}
 	p.Panel(func() {
-		ui.Column(c).Gap(10).Margin(8, 0, 2, 14).Padding(2, 0, 2, 16).MaxWidth(stepsW).
-			BorderWidth(0, 0, 0, 1.5).BorderColor(pal.divider).Children(func() {
+		ui.Column(c).Gap(10).Margin(8, 0, 2, 5).Padding(2, 0, 2, 14).MaxWidth(stepsW).
+			BorderWidth(0, 0, 0, 1).BorderColor(pal.divider).Children(func() {
 			for _, s := range b.steps {
 				d.stepView(c, pal, s)
 			}
 		})
 	})
-}
-
-// stepIcons stacks the icons of the kinds of steps of a group, as coins:
-// a turning ring first while the agent works.
-func stepIcons(c *ui.Context, pal *palette, b block) {
-	var icons []*ui.SVG
-	for _, s := range b.steps {
-		i := stepIcon(s)
-		if len(icons) == 0 || icons[len(icons)-1] != i {
-			icons = append(icons, i)
-		}
-	}
-	if len(icons) > 4 {
-		icons = icons[len(icons)-4:]
-	}
-	ui.Row(c).Shrink(0).AlignItems(ui.Center).Children(func() {
-		coin := func(i int) ui.Element {
-			e := ui.Box(c).Size(24, 24).Radius(12).Center().Shrink(0).Background(pal.card).
-				Border(1, pal.divider).TextColor(pal.textMuted)
-			if i > 0 {
-				e.Margin(0, 0, 0, -10)
-			}
-			return e
-		}
-		if b.live {
-			coin(0).Children(func() { statusIcon(c, pal, "running", false, 12) })
-		}
-		for i, svg := range icons {
-			n := i
-			if b.live {
-				n++
-			}
-			coin(n).Children(func() { ui.Icon(c, svg).Size(12, 12) })
-		}
-	})
-}
-
-func stepIcon(s step) *ui.SVG {
-	if s.kind == ir.ItemReasoning {
-		return thoughtIcon
-	}
-	switch s.tool.Class {
-	case ir.ToolShell, ir.ToolScript:
-		return agentIcon
-	case ir.ToolFileRead:
-		return docIcon
-	case ir.ToolFileSearch:
-		return searchIcon
-	case ir.ToolFileChange:
-		return pencilIcon
-	case ir.ToolWeb:
-		return globeIcon
-	case ir.ToolSubagent:
-		return sparklesIcon
-	}
-	return toolIcon
 }
 
 // stepView is one step in an open group: what the agent thought, or the
@@ -229,7 +180,7 @@ func (d *desktop) stepView(c *ui.Context, pal *palette, s step) {
 			if s.running() {
 				head = "Thinking…"
 			}
-			ui.Text(c, head).FontSize(13).FontWeight(600).TextColor(pal.text)
+			ui.Text(c, head).FontSize(13).FontWeight(500).TextColor(pal.text)
 			if s.text != "" {
 				ui.Text(c, s.text).FontSize(13).LineHeight(1.5).TextColor(pal.textMuted).Selectable()
 			}
@@ -240,7 +191,7 @@ func (d *desktop) stepView(c *ui.Context, pal *palette, s step) {
 	out := strings.TrimSpace(t.Output)
 	more := out != "" || len(t.Files) > 0
 	head := func(progress float32) {
-		ui.Text(c, toolVerb(t)).FontSize(13).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
+		ui.Text(c, toolVerb(t)).FontSize(13).FontWeight(500).TextColor(pal.text).SingleLine().Shrink(0)
 		ui.Text(c, toolArg(t)).FontSize(13).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
 		switch {
 		case s.running():
@@ -293,9 +244,11 @@ func failure(s step) string {
 	return "failed"
 }
 
-// composer is the box to write to an agent, as chat apps have: the text
-// grows to a few lines; Return sends it and Shift+Return breaks the line.
-// info, when set, fills the left of its bottom row.
+// composer is the box to write to an agent, as the Codex app's: a
+// rounded box that floats a little over the page, the text on top and a
+// toolbar row under it, with the send button at its right. The text grows
+// to a few lines; Return sends it and Shift+Return breaks the line. info,
+// when set, fills the left of the toolbar row.
 type composer struct {
 	key, placeholder string
 	draft            *string
@@ -313,12 +266,12 @@ func (cm composer) view(c *ui.Context, pal *palette) {
 			cm.send(text)
 		}
 	}
-	ui.Row(c.Key(cm.key)).Justify(ui.Center).Padding(0, 24, 18, 24).Shrink(0).Children(func() {
-		box := ui.Column(c).Grow(1).MinWidth(0).MaxWidth(readW).Radius(18).Cursor(ui.CursorText)
+	ui.Row(c.Key(cm.key)).Justify(ui.Center).Padding(0, gutter, 16, gutter).Shrink(0).Children(func() {
+		box := ui.Column(c).Grow(1).MinWidth(0).MaxWidth(readW).Radius(20).Cursor(ui.CursorText)
 		var in ui.Element
 		box.Children(func() {
-			in = ui.TextAreaBase(c.Key("in"), cm.draft).MinHeight(46).MaxHeight(220).Padding(14, 16, 4, 16).
-				FontSize(14).LineHeight(1.45).Placeholder(cm.placeholder).Label(cm.placeholder).
+			in = ui.TextAreaBase(c.Key("in"), cm.draft).Lines(1, 9).Padding(14, 16, 6, 16).
+				FontSize(14).LineHeight(1.5).Placeholder(cm.placeholder).Label(cm.placeholder).
 				OnTextKey(func(k ui.TextKey) bool {
 					if k.Key != ui.KeyEnter || k.Mods != 0 {
 						return false
@@ -329,41 +282,46 @@ func (cm composer) view(c *ui.Context, pal *palette) {
 			if cm.focus {
 				in.AutoFocus()
 			}
-			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(4, 8, 8, 14).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(2, 8, 8, 12).Children(func() {
 				if cm.info != nil {
 					cm.info()
 				}
 				ui.Spacer(c)
-				ui.Text(c, "Return to send, Shift+Return for a new line").FontSize(11.5).TextColor(pal.textFaint).SingleLine()
-				b := ui.ButtonBase(c.Key("send")).Size(30, 30).Radius(15).Center().Label("Send").Disabled(!ready).Tooltip("Send")
-				bg, fg := pal.chip, pal.textFaint
-				if ready {
-					bg, fg = pal.accent, ui.Hex("#ffffff")
-					if b.Hovered() {
-						bg = bg.Mix(ui.Hex("#ffffff"), 0.1)
-					}
-				}
-				b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond})).TextColor(fg)
-				b.Children(func() {
-					if cm.busy {
-						statusIcon(c, pal, "running", false, 14)
-					} else {
-						ui.Icon(c, sendIcon).Size(14, 14)
-					}
-				})
-				if b.Clicked() && ready {
-					submit(*cm.draft)
-				}
+				sendButton(c, pal, ready, cm.busy, func() { submit(*cm.draft) })
 			})
 		})
-		// Kero's text field: a hairline, and the accent glow on focus.
-		stroke, bg := ui.RGBA(0, 0, 0, 0.13), ui.Hex("#ffffff")
-		if pal.dark {
-			stroke, bg = ui.RGBA(255, 255, 255, 0.13), ui.RGBA(255, 255, 255, 0.06)
-		}
-		box.Background(bg).InsetShadow(0, 0, 0, 1, stroke)
-		if glow := box.Animate("glow", b2f(in.Focused()), 120*time.Millisecond); glow > 0 {
-			box.Shadow(0, 0, 0, 3.5*glow, pal.accent.Alpha(0.32*glow)).InsetShadow(0, 0, 0, 1, pal.accent.Alpha(0.75*glow))
+		// A hairline that darkens on focus, and a soft shadow in the
+		// light: no accent glow.
+		focus := box.Animate("focus", b2f(in.Focused()), 120*time.Millisecond)
+		box.Background(pal.composer).InsetShadow(0, 0, 0, 1, pal.text.Alpha(0.1+0.08*focus))
+		if !pal.dark {
+			box.Shadow(0, 4, 16, 0, ui.RGBA(0, 0, 0, 0.05)).Shadow(0, 1, 2, 0, ui.RGBA(0, 0, 0, 0.03))
 		}
 	})
+}
+
+// sendButton is the round button at the right of the composer: filled in
+// the ink when there is text to send, faint when not, a turning ring
+// while the text is on its way.
+func sendButton(c *ui.Context, pal *palette, ready, busy bool, send func()) {
+	b := ui.ButtonBase(c.Key("send")).Size(28, 28).Radius(14).Center().Label("Send").Disabled(!ready).
+		Tooltip("Send (Return)\nNew line (Shift+Return)")
+	bg, fg := pal.chip, pal.textFaint
+	if ready {
+		bg, fg = pal.text, pal.card
+		if b.Hovered() {
+			bg = bg.Mix(pal.card, 0.15)
+		}
+	}
+	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond})).TextColor(fg)
+	b.Children(func() {
+		if busy {
+			statusIcon(c, pal, "running", false, 13)
+		} else {
+			ui.Icon(c, sendIcon).Size(13, 13)
+		}
+	})
+	if b.Clicked() && ready {
+		send()
+	}
 }

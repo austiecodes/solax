@@ -10,19 +10,16 @@ import (
 // Layout. The title bar has no frame: the traffic lights sit over the
 // sidebar, and the content centers on barMid, the line through them.
 const (
-	barMid  = 30
-	topBar  = 2 * barMid             // the sidebar's top bar
-	cardGap = 8                      // the backdrop around the card
-	headerH = 2 * (barMid - cardGap) // a page header, centered on barMid
-	rowH    = 34                     // a sidebar row
-	rowH2   = 48                     // a sidebar row of two lines: a job
-	cardR   = 14                     // the card's corners
+	barMid  = 26         // the line through the traffic lights
+	topBar  = 2 * barMid // the sidebar's top bar
+	headerH = topBar     // a page header, centered on barMid
+	rowH    = 30         // a sidebar row
 )
 
 var sidebarMotion = ui.Animation{Duration: 260 * time.Millisecond, Ease: ui.CubicBezier(0.25, 1, 0.5, 1)}
 
-// view is the window: the sidebar on the backdrop at the left, and the
-// page on a card at the right.
+// view is the window, flat as the Codex app: the sidebar at the left,
+// the page at the right, and a hairline between them.
 func (d *desktop) view(c *ui.Context) {
 	setTheme(d.prefs.Theme)
 	pal := paletteFor(c)
@@ -36,7 +33,6 @@ func (d *desktop) view(c *ui.Context) {
 	width := d.prefs.SidebarWidth
 	sideW := round(width * progress)
 	d.shown = sideW / width
-	mainPad := round(cardGap * (1 - d.shown)) // the card meets the sidebar when it shows
 	row.Children(func() {
 		// The sidebar keeps its width and slides out under a clip.
 		ui.Row(c.Key("sidebar")).Width(sideW).Shrink(0).AlignItems(ui.Stretch).ClipX().Children(func() {
@@ -46,12 +42,15 @@ func (d *desktop) view(c *ui.Context) {
 			ui.Column(c).Width(width).Shrink(0).Margin(0, 0, 0, sideW-width).Opacity(0.4 + 0.6*d.shown).
 				Children(func() { d.sidebar(c, pal, bar) })
 		})
-		ui.Column(c.Key("main")).Grow(1).MinWidth(0).Padding(cardGap, cardGap, cardGap, mainPad).Children(func() {
+		ui.Column(c.Key("main")).Grow(1).MinWidth(0).Children(func() {
 			if d.shown > 0.01 {
 				d.resizeHandle(c)
 			}
-			card := paned(ui.Column(c.Key("card")).Grow(1).MinHeight(0).Radius(cardR).Background(pal.card), pal).Clip()
-			card.Children(func() {
+			page := ui.Column(c.Key("pane")).Grow(1).MinHeight(0).Background(pal.card).Clip()
+			if sideW > 0 {
+				page.BorderWidth(0, 0, 0, 1).BorderColor(pal.divider)
+			}
+			page.Children(func() {
 				d.statusBanner(c, pal)
 				d.pageView(c)
 			})
@@ -92,40 +91,34 @@ func (d *desktop) statusBanner(c *ui.Context, pal *palette) {
 
 // --- shared pieces ---
 
-// header is the top of a page: its title and subtitle, on the line of
-// the traffic lights, and its buttons. With the sidebar hidden it starts
-// after the traffic lights, with a button to show the sidebar again.
-func (d *desktop) header(c *ui.Context, title, sub string, actions func()) {
-	pal := paletteFor(c)
-	bar := c.TitleBar()
-	left := float32(16)
-	ui.Row(c.Key("header")).Height(headerH).Shrink(0).Gap(10).AlignItems(ui.Center).Padding(0, 12, 0, left).DragWindow().Children(func() {
-		if d.shown < 0.5 {
-			if bar.Left > 0 {
-				ui.Box(c).Width(max(bar.Left-cardGap-left, 0)).Shrink(0)
-			}
-			iconButton(c, "show-sidebar", sidebarIcon, tip("Show Sidebar", "sidebar.toggle"), pal, func() { d.run("sidebar.toggle") })
-		}
-		ui.Text(c, title).FontSize(14).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
-		ui.Text(c, sub).FontSize(12).TextColor(pal.textMuted).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
-		if actions != nil {
-			actions()
-		}
-	})
+// emptySpec is what a page shows while it has nothing to show: an icon,
+// a title, a line of help and, if given, a command to copy or a button
+// that takes the next step.
+type emptySpec struct {
+	icon          *ui.SVG
+	title, detail string
+	command       string // a shell command, in a box to copy from
+	action        string // the label of the button, "" for none
+	run           func()
 }
 
-// emptyState fills a page that has nothing to show: an icon, a title, a
-// line of help and, if given, a command to copy.
-func emptyState(c *ui.Context, pal *palette, icon *ui.SVG, title, detail, command string) {
-	ui.Column(c.Key("empty")).Fill().Center().Padding(24).Children(func() {
-		ui.Box(c).Size(52, 52).Radius(14).Center().Background(pal.chip).TextColor(pal.textMuted).Margin(0, 0, 18, 0).Children(func() {
-			ui.Icon(c, icon).Size(26, 26)
-		})
-		ui.Text(c, title).FontSize(19).FontWeight(650).TextColor(pal.text)
-		ui.Text(c, detail).FontSize(13.5).TextColor(pal.textMuted).MaxWidth(400).TextAlign(ui.Center).LineHeight(1.45).Margin(8, 0, 0, 0)
-		if command != "" {
-			ui.Text(c, command).Font("monospace").FontSize(12).TextColor(pal.text).Selectable().
-				Padding(10, 14).Radius(10).Background(pal.chip).Margin(18, 0, 0, 0)
+// emptyState fills a page that has nothing to show, centered and quiet,
+// as the Codex app's.
+func emptyState(c *ui.Context, pal *palette, e emptySpec) {
+	ui.Column(c.Key("empty")).Fill().Center().Padding(24).Gap(8).Children(func() {
+		ui.Icon(c, e.icon).Size(28, 28).TextColor(pal.textFaint).Margin(0, 0, 8, 0)
+		ui.Text(c, e.title).FontSize(17).FontWeight(600).TextColor(pal.text).TextAlign(ui.Center)
+		ui.Text(c, e.detail).FontSize(13).TextColor(pal.textMuted).MaxWidth(400).TextAlign(ui.Center).LineHeight(1.45)
+		if e.command != "" {
+			ui.Text(c, e.command).Font("monospace").FontSize(12).TextColor(pal.text).Selectable().
+				Padding(8, 12).Radius(8).Background(pal.panel).Border(1, pal.divider).Margin(10, 0, 0, 0)
+		}
+		if e.action != "" {
+			ui.Row(c).Margin(10, 0, 0, 0).Children(func() {
+				if button(c, "empty-action", e.action, primaryButton, false) {
+					e.run()
+				}
+			})
 		}
 	})
 }

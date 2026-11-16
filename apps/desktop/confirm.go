@@ -29,10 +29,10 @@ func (d *desktop) confirmView(c *ui.Context, pal *palette) {
 	run := false
 	ui.DialogBase(c.Key("confirm"), &cf.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(pal.overlay)
-		floating(panel.Width(380).Padding(22).Gap(8).Radius(14).Background(pal.popover), pal).Label(cf.title)
-		ui.Text(c, cf.title).FontSize(15).FontWeight(650).TextColor(pal.text)
-		ui.Text(c, cf.detail).FontSize(13).TextColor(pal.textMuted).LineHeight(1.4)
-		ui.Row(c).Gap(8).Justify(ui.End).Margin(14, 0, 0, 0).Children(func() {
+		floating(panel.Width(400).Padding(20).Gap(6).Radius(16).Background(pal.popover), pal).Label(cf.title)
+		ui.Text(c, cf.title).FontSize(14).FontWeight(600).TextColor(pal.text)
+		ui.Text(c, cf.detail).FontSize(13).TextColor(pal.textMuted).LineHeight(1.45)
+		ui.Row(c).Gap(8).Justify(ui.End).Margin(16, 0, 0, 0).Children(func() {
 			keep := cf.keep
 			if keep == "" {
 				keep = "Cancel"

@@ -18,6 +18,10 @@ type prefs struct {
 	// of themeNames (theme.go), "" for the default.
 	Appearance string `json:"appearance,omitempty"`
 	Theme      string `json:"theme,omitempty"`
+	// JobGroups is how the sidebar groups the jobs, one of groupings
+	// (jobgroups.go); ClosedGroups are the keys of the groups closed.
+	JobGroups    string   `json:"jobGroups,omitempty"`
+	ClosedGroups []string `json:"closedGroups,omitempty"`
 	// Unread are the jobs that ended unseen; SeenAt is when the app last
 	// knew all jobs, so a job that ended after it, while the app was
 	// closed, is unread too (unread.go).
@@ -46,6 +50,9 @@ func loadPrefs(path string) prefs {
 	p.SidebarWidth = min(max(p.SidebarWidth, minSidebar), maxSidebar)
 	if _, ok := looks[p.Theme]; !ok {
 		p.Theme = defaultTheme
+	}
+	if !validGrouping(p.JobGroups) {
+		p.JobGroups = defaultGrouping
 	}
 	if !validPage(p.Page) {
 		p.Page = pageChat

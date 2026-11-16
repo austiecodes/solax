@@ -6,34 +6,30 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The app's own controls, after kero's: raised buttons that stand out by
-// their fill, a rounded field with an accent glow on focus, and the job
-// status icon. Pages use these, not ui.Button or ui.TextInput, so the
-// look changes in one place.
+// The app's own controls, after the Codex app's: flat buttons with a
+// hairline edge, the main one filled in the ink; a field with a hairline
+// that darkens on focus; and the job status icon. Pages use these, not
+// ui.Button or ui.TextInput, so the look changes in one place.
 
-const controlH = 30
+const controlH = 28
 
-// face fills a control: on a soft shadow in the light, on a lit edge in
-// the dark.
+// face fills a control flat, with a hairline edge.
 func face(e ui.Element, pal *palette, bg ui.Color) ui.Element {
-	e.Background(bg)
-	if pal.controlShadow {
-		return e.Shadow(0, 0.5, 1.5, 0, ui.RGBA(0, 0, 0, 0.13)).Shadow(0, 0, 0, 0.5, ui.RGBA(0, 0, 0, 0.05))
-	}
-	return darkShadow(litEdge(e, pal))
+	return e.Background(bg).InsetShadow(0, 0, 0, 1, pal.text.Alpha(0.1))
 }
 
 // buttonKind is the look of a button.
 type buttonKind int
 
 const (
-	plainButton   buttonKind = iota // raised, in the control color
-	primaryButton                   // the accent: the main action of a view
+	plainButton   buttonKind = iota // flat, in the control color
+	primaryButton                   // filled in the ink: the main action of a view
 	dangerButton                    // red: an action that cannot be undone
+	removeButton                    // flat, red text: asks before it removes
 )
 
-// button is a raised button of a kind. A disabled one fades and takes no
-// click. It reports a click.
+// button is a button of a kind. A disabled one fades and takes no click.
+// It reports a click.
 func button(c *ui.Context, key, label string, kind buttonKind, disabled bool) bool {
 	return buttonBase(c, key, label, kind, disabled).Clicked() && !disabled
 }
@@ -41,52 +37,103 @@ func button(c *ui.Context, key, label string, kind buttonKind, disabled bool) bo
 // buttonBase is button, returning the element, as for AutoFocus.
 func buttonBase(c *ui.Context, key, label string, kind buttonKind, disabled bool) ui.Element {
 	pal := paletteFor(c)
-	b := ui.ButtonBase(c.Key(key)).Height(controlH).Padding(0, 14).Radius(8).AlignItems(ui.Center).Shrink(0).
+	b := ui.ButtonBase(c.Key(key)).Height(controlH).Padding(0, 12).Radius(8).AlignItems(ui.Center).Shrink(0).
 		Label(label).Disabled(disabled)
 	bg, fg := pal.control, pal.text
 	switch kind {
 	case primaryButton:
-		bg, fg = pal.accent, ui.Hex("#ffffff")
+		bg, fg = pal.text, pal.card
 	case dangerButton:
 		bg, fg = pal.danger, ui.Hex("#ffffff")
+	case removeButton:
+		fg = pal.danger
 	}
-	primary := kind != plainButton
+	filled := kind == primaryButton || kind == dangerButton
 	switch {
 	case disabled:
-		b.Opacity(0.5)
+		b.Opacity(0.4)
 	case b.Pressed():
-		bg = bg.Mix(ui.Hex("#000000"), 0.08)
-	case b.Hovered() && primary:
-		bg = bg.Mix(ui.Hex("#ffffff"), 0.08)
+		bg = bg.Mix(pal.card, 0.2)
+	case b.Hovered() && filled:
+		bg = bg.Mix(pal.card, 0.12)
 	case b.Hovered():
 		bg = pal.controlHover
 	}
-	face(b, pal, b.AnimateColor("bg", bg, ui.Animation{Duration: 90 * time.Millisecond})).TextColor(fg)
-	b.Children(func() {
+	bg = b.AnimateColor("bg", bg, ui.Animation{Duration: 90 * time.Millisecond})
+	if filled {
+		b.Background(bg)
+	} else {
+		face(b, pal, bg)
+	}
+	b.TextColor(fg).Children(func() {
 		ui.Text(c, label).FontSize(13).FontWeight(500).SingleLine()
 	})
 	return b
 }
 
 // textField edits *value in a rounded field. It returns the input, for
-// Submitted.
+// Submitted and Password.
 func textField(c *ui.Context, key string, value *string, placeholder string) ui.Element {
-	pal := paletteFor(c)
 	var in ui.Element
-	frame := ui.Row(c.Key(key)).Grow(1).MinWidth(0).Height(controlH + 2).Radius(8).AlignItems(ui.Center).Cursor(ui.CursorText)
+	frame := ui.Row(c.Key(key)).Grow(1).MinWidth(0).Height(controlH + 2).AlignItems(ui.Center)
 	frame.Children(func() {
 		in = ui.TextInputBase(c.Key("in"), value).Grow(1).MinWidth(0).AlignSelf(ui.Stretch).Padding(0, 10).FontSize(13).
 			Placeholder(placeholder).Label(placeholder)
 	})
-	stroke, bg := ui.RGBA(0, 0, 0, 0.13), ui.Hex("#ffffff")
-	if pal.dark {
-		stroke, bg = ui.RGBA(255, 255, 255, 0.13), ui.RGBA(255, 255, 255, 0.06)
-	}
-	frame.Background(bg).InsetShadow(0, 0, 0, 1, stroke)
-	if glow := frame.Animate("glow", b2f(in.Focused()), 120*time.Millisecond); glow > 0 {
-		frame.Shadow(0, 0, 0, 3.5*glow, pal.accent.Alpha(0.32*glow)).InsetShadow(0, 0, 0, 1, pal.accent.Alpha(0.75*glow))
-	}
+	return fieldFace(c, frame, in)
+}
+
+// textArea edits *value on a few lines, h tall, in the look of
+// textField.
+func textArea(c *ui.Context, key string, value *string, placeholder string, h float32) ui.Element {
+	var in ui.Element
+	frame := ui.Column(c.Key(key)).Grow(1).MinWidth(0)
+	frame.Children(func() {
+		in = ui.TextAreaBase(c.Key("in"), value).Height(h).Padding(8, 10).FontSize(13).LineHeight(1.45).
+			Placeholder(placeholder).Label(placeholder)
+	})
+	return fieldFace(c, frame, in)
+}
+
+// fieldFace gives the frame of a text control a hairline edge, which
+// darkens while in has the focus. It returns in.
+func fieldFace(c *ui.Context, frame, in ui.Element) ui.Element {
+	pal := paletteFor(c)
+	focus := frame.Animate("focus", b2f(in.Focused()), 120*time.Millisecond)
+	frame.Radius(8).Cursor(ui.CursorText).Background(pal.composer).InsetShadow(0, 0, 0, 1, pal.text.Alpha(0.12+0.2*focus))
 	return in
+}
+
+// selectField chooses one of options into *value: a raised button with
+// the choice and an arrow, which opens a list of the options. It returns
+// the button, for Changed.
+func selectField(c *ui.Context, key string, value *string, options []string) ui.Element {
+	pal := paletteFor(c)
+	sel := ui.SelectBase(c.Key(key), value)
+	tr := sel.Trigger.Grow(1).MinWidth(0).Height(controlH).Padding(0, 10, 0, 12).Gap(8).Radius(8).AlignItems(ui.Center).Label(*value)
+	bg := pal.control
+	if tr.Hovered() {
+		bg = pal.controlHover
+	}
+	face(tr, pal, tr.AnimateColor("bg", bg, ui.Animation{Duration: 90 * time.Millisecond})).TextColor(pal.text)
+	tr.Children(func() {
+		ui.Text(c, *value).FontSize(13).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+		ui.Icon(c, chevronIcon).Size(9, 9).Rotate(90).TextColor(pal.textMuted).Shrink(0)
+	})
+	sel.Popup(func(panel ui.Element) {
+		floating(panel.Margin(4, 0, 0, 0).Padding(4).Radius(10).Background(pal.popover), pal)
+		for _, opt := range options {
+			item := sel.Item(opt).Height(28).Padding(0, 10).Radius(6).AlignItems(ui.Center).TextColor(pal.text)
+			switch {
+			case item.Highlighted():
+				item.Background(pal.rowSelected)
+			case opt == *value:
+				item.Background(pal.rowHover)
+			}
+			item.Children(func() { ui.Text(c, opt).FontSize(13).SingleLine() })
+		}
+	})
+	return tr
 }
 
 // jobLive tells whether a job state still changes.

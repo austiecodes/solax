@@ -380,3 +380,37 @@ func TestThemes(t *testing.T) {
 		t.Fatalf("default theme = %q", p.Theme)
 	}
 }
+
+// The Agents page shows the first agent until the user chooses one; the
+// + button opens the form for a new agent in its place, and the close
+// button shows the agent again.
+func TestAgentsPage(t *testing.T) {
+	d := testDesktop(t)
+	d.page = pageAgents
+	d.agents = []protocol.Agent{
+		{ID: "a1", Name: "coder", Driver: "pi", Dir: "~/codes", Description: "Writes code"},
+		{ID: "a2", Name: "solax", Driver: "pi", Role: "super", Dir: "~/codes"},
+	}
+	tt := ui.NewTester(d.view, 1240, 820)
+	if !tt.HasText("Make it Solax") || tt.HasText("Add agent") {
+		t.Fatalf("want coder's detail, got %q", tt.Texts())
+	}
+	if err := tt.Click("New agent"); err != nil {
+		t.Fatal(err)
+	}
+	if !d.form.open || !tt.HasText("Add agent") {
+		t.Fatalf("form did not open: %q", tt.Texts())
+	}
+	if err := tt.Click("Close"); err != nil {
+		t.Fatal(err)
+	}
+	if d.form.open {
+		t.Fatal("form did not close")
+	}
+	if err := tt.Click("solax"); err != nil {
+		t.Fatal(err)
+	}
+	if d.agentSel != "solax" || tt.HasText("Make it Solax") {
+		t.Fatalf("solax not shown: sel %q", d.agentSel)
+	}
+}

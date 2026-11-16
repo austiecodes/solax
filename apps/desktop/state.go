@@ -101,10 +101,12 @@ type desktop struct {
 	jobList     ui.ListState
 
 	// Agents and machines.
-	agents   []protocol.Agent
-	machines []protocol.Machine
-	form     agentForm
-	pairCode string
+	agents     []protocol.Agent
+	machines   []protocol.Machine
+	agentSel   string // the agent the Agents page shows, by name
+	machineSel string // the machine the Machines page shows, by ID
+	form       agentForm
+	pairCode   string
 
 	// Settings.
 	setName, setServer, setToken string
@@ -117,10 +119,11 @@ type desktop struct {
 	localErr  error
 }
 
-// agentForm is the "add agent" form.
+// agentForm is the "new agent" form.
 type agentForm struct {
 	Name, Machine, Driver, Dir, Model, Desc string
 	Super                                   bool
+	open                                    bool // it shows in place of the chosen agent
 	busy                                    bool
 }
 

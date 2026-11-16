@@ -11,8 +11,9 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// The command palette (⌘K), after kero's: one field that finds jobs,
-// agents and actions as one types. Each kind of item comes from one
+// The command palette (⌘K), in the look of the Codex app's: one field
+// that finds jobs, agents and actions as one types, and a footer with
+// its keys. Each kind of item comes from one
 // source function; a new kind is one more source in paletteItems.
 
 type paletteState struct {
@@ -163,12 +164,12 @@ func (d *desktop) paletteView(c *ui.Context, pal *palette) {
 	d.pal.index = min(max(d.pal.index, 0), max(len(items)-1, 0))
 	var chosen func()
 	ui.DialogBase(c.Key("palette"), &d.pal.open, func(backdrop, panel ui.Element) {
-		backdrop.Background(pal.overlay).Justify(ui.Start).Padding(84, 0, 0, 0)
-		floating(panel.Width(600).MaxHeight(460).Radius(14).Background(pal.popover), pal).Clip().Label("Go to")
-		ui.Row(c).Height(50).Shrink(0).Padding(0, 16).Gap(10).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, searchIcon).Size(16, 16).TextColor(pal.textMuted)
-			in := ui.TextInputBase(c.Key("q"), &d.pal.query).Grow(1).FontSize(15).
-				Placeholder("Find a job, an agent or an action").Label("Find").AutoFocus()
+		backdrop.Background(pal.overlay).Justify(ui.Start).Padding(96, 0, 0, 0)
+		floating(panel.Width(560).MaxHeight(440).Radius(14).Background(pal.popover), pal).Clip().Label("Go to")
+		ui.Row(c).Height(46).Shrink(0).Padding(0, 14).Gap(10).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, searchIcon).Size(15, 15).TextColor(pal.textFaint)
+			in := ui.TextInputBase(c.Key("q"), &d.pal.query).Grow(1).FontSize(14).
+				Placeholder("Search jobs, agents and actions").Label("Search").AutoFocus()
 			if in.Changed() {
 				d.pal.index, d.pal.reveal = 0, true
 			}
@@ -193,11 +194,11 @@ func (d *desktop) paletteView(c *ui.Context, pal *palette) {
 			for i, it := range items {
 				if d.pal.query == "" && it.group != group {
 					group = it.group
-					ui.Text(c, group).FontSize(11.5).FontWeight(600).TextColor(pal.textFaint).Padding(10, 10, 4, 10)
+					ui.Text(c, group).FontSize(12).FontWeight(500).TextColor(pal.textFaint).Padding(10, 10, 4, 10)
 				}
-				row := ui.Row(c.Key(i)).Height(38).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8).Label(it.title)
+				row := ui.Row(c.Key(i)).Height(34).Padding(0, 10).Gap(10).AlignItems(ui.Center).Radius(8).Label(it.title)
 				if i == d.pal.index {
-					row.Background(pal.accent.Alpha(0.12))
+					row.Background(pal.rowSelected)
 					if reveal {
 						row.ScrollIntoView()
 					}
@@ -213,11 +214,20 @@ func (d *desktop) paletteView(c *ui.Context, pal *palette) {
 					} else {
 						ui.Icon(c, it.icon).Size(14, 14).TextColor(pal.textFaint)
 					}
-					ui.Text(c, it.title).FontSize(13.5).TextColor(pal.text).SingleLine().Ellipsis("…").Shrink(0).MaxWidth(320)
+					ui.Text(c, it.title).FontSize(13).TextColor(pal.text).SingleLine().Ellipsis("…").Shrink(0).MaxWidth(300)
 					ui.Text(c, it.detail).FontSize(12.5).TextColor(pal.textFaint).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 					if it.keys != "" {
 						kbd(c, pal, it.keys)
 					}
+				})
+			}
+		})
+		ui.Row(c).Height(34).Shrink(0).Padding(0, 14).Gap(14).AlignItems(ui.Center).
+			BorderWidth(1, 0, 0, 0).BorderColor(pal.divider).Children(func() {
+			for _, k := range [][2]string{{"↑↓", "Move"}, {"↩", "Open"}, {"esc", "Close"}} {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					kbd(c, pal, k[0])
+					ui.Text(c, k[1]).FontSize(12).TextColor(pal.textFaint).SingleLine()
 				})
 			}
 		})
