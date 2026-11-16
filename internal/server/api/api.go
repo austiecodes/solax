@@ -11,6 +11,7 @@ import (
 	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/stream"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -18,13 +19,8 @@ import (
 type Config struct {
 	Engine *core.Engine
 	Tokens *auth.Tokens
-	Daemon http.Handler // the hub, mounted at protocol.DaemonPath
-	Stream Streamer     // the client stream, mounted at /v1/stream
-}
-
-// Streamer serves the client stream of one owner.
-type Streamer interface {
-	Serve(w http.ResponseWriter, r *http.Request, owner core.ID)
+	Daemon http.Handler   // the hub, mounted at protocol.DaemonPath
+	Stream *stream.Stream // the client stream, mounted at /v1/stream
 }
 
 // Handlers implements the REST endpoints.

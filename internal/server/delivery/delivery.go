@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/server/hub"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -29,14 +30,6 @@ const (
 	deliverTimeout = 30 * time.Second
 )
 
-// Engine is the part of the core engine that the loop uses.
-type Engine interface {
-	PendingDeliveries(ctx context.Context) ([]core.Delivery, error)
-	Delivered(ctx context.Context, sessionID core.ID, inputIDs []core.ID) error
-	DeliveryFailed(ctx context.Context, sessionID core.ID, reason string) error
-	SessionLost(ctx context.Context, sessionID core.ID) error
-}
-
 // unknownSession is the ack error of a daemon that does not run the
 // session (supervisor.ErrUnknownSession). The server is not imported by
 // the daemon, so the text is the contract.
@@ -44,8 +37,8 @@ const unknownSession = "unknown session"
 
 // Loop delivers inputs.
 type Loop struct {
-	eng  Engine
-	hub  core.Dispatcher
+	eng  *core.Engine
+	hub  *hub.Hub
 	log  *slog.Logger
 	wake chan struct{}
 
@@ -54,8 +47,8 @@ type Loop struct {
 }
 
 // New returns a Loop.
-func New(eng Engine, hub core.Dispatcher, log *slog.Logger) *Loop {
-	return &Loop{eng: eng, hub: hub, log: log, wake: make(chan struct{}, 1), inFlight: map[core.ID]bool{}}
+func New(eng *core.Engine, h *hub.Hub, log *slog.Logger) *Loop {
+	return &Loop{eng: eng, hub: h, log: log, wake: make(chan struct{}, 1), inFlight: map[core.ID]bool{}}
 }
 
 // Kick asks for a pass soon. It never blocks.

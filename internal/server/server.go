@@ -55,13 +55,13 @@ func Admin(ctx context.Context, cfg Config) (*auth.Tokens, func() error, error) 
 	return auth.NewTokens(store, cfg.Secret), store.Close, nil
 }
 
-// App is the assembled server: the HTTP handler and its background loops.
-// Run serves it; tests serve its Handler with httptest.
+// App is the assembled server: the HTTP handler and its delivery loop.
+// Serve serves it; tests serve its Handler with httptest.
 type App struct {
 	Handler http.Handler
 	Engine  *core.Engine
 	Tokens  *auth.Tokens
-	loops   []func(context.Context) error
+	loop    *delivery.Loop
 }
 
 // New assembles the server on an open store.
@@ -77,24 +77,13 @@ func New(store *sqlite.Store, secret []byte, log *slog.Logger) *App {
 		Handler: api.NewRouter(api.Config{Engine: eng, Tokens: tokens, Daemon: h, Stream: st}),
 		Engine:  eng,
 		Tokens:  tokens,
-		loops:   []func(context.Context) error{loop.Run},
+		loop:    loop,
 	}
 }
 
-// Start runs the background loops until ctx ends. Errors go to errc.
+// Start runs the delivery loop until ctx ends. Its error goes to errc.
 func (a *App) Start(ctx context.Context, errc chan<- error) {
-	for _, run := range a.loops {
-		go func() { errc <- run(ctx) }()
-	}
-}
-
-// Run listens on cfg.Addr, starts the server and blocks until ctx ends.
-func Run(ctx context.Context, cfg Config, log *slog.Logger) error {
-	ln, err := net.Listen("tcp", cfg.Addr)
-	if err != nil {
-		return err
-	}
-	return Serve(ctx, cfg, ln, log)
+	go func() { errc <- a.loop.Run(ctx) }()
 }
 
 // Serve starts the server on ln and blocks until ctx ends. It closes ln.

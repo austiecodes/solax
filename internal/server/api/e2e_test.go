@@ -15,6 +15,7 @@ import (
 	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/server/api"
+	"github.com/austiecodes/solax/internal/server/stream"
 	"github.com/austiecodes/solax/internal/store/sqlite"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/ir"
@@ -52,7 +53,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	eng := core.NewEngine(core.Config{Store: store, Dispatcher: nopDispatcher{}, Tokens: tokens})
 	srv := httptest.NewServer(api.NewRouter(api.Config{
 		Engine: eng, Tokens: tokens,
-		Daemon: http.NotFoundHandler(), Stream: noStream{},
+		Daemon: http.NotFoundHandler(), Stream: stream.New(),
 	}))
 	defer srv.Close()
 
@@ -175,7 +176,3 @@ func TestTopologyOverHTTP(t *testing.T) {
 		t.Fatalf("revoked client = %d", code)
 	}
 }
-
-type noStream struct{}
-
-func (noStream) Serve(w http.ResponseWriter, _ *http.Request, _ core.ID) { http.NotFound(w, nil) }
