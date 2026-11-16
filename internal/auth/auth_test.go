@@ -11,7 +11,7 @@ import (
 )
 
 func TestAgentTokenRoundTrip(t *testing.T) {
-	s := NewService(nil, []byte("test-secret"))
+	s := NewTokens(nil, []byte("test-secret"))
 	ctx := context.Background()
 
 	token, err := s.IssueToken(ctx, core.TokenRequest{
@@ -39,7 +39,7 @@ func TestAgentTokenRoundTrip(t *testing.T) {
 }
 
 func TestAgentTokenTampered(t *testing.T) {
-	s := NewService(nil, []byte("test-secret"))
+	s := NewTokens(nil, []byte("test-secret"))
 	ctx := context.Background()
 	token, err := s.IssueToken(ctx, core.TokenRequest{AgentID: "agt_1", Job: "job_1"})
 	if err != nil {
@@ -54,7 +54,7 @@ func TestAgentTokenTampered(t *testing.T) {
 		t.Fatal("a forged claims part was accepted")
 	}
 	// A token signed with another secret.
-	other, err := NewService(nil, []byte("other-secret")).IssueToken(ctx, core.TokenRequest{AgentID: "agt_1"})
+	other, err := NewTokens(nil, []byte("other-secret")).IssueToken(ctx, core.TokenRequest{AgentID: "agt_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestAgentTokenTampered(t *testing.T) {
 }
 
 func TestAgentTokenExpired(t *testing.T) {
-	s := NewService(nil, []byte("test-secret"))
+	s := NewTokens(nil, []byte("test-secret"))
 	token, err := s.IssueToken(context.Background(), core.TokenRequest{AgentID: "agt_1", TTL: time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestAgentTokenExpired(t *testing.T) {
 }
 
 func TestIssueWithoutSecret(t *testing.T) {
-	if _, err := NewService(nil, nil).IssueToken(context.Background(), core.TokenRequest{}); err != errs.ErrUnavailable {
+	if _, err := NewTokens(nil, nil).IssueToken(context.Background(), core.TokenRequest{}); err != errs.ErrUnavailable {
 		t.Fatalf("err = %v, want ErrUnavailable", err)
 	}
 }

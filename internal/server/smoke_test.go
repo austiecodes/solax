@@ -57,7 +57,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, _, err := app.Auth.CreateClient(ctx, owner.ID, "test")
+	token, _, err := app.Tokens.CreateClient(ctx, owner.ID, "test")
 	if err != nil {
 		t.Fatal(err)
 	}

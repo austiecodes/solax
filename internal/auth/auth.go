@@ -122,51 +122,44 @@ type Repo interface {
 	MachineByTokenHash(ctx context.Context, hash string) (core.Machine, error)
 }
 
-// Verifier verifies tokens and issues agent tokens.
-type Verifier interface {
-	// Verify returns the claims of a token. A machine that is not approved
-	// gives errs.ErrForbidden.
-	Verify(ctx context.Context, token string) (Claims, error)
-	// IssueAgent signs a short-lived agent token for one session.
-	IssueAgent(ctx context.Context, c Claims) (string, error)
-}
-
-// Service is the v1 Verifier: hash lookups for client and machine tokens,
-// HMAC-signed agent tokens.
-type Service struct {
+// Tokens verifies the tokens of Solax and creates client and agent tokens:
+// hash lookups for client and machine tokens, HMAC-signed agent tokens.
+type Tokens struct {
 	repo   Repo
 	secret []byte // signs agent tokens
 }
 
-// NewService returns a Service.
-func NewService(repo Repo, secret []byte) *Service { return &Service{repo: repo, secret: secret} }
+// NewTokens returns a Tokens.
+func NewTokens(repo Repo, secret []byte) *Tokens { return &Tokens{repo: repo, secret: secret} }
 
-func (s *Service) Verify(ctx context.Context, token string) (Claims, error) {
+// Verify returns the claims of a token. A machine that is not approved
+// gives errs.ErrForbidden.
+func (t *Tokens) Verify(ctx context.Context, token string) (Claims, error) {
 	kind, ok := KindOf(token)
 	if !ok {
 		return Claims{}, errs.ErrUnauthorized
 	}
 	switch kind {
 	case KindClient:
-		return s.verifyClient(ctx, token)
+		return t.verifyClient(ctx, token)
 	case KindMachine:
-		return s.verifyMachine(ctx, token)
+		return t.verifyMachine(ctx, token)
 	default:
-		return s.verifyAgent(token)
+		return t.verifyAgent(token)
 	}
 }
 
 // CreateClient creates a client token. It returns the token once; the
 // server keeps only its hash. "solax server token create" calls it.
 // An empty ownerID means the default owner.
-func (s *Service) CreateClient(ctx context.Context, ownerID core.ID, name string) (string, ClientToken, error) {
+func (t *Tokens) CreateClient(ctx context.Context, ownerID core.ID, name string) (string, ClientToken, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", ClientToken{}, fmt.Errorf("%w: a token needs a name", errs.ErrInvalid)
 	}
 	if ownerID == "" {
 		var err error
-		if ownerID, err = s.repo.DefaultOwner(ctx); err != nil {
+		if ownerID, err = t.repo.DefaultOwner(ctx); err != nil {
 			return "", ClientToken{}, fmt.Errorf("no owner (run solax server init): %w", err)
 		}
 	}
@@ -174,67 +167,56 @@ func (s *Service) CreateClient(ctx context.Context, ownerID core.ID, name string
 	if err != nil {
 		return "", ClientToken{}, err
 	}
-	t := ClientToken{
+	ct := ClientToken{
 		ID:        core.NewID(core.PrefixClient),
 		OwnerID:   ownerID,
 		Name:      name,
 		Hash:      Hash(token),
 		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
-	if err := s.repo.SaveClient(ctx, t); err != nil {
+	if err := t.repo.SaveClient(ctx, ct); err != nil {
 		return "", ClientToken{}, err
 	}
-	return token, t, nil
+	return token, ct, nil
 }
 
 // RevokeClient makes a client token invalid.
-func (s *Service) RevokeClient(ctx context.Context, id core.ID) error {
-	t, err := s.repo.ClientByID(ctx, id)
+func (t *Tokens) RevokeClient(ctx context.Context, id core.ID) error {
+	ct, err := t.repo.ClientByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	if t.Revoked {
+	if ct.Revoked {
 		return nil
 	}
-	t.Revoked = true
-	return s.repo.SaveClient(ctx, t)
+	ct.Revoked = true
+	return t.repo.SaveClient(ctx, ct)
 }
 
 // Clients lists the client tokens of an owner. An empty ownerID means the
 // default owner.
-func (s *Service) Clients(ctx context.Context, ownerID core.ID) ([]ClientToken, error) {
+func (t *Tokens) Clients(ctx context.Context, ownerID core.ID) ([]ClientToken, error) {
 	if ownerID == "" {
 		var err error
-		if ownerID, err = s.repo.DefaultOwner(ctx); err != nil {
+		if ownerID, err = t.repo.DefaultOwner(ctx); err != nil {
 			return nil, err
 		}
 	}
-	return s.repo.Clients(ctx, ownerID)
+	return t.repo.Clients(ctx, ownerID)
 }
 
 // sessionTTL is the default lifetime of an agent token. A session that
 // lives longer gets a fresh token with its next ensure.
 const sessionTTL = 6 * time.Hour
 
-func (s *Service) IssueAgent(ctx context.Context, c Claims) (string, error) {
-	if s.secret == nil || len(s.secret) == 0 {
-		return "", errs.ErrUnavailable
-	}
-	c.Kind = KindAgent
-	if c.Expires.IsZero() {
-		c.Expires = time.Now().Add(sessionTTL)
-	}
-	return s.signAgent(c)
-}
-
 // IssueToken issues the agent token of one session. The engine reaches it
 // through core.TokenIssuer.
-func (s *Service) IssueToken(ctx context.Context, r core.TokenRequest) (string, error) {
+func (t *Tokens) IssueToken(ctx context.Context, r core.TokenRequest) (string, error) {
 	ttl := r.TTL
 	if ttl <= 0 {
 		ttl = sessionTTL
 	}
-	return s.IssueAgent(ctx, Claims{
+	return t.signAgent(Claims{
 		Kind:      KindAgent,
 		Subject:   r.AgentID,
 		OwnerID:   r.OwnerID,
@@ -258,8 +240,8 @@ type agentClaims struct {
 
 // signAgent returns "sxa_<claims>.<hmac>", both parts base64url without
 // padding. The HMAC covers the claims part as it appears in the token.
-func (s *Service) signAgent(c Claims) (string, error) {
-	if len(s.secret) == 0 {
+func (t *Tokens) signAgent(c Claims) (string, error) {
+	if len(t.secret) == 0 {
 		return "", errs.ErrUnavailable
 	}
 	body, err := json.Marshal(agentClaims{
@@ -270,11 +252,11 @@ func (s *Service) signAgent(c Claims) (string, error) {
 		return "", err
 	}
 	payload := base64.RawURLEncoding.EncodeToString(body)
-	return PrefixAgent + payload + "." + s.mac(payload), nil
+	return PrefixAgent + payload + "." + t.mac(payload), nil
 }
 
-func (s *Service) mac(payload string) string {
-	m := hmac.New(sha256.New, s.secret)
+func (t *Tokens) mac(payload string) string {
+	m := hmac.New(sha256.New, t.secret)
 	m.Write([]byte(payload))
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
@@ -284,25 +266,25 @@ func (s *Service) mac(payload string) string {
 const lastUsedEvery = time.Minute
 
 // verifyClient looks up the hash and rejects revoked tokens.
-func (s *Service) verifyClient(ctx context.Context, token string) (Claims, error) {
-	t, err := s.repo.ClientByHash(ctx, Hash(token))
-	if errors.Is(err, errs.ErrNotFound) || (err == nil && t.Revoked) {
+func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error) {
+	ct, err := t.repo.ClientByHash(ctx, Hash(token))
+	if errors.Is(err, errs.ErrNotFound) || (err == nil && ct.Revoked) {
 		return Claims{}, errs.ErrUnauthorized
 	}
 	if err != nil {
 		return Claims{}, err
 	}
-	if now := time.Now().UTC(); now.Sub(t.LastUsed) > lastUsedEvery {
-		t.LastUsed = now.Truncate(time.Millisecond)
-		_ = s.repo.SaveClient(ctx, t) // best effort; never fails a request
+	if now := time.Now().UTC(); now.Sub(ct.LastUsed) > lastUsedEvery {
+		ct.LastUsed = now.Truncate(time.Millisecond)
+		_ = t.repo.SaveClient(ctx, ct) // best effort; never fails a request
 	}
-	return Claims{Kind: KindClient, Subject: t.ID, OwnerID: t.OwnerID}, nil
+	return Claims{Kind: KindClient, Subject: ct.ID, OwnerID: ct.OwnerID}, nil
 }
 
 // verifyMachine looks up the hash on the machine record. Pending and
 // revoked machines give errs.ErrForbidden.
-func (s *Service) verifyMachine(ctx context.Context, token string) (Claims, error) {
-	m, err := s.repo.MachineByTokenHash(ctx, Hash(token))
+func (t *Tokens) verifyMachine(ctx context.Context, token string) (Claims, error) {
+	m, err := t.repo.MachineByTokenHash(ctx, Hash(token))
 	if errors.Is(err, errs.ErrNotFound) {
 		return Claims{}, errs.ErrUnauthorized
 	}
@@ -320,15 +302,15 @@ func (s *Service) verifyMachine(ctx context.Context, token string) (Claims, erro
 }
 
 // verifyAgent checks the HMAC and the expiry.
-func (s *Service) verifyAgent(token string) (Claims, error) {
-	if len(s.secret) == 0 {
+func (t *Tokens) verifyAgent(token string) (Claims, error) {
+	if len(t.secret) == 0 {
 		return Claims{}, errs.ErrUnauthorized
 	}
 	payload, sig, ok := strings.Cut(strings.TrimPrefix(token, PrefixAgent), ".")
 	if !ok || payload == "" || sig == "" {
 		return Claims{}, errs.ErrUnauthorized
 	}
-	if !hmac.Equal([]byte(sig), []byte(s.mac(payload))) {
+	if !hmac.Equal([]byte(sig), []byte(t.mac(payload))) {
 		return Claims{}, errs.ErrUnauthorized
 	}
 	body, err := base64.RawURLEncoding.DecodeString(payload)
@@ -348,7 +330,4 @@ func (s *Service) verifyAgent(token string) (Claims, error) {
 	}, nil
 }
 
-var (
-	_ Verifier         = (*Service)(nil)
-	_ core.TokenIssuer = (*Service)(nil)
-)
+var _ core.TokenIssuer = (*Tokens)(nil)

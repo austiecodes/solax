@@ -50,9 +50,9 @@ type Engine interface {
 
 // Hub holds one connection for each online machine.
 type Hub struct {
-	auth auth.Verifier
-	eng  Engine
-	log  *slog.Logger
+	tokens *auth.Tokens
+	eng    Engine
+	log    *slog.Logger
 
 	mu    sync.RWMutex
 	conns map[core.ID]*conn
@@ -73,11 +73,11 @@ type conn struct {
 
 // New returns a Hub. Call SetEngine before serving, because the Engine and
 // the Hub depend on each other.
-func New(v auth.Verifier, log *slog.Logger) *Hub {
+func New(tokens *auth.Tokens, log *slog.Logger) *Hub {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Hub{auth: v, log: log, conns: map[core.ID]*conn{}}
+	return &Hub{tokens: tokens, log: log, conns: map[core.ID]*conn{}}
 }
 
 // SetEngine sets the receiver of what daemons report.
@@ -89,7 +89,7 @@ func (h *Hub) SetEngine(e Engine) { h.eng = e }
 // "pending approval", and the daemon retries with backoff.
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	claims, err := h.auth.Verify(r.Context(), token)
+	claims, err := h.tokens.Verify(r.Context(), token)
 	switch {
 	case err == nil && claims.Kind == auth.KindMachine:
 	case errors.Is(err, errs.ErrForbidden):

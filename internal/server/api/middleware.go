@@ -15,14 +15,14 @@ const claimsKey = "solax.claims"
 
 // Authenticate verifies the bearer token and stores its claims. Machine
 // tokens are valid only on the daemon endpoint, not on the REST API.
-func Authenticate(v auth.Verifier) gin.HandlerFunc {
+func Authenticate(tokens *auth.Tokens) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, ok := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
 		if !ok || token == "" {
 			fail(c, errs.ErrUnauthorized)
 			return
 		}
-		cl, err := v.Verify(c.Request.Context(), token)
+		cl, err := tokens.Verify(c.Request.Context(), token)
 		if err != nil {
 			fail(c, err)
 			return

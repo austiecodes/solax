@@ -41,18 +41,18 @@ func Init(ctx context.Context, cfg Config, clientName string) (token string, err
 	if err != nil {
 		return "", err
 	}
-	token, _, err = auth.NewService(store, cfg.Secret).CreateClient(ctx, owner.ID, clientName)
+	token, _, err = auth.NewTokens(store, cfg.Secret).CreateClient(ctx, owner.ID, clientName)
 	return token, err
 }
 
 // Admin opens the database for "solax server token ..." commands. They
 // run on the server host and need no token.
-func Admin(ctx context.Context, cfg Config) (*auth.Service, func() error, error) {
+func Admin(ctx context.Context, cfg Config) (*auth.Tokens, func() error, error) {
 	store, err := sqlite.Open(ctx, cfg.DBPath)
 	if err != nil {
 		return nil, nil, err
 	}
-	return auth.NewService(store, cfg.Secret), store.Close, nil
+	return auth.NewTokens(store, cfg.Secret), store.Close, nil
 }
 
 // App is the assembled server: the HTTP handler and its background loops.
@@ -60,23 +60,23 @@ func Admin(ctx context.Context, cfg Config) (*auth.Service, func() error, error)
 type App struct {
 	Handler http.Handler
 	Engine  *core.Engine
-	Auth    *auth.Service
+	Tokens  *auth.Tokens
 	loops   []func(context.Context) error
 }
 
 // New assembles the server on an open store.
 func New(store *sqlite.Store, secret []byte, log *slog.Logger) *App {
-	verifier := auth.NewService(store, secret)
-	h := hub.New(verifier, log)
+	tokens := auth.NewTokens(store, secret)
+	h := hub.New(tokens, log)
 	st := stream.New()
-	eng := core.NewEngine(core.Config{Store: store, Dispatcher: h, Notifier: st, Tokens: verifier})
+	eng := core.NewEngine(core.Config{Store: store, Dispatcher: h, Notifier: st, Tokens: tokens})
 	h.SetEngine(eng)
 	loop := delivery.New(eng, h, log)
 	eng.OnWork(loop.Kick)
 	return &App{
-		Handler: api.NewRouter(api.Config{Engine: eng, Auth: verifier, Daemon: h, Stream: st}),
+		Handler: api.NewRouter(api.Config{Engine: eng, Tokens: tokens, Daemon: h, Stream: st}),
 		Engine:  eng,
-		Auth:    verifier,
+		Tokens:  tokens,
 		loops:   []func(context.Context) error{loop.Run},
 	}
 }

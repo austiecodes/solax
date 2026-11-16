@@ -17,7 +17,7 @@ import (
 // Config holds what the router needs.
 type Config struct {
 	Engine *core.Engine
-	Auth   auth.Verifier
+	Tokens *auth.Tokens
 	Daemon http.Handler // the hub, mounted at protocol.DaemonPath
 	Stream Streamer     // the client stream, mounted at /v1/stream
 }
@@ -47,7 +47,7 @@ func NewRouter(cfg Config) *gin.Engine {
 	// token it generated, and waits for approval. Rate-limited per address.
 	r.POST("/v1/machines/enroll", RateLimit(), h.enrollMachine)
 
-	v1 := r.Group("/v1", Authenticate(cfg.Auth))
+	v1 := r.Group("/v1", Authenticate(cfg.Tokens))
 	v1.GET("/stream", RequireKind(auth.KindClient), func(c *gin.Context) {
 		cfg.Stream.Serve(c.Writer, c.Request, actor(c).OwnerID)
 	})

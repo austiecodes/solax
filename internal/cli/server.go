@@ -334,7 +334,7 @@ func printToken(cmd *cobra.Command, token string) {
 }
 
 // admin opens the database for the token commands.
-func (f *serverFlags) admin(ctx context.Context) (*auth.Service, func() error, error) {
+func (f *serverFlags) admin(ctx context.Context) (*auth.Tokens, func() error, error) {
 	if err := f.open(); err != nil {
 		return nil, nil, err
 	}
