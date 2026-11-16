@@ -53,6 +53,10 @@ type Supervisor struct {
 	mu       sync.Mutex
 	sessions map[string]*running
 	starting map[string]chan struct{} // ensure under way, by session ID
+	// seqs is the last event seq of each session. The supervisor numbers
+	// events itself: a driver counts from 1 in each process, but the
+	// server keeps one seq space for each session across restarts.
+	seqs map[string]uint64
 }
 
 // running is one live session with its state machine and input queue.
@@ -80,7 +84,7 @@ func New(base context.Context, cfg Config) *Supervisor {
 	if cfg.Dir == nil {
 		cfg.Dir = func(s string) string { return s }
 	}
-	return &Supervisor{cfg: cfg, base: base, sessions: map[string]*running{}, starting: map[string]chan struct{}{}}
+	return &Supervisor{cfg: cfg, base: base, sessions: map[string]*running{}, starting: map[string]chan struct{}{}, seqs: map[string]uint64{}}
 }
 
 // SetMaxSlots changes the session limit. Running sessions are kept.
@@ -190,6 +194,7 @@ func (s *Supervisor) ensure(ctx context.Context, payload json.RawMessage) error 
 	}
 	done := make(chan struct{})
 	s.starting[e.SessionID] = done
+	s.seqs[e.SessionID] = max(s.seqs[e.SessionID], e.LastSeq)
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
@@ -310,6 +315,10 @@ func (s *Supervisor) pump(r *running) {
 			s.flush(r)
 		}
 		r.mu.Unlock()
+		s.mu.Lock()
+		s.seqs[r.id]++
+		e.Seq = s.seqs[r.id]
+		s.mu.Unlock()
 		ch := protocol.ChannelReliable
 		if !e.Type.Reliable() {
 			ch = protocol.ChannelLive

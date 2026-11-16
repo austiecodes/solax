@@ -145,3 +145,60 @@ func TestEvictIdle(t *testing.T) {
 		t.Fatal("w3 started although no session was idle")
 	}
 }
+
+// A driver counts event seqs from 1 in each process. The supervisor
+// numbers them after the seq the server holds, and after the seqs it sent
+// itself, so a resumed session never reuses a seq (the server drops a
+// stored seq as a resend).
+func TestEventSeqContinues(t *testing.T) {
+	fake := &agenttest.FakeDriver{KindV: ir.KindClaude, Reply: func(_ agent.SessionSpec, text string) string { return "re: " + text }}
+	ctx := context.Background()
+	run := func(s *Supervisor, sk *sink, lastSeq uint64, text string) {
+		t.Helper()
+		ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Driver: ir.KindClaude, Dir: "/x", LastSeq: lastSeq}
+		if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
+			t.Fatal(ack.Error)
+		}
+		n := len(sk.messages())
+		if ack := s.Handle(ctx, cmd(protocol.TypeSessionDeliver, protocol.SessionDeliver{
+			SessionID: "ses_1", Input: ir.Input{Mode: ir.ModeFollowUp, Text: text, Ref: text}})); !ack.OK {
+			t.Fatal(ack.Error)
+		}
+		wait(t, func() bool { return len(sk.messages()) > n })
+	}
+	seqs := func(sk *sink) []uint64 {
+		sk.mu.Lock()
+		defer sk.mu.Unlock()
+		var out []uint64
+		for _, e := range sk.evs {
+			out = append(out, e.Seq)
+		}
+		return out
+	}
+	increasing := func(got []uint64, after uint64) {
+		t.Helper()
+		for _, s := range got {
+			if s <= after {
+				t.Fatalf("seqs %v: %d is not after %d", got, s, after)
+			}
+			after = s
+		}
+	}
+
+	// A new daemon process resumes a session whose events the server
+	// holds up to seq 50.
+	sk := &sink{}
+	s := New(ctx, Config{Drivers: []agent.Driver{fake}, MaxSlots: 1, Sink: sk})
+	run(s, sk, 50, "one")
+	first := seqs(sk)
+	increasing(first, 50)
+
+	// The session stops and starts again in the same process before the
+	// server stored its last events: the server's seq lags behind.
+	if err := s.Shutdown(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	wait(t, func() bool { return len(s.States()) == 0 })
+	run(s, sk, 50, "two")
+	increasing(seqs(sk), 50)
+}

@@ -90,6 +90,10 @@ type SessionEnsure struct {
 	Dir        string         `json:"dir"`
 	Model      string         `json:"model,omitempty"`
 	Options    map[string]any `json:"options,omitempty"`
+	// LastSeq is the highest event seq that the server holds for the
+	// session. The daemon numbers new events after it, so a session that
+	// resumes in a new daemon process does not reuse a stored seq.
+	LastSeq uint64 `json:"last_seq,omitempty"`
 }
 
 // SessionDeliver delivers one batch of inputs to a session. Mode
