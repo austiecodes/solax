@@ -104,8 +104,6 @@ func fail(c *gin.Context, err error) {
 
 func status(err error) int {
 	switch {
-	case errors.Is(err, errs.ErrNotImplemented):
-		return http.StatusNotImplemented
 	case errors.Is(err, errs.ErrNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, errs.ErrInvalid):

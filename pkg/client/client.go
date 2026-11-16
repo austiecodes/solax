@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,9 +17,6 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// ErrNotImplemented marks a server endpoint that is not built yet (501).
-var ErrNotImplemented = errors.New("client: not implemented")
-
 // Error is a non-2xx answer of the server.
 type Error struct {
 	Status  int
@@ -28,11 +24,6 @@ type Error struct {
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("server: %d %s", e.Status, e.Message) }
-
-// Is lets callers test errors.Is(err, client.ErrNotImplemented).
-func (e *Error) Is(target error) bool {
-	return target == ErrNotImplemented && e.Status == http.StatusNotImplemented
-}
 
 // Client calls one Solax server.
 type Client struct {

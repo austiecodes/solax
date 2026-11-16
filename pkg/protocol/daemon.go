@@ -125,7 +125,7 @@ type SessionStateReport struct {
 type Channel string
 
 const (
-	ChannelReliable Channel = "reliable" // acknowledged, spooled while offline
+	ChannelReliable Channel = "reliable" // queued in memory while offline; the server drops repeats by seq
 	ChannelLive     Channel = "live"     // best-effort, dropped while offline
 )
 

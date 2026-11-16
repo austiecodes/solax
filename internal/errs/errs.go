@@ -5,9 +5,6 @@ package errs
 import "errors"
 
 var (
-	// ErrNotImplemented marks a skeleton function that has no body yet.
-	ErrNotImplemented = errors.New("not implemented")
-
 	ErrNotFound     = errors.New("not found")
 	ErrInvalid      = errors.New("invalid request")
 	ErrConflict     = errors.New("conflict")
