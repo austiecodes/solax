@@ -84,7 +84,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 		func(ctx context.Context, env protocol.Envelope) protocol.Ack { return sup.Handle(ctx, env) },
 		log)
 	sup = supervisor.New(ctx, supervisor.Config{
-		Registry: agent.NewRegistry(r.fake),
+		Drivers: []agent.Driver{r.fake},
 		Env: func(e protocol.SessionEnsure) map[string]string {
 			return map[string]string{"SOLAX_SERVER": srv.URL, "SOLAX_TOKEN": e.AgentToken, "SOLAX_JOB": e.Job}
 		},

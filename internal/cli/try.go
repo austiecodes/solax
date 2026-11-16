@@ -37,7 +37,7 @@ func tryCmd(g *globals) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			drv, err := driver.Registry("").Get(ir.Kind(args[0]))
+			drv, err := agent.Find(driver.All(""), ir.Kind(args[0]))
 			if err != nil {
 				return err
 			}

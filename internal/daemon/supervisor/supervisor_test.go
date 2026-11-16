@@ -67,7 +67,7 @@ func TestDeliverModes(t *testing.T) {
 		Reply: func(_ agent.SessionSpec, text string) string { return "re: " + text }}
 	sk := &sink{}
 	ctx := context.Background()
-	s := New(ctx, Config{Registry: agent.NewRegistry(fake), MaxSlots: 1, Sink: sk})
+	s := New(ctx, Config{Drivers: []agent.Driver{fake}, MaxSlots: 1, Sink: sk})
 
 	ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Driver: ir.KindClaude, Dir: "/x"}
 	if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
@@ -121,7 +121,7 @@ func TestDeliverModes(t *testing.T) {
 func TestEvictIdle(t *testing.T) {
 	fake := &agenttest.FakeDriver{KindV: ir.KindClaude, TurnDelay: time.Second}
 	ctx := context.Background()
-	s := New(ctx, Config{Registry: agent.NewRegistry(fake), MaxSlots: 2, Sink: &sink{}})
+	s := New(ctx, Config{Drivers: []agent.Driver{fake}, MaxSlots: 2, Sink: &sink{}})
 	ensure := func(id string, role protocol.SessionRole) protocol.Ack {
 		return s.Handle(ctx, cmd(protocol.TypeSessionEnsure, protocol.SessionEnsure{SessionID: id, Role: role, Driver: ir.KindClaude}))
 	}

@@ -44,10 +44,10 @@ type Daemon struct {
 	mu  sync.RWMutex
 	cfg localconfig.Config
 
-	reg  *agent.Registry
-	sup  *supervisor.Supervisor
-	conn *conn.Conn
-	stop context.CancelFunc
+	drivers []agent.Driver
+	sup     *supervisor.Supervisor
+	conn    *conn.Conn
+	stop    context.CancelFunc
 }
 
 // New builds a daemon from the local state. It needs the machine token that
@@ -83,7 +83,7 @@ func New(paths localconfig.Paths, log *slog.Logger) (*Daemon, error) {
 	if exe, err := os.Executable(); err == nil {
 		bin = filepath.Dir(exe)
 	}
-	d := &Daemon{paths: paths, cfg: cfg, creds: creds, log: log, assets: assetsDir, bin: bin, reg: driver.Registry(state)}
+	d := &Daemon{paths: paths, cfg: cfg, creds: creds, log: log, assets: assetsDir, bin: bin, drivers: driver.All(state)}
 	d.conn = conn.New(cfg.Backend.URL, creds.MachineToken, d.hello, d.heartbeat, d.handle, log)
 	return d, nil
 }
@@ -100,7 +100,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	ctx, d.stop = context.WithCancel(ctx)
 	defer d.stop()
 	d.sup = supervisor.New(ctx, supervisor.Config{
-		Registry: d.reg,
+		Drivers:  d.drivers,
 		Prompt:   func(role protocol.SessionRole) (string, error) { return assets.Prompt(d.assets, role) },
 		Env:      d.sessionEnv,
 		Dir:      localconfig.ExpandHome,
@@ -205,7 +205,7 @@ func (d *Daemon) hello(ctx context.Context) protocol.Hello {
 	if d.sup != nil {
 		h.FreeSlots, h.Sessions = d.sup.FreeSlots(), d.sup.States()
 	}
-	for _, drv := range d.reg.All() {
+	for _, drv := range d.drivers {
 		pctx, cancel := context.WithTimeout(ctx, probeTimeout)
 		p, err := drv.Probe(pctx)
 		cancel()

@@ -26,7 +26,7 @@ var ErrUnknownSession = errors.New("unknown session")
 
 // Config is what the supervisor needs from the daemon.
 type Config struct {
-	Registry *agent.Registry
+	Drivers []agent.Driver
 	// Prompt returns the role prompt of a session.
 	Prompt func(role protocol.SessionRole) (string, error)
 	// Env returns the environment of a session: SOLAX_* values and PATH.
@@ -198,7 +198,7 @@ func (s *Supervisor) ensure(ctx context.Context, payload json.RawMessage) error 
 		close(done)
 	}()
 
-	drv, err := s.cfg.Registry.Get(e.Driver)
+	drv, err := agent.Find(s.cfg.Drivers, e.Driver)
 	if err != nil {
 		return err
 	}
