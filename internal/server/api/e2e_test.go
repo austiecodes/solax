@@ -49,8 +49,8 @@ func TestTopologyOverHTTP(t *testing.T) {
 	}
 	defer store.Close()
 	svc := auth.NewService(store, []byte("secret"))
-	eng := core.NewEngine(core.Deps{Store: store, Dispatcher: nopDispatcher{}, Tokens: svc})
-	srv := httptest.NewServer(api.NewRouter(api.Deps{
+	eng := core.NewEngine(core.Config{Store: store, Dispatcher: nopDispatcher{}, Tokens: svc})
+	srv := httptest.NewServer(api.NewRouter(api.Config{
 		Engine: eng, Auth: svc,
 		Daemon: http.NotFoundHandler(), Stream: noStream{},
 	}))

@@ -109,7 +109,7 @@ type ClientToken struct {
 	Revoked   bool
 }
 
-// Repo is the storage port of auth. internal/store/sqlite implements it.
+// Repo is what auth needs from storage. internal/store/sqlite implements it.
 // Machine token hashes live on the machine record (core.Machine.TokenHash).
 type Repo interface {
 	// DefaultOwner returns the owner of a single-owner installation, or
@@ -228,7 +228,7 @@ func (s *Service) IssueAgent(ctx context.Context, c Claims) (string, error) {
 }
 
 // IssueToken issues the agent token of one session. The engine reaches it
-// through core.AgentTokens.
+// through core.TokenIssuer.
 func (s *Service) IssueToken(ctx context.Context, r core.TokenRequest) (string, error) {
 	ttl := r.TTL
 	if ttl <= 0 {
@@ -350,5 +350,5 @@ func (s *Service) verifyAgent(token string) (Claims, error) {
 
 var (
 	_ Verifier         = (*Service)(nil)
-	_ core.AgentTokens = (*Service)(nil)
+	_ core.TokenIssuer = (*Service)(nil)
 )

@@ -1,6 +1,6 @@
 // Package hub keeps the WebSocket connections of the daemons. It
 // implements core.Dispatcher for commands to daemons, and reports what
-// daemons say to Facts.
+// daemons say to the Engine.
 package hub
 
 import (
@@ -37,10 +37,10 @@ const (
 // origin check does not apply; the machine token authenticates them.
 var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 
-// Facts receives what daemons report. *core.Engine implements it. It is an
-// interface because the Engine and the Hub need each other: the server
-// builds the Hub first and sets the Engine with SetFacts.
-type Facts interface {
+// Engine is the part of *core.Engine that receives what daemons report.
+// It is an interface because the Engine and the Hub need each other: the
+// server builds the Hub first and sets the Engine with SetEngine.
+type Engine interface {
 	MachineConnected(ctx context.Context, machineID core.ID, h protocol.Hello) error
 	MachineDisconnected(ctx context.Context, machineID core.ID) error
 	Heartbeat(ctx context.Context, machineID core.ID, hb protocol.Heartbeat) error
@@ -50,9 +50,9 @@ type Facts interface {
 
 // Hub holds one connection for each online machine.
 type Hub struct {
-	auth  auth.Verifier
-	facts Facts
-	log   *slog.Logger
+	auth auth.Verifier
+	eng  Engine
+	log  *slog.Logger
 
 	mu    sync.RWMutex
 	conns map[core.ID]*conn
@@ -71,7 +71,7 @@ type conn struct {
 	pending map[string]chan protocol.Ack
 }
 
-// New returns a Hub. Call SetFacts before serving, because the Engine and
+// New returns a Hub. Call SetEngine before serving, because the Engine and
 // the Hub depend on each other.
 func New(v auth.Verifier, log *slog.Logger) *Hub {
 	if log == nil {
@@ -80,8 +80,8 @@ func New(v auth.Verifier, log *slog.Logger) *Hub {
 	return &Hub{auth: v, log: log, conns: map[core.ID]*conn{}}
 }
 
-// SetFacts sets the receiver of daemon facts.
-func (h *Hub) SetFacts(f Facts) { h.facts = f }
+// SetEngine sets the receiver of what daemons report.
+func (h *Hub) SetEngine(e Engine) { h.eng = e }
 
 // ServeHTTP verifies the machine token (the daemon generated it; the server
 // has its hash), upgrades to WebSocket, waits for Hello, then reads records
@@ -117,7 +117,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = h.readLoop(ctx, c)
 	h.log.Info("daemon disconnected", "machine", c.machineID, "err", err)
 	if h.drop(c) {
-		_ = h.facts.MachineDisconnected(context.WithoutCancel(ctx), c.machineID)
+		_ = h.eng.MachineDisconnected(context.WithoutCancel(ctx), c.machineID)
 	}
 	ws.Close()
 }
@@ -144,7 +144,7 @@ func (h *Hub) handshake(ctx context.Context, c *conn) error {
 	if old != nil {
 		old.close(websocket.CloseGoingAway, "replaced by a new connection")
 	}
-	if err := h.facts.MachineConnected(ctx, c.machineID, hello); err != nil {
+	if err := h.eng.MachineConnected(ctx, c.machineID, hello); err != nil {
 		h.drop(c)
 		return err
 	}
@@ -174,7 +174,7 @@ func (h *Hub) readLoop(ctx context.Context, c *conn) error {
 			c.resolve(env)
 			continue
 		}
-		err := h.fact(ctx, c, env)
+		err := h.report(ctx, c, env)
 		if err != nil {
 			h.log.Warn("daemon record failed", "machine", c.machineID, "type", env.Type, "err", err)
 		}
@@ -188,32 +188,32 @@ func (h *Hub) readLoop(ctx context.Context, c *conn) error {
 	}
 }
 
-func (h *Hub) fact(ctx context.Context, c *conn, env protocol.Envelope) error {
+func (h *Hub) report(ctx context.Context, c *conn, env protocol.Envelope) error {
 	switch env.Type {
 	case protocol.TypeHello:
 		var v protocol.Hello
 		if err := json.Unmarshal(env.Payload, &v); err != nil {
 			return err
 		}
-		return h.facts.MachineConnected(ctx, c.machineID, v)
+		return h.eng.MachineConnected(ctx, c.machineID, v)
 	case protocol.TypeHeartbeat:
 		var v protocol.Heartbeat
 		if err := json.Unmarshal(env.Payload, &v); err != nil {
 			return err
 		}
-		return h.facts.Heartbeat(ctx, c.machineID, v)
+		return h.eng.Heartbeat(ctx, c.machineID, v)
 	case protocol.TypeSessionEvent:
 		var v protocol.SessionEvent
 		if err := json.Unmarshal(env.Payload, &v); err != nil {
 			return err
 		}
-		return h.facts.SessionEvent(ctx, c.machineID, v)
+		return h.eng.SessionEvent(ctx, c.machineID, v)
 	case protocol.TypeSessionState:
 		var v protocol.SessionStateReport
 		if err := json.Unmarshal(env.Payload, &v); err != nil {
 			return err
 		}
-		return h.facts.SessionStateChanged(ctx, c.machineID, v)
+		return h.eng.SessionStateChanged(ctx, c.machineID, v)
 	}
 	return fmt.Errorf("%w: unknown record %q", errs.ErrInvalid, env.Type)
 }

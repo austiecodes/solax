@@ -37,7 +37,7 @@ func Init(ctx context.Context, cfg Config, clientName string) (token string, err
 		return "", err
 	}
 	defer store.Close()
-	owner, err := core.NewEngine(core.Deps{Store: store}).InitOwner(ctx)
+	owner, err := core.NewEngine(core.Config{Store: store}).InitOwner(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -69,12 +69,12 @@ func New(store *sqlite.Store, secret []byte, log *slog.Logger) *App {
 	verifier := auth.NewService(store, secret)
 	h := hub.New(verifier, log)
 	st := stream.New()
-	eng := core.NewEngine(core.Deps{Store: store, Dispatcher: h, Notifier: st, Tokens: verifier})
-	h.SetFacts(eng)
+	eng := core.NewEngine(core.Config{Store: store, Dispatcher: h, Notifier: st, Tokens: verifier})
+	h.SetEngine(eng)
 	loop := delivery.New(eng, h, log)
 	eng.OnWork(loop.Kick)
 	return &App{
-		Handler: api.NewRouter(api.Deps{Engine: eng, Auth: verifier, Daemon: h, Stream: st}),
+		Handler: api.NewRouter(api.Config{Engine: eng, Auth: verifier, Daemon: h, Stream: st}),
 		Engine:  eng,
 		Auth:    verifier,
 		loops:   []func(context.Context) error{loop.Run},

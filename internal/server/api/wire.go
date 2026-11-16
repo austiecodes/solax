@@ -5,9 +5,9 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// Mapping from core values to wire DTOs. Handlers never expose core types.
+// Wire forms of core values. Handlers never expose core types.
 
-func machineDTO(m core.Machine) protocol.Machine {
+func wireMachine(m core.Machine) protocol.Machine {
 	drivers := m.Drivers
 	if drivers == nil {
 		drivers = []protocol.DriverProbe{}
@@ -16,12 +16,12 @@ func machineDTO(m core.Machine) protocol.Machine {
 		Online: m.Online, LastSeen: m.LastSeen, Drivers: drivers}
 }
 
-func enrolledDTO(m core.Machine) protocol.MachineEnrolled {
+func wireEnrolled(m core.Machine) protocol.MachineEnrolled {
 	return protocol.MachineEnrolled{MachineID: string(m.ID), State: protocol.MachineState(m.State),
 		PairCode: m.PairCode, PairUntil: m.PairUntil}
 }
 
-func agentDTO(v core.AgentView) protocol.Agent {
+func wireAgent(v core.AgentView) protocol.Agent {
 	return protocol.Agent{
 		ID: string(v.ID), Name: v.Name, Description: v.Description, MachineID: string(v.MachineID), Machine: v.MachineName,
 		Online: v.Online, Driver: v.Driver, Role: string(v.Role), Dir: v.Dir, Model: v.Model, Options: v.Options,

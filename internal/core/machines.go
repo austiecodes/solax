@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/austiecodes/solax/internal/errs"
-	"github.com/austiecodes/solax/pkg/protocol"
 )
 
 // RegisterMachine adds an approved machine with the hash of the token that
@@ -136,84 +135,6 @@ func (e *Engine) RevokeMachine(ctx context.Context, a Actor, machineID ID) error
 		e.dispatch.Disconnect(machineID)
 	}
 	return nil
-}
-
-// MachineConnected records that the machine is online with the drivers
-// that its daemon detected. Sessions that the daemon still runs stay live;
-// all other sessions of the machine are stopped, and the delivery loop
-// starts them again when they have input.
-func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.Hello) error {
-	var owner ID
-	err := e.store.Atomic(ctx, func(tx Tx) error {
-		m, err := tx.Machines().Get(ctx, machineID)
-		if err != nil {
-			return err
-		}
-		if m.State != MachineApproved {
-			return errs.ErrForbidden
-		}
-		m.Online, m.LastSeen, m.Slots, m.Drivers = true, e.clock(), h.FreeSlots, h.Drivers
-		owner = m.OwnerID
-		if err := tx.Machines().Save(ctx, m); err != nil {
-			return err
-		}
-		sessions, err := tx.Sessions().OnMachine(ctx, machineID)
-		if err != nil {
-			return err
-		}
-		for _, ses := range sessions {
-			state, live := h.Sessions[string(ses.ID)]
-			if live == ses.Live && (!live || state == ses.State) {
-				continue
-			}
-			ses.Live, ses.UpdatedAt = live, e.clock()
-			if live {
-				ses.State = state
-			} else {
-				ses.State = SessionStopped
-			}
-			if err := tx.Sessions().Save(ctx, ses); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err == nil {
-		e.publish(ctx, owner, PushMachines, nil)
-		e.wake()
-	}
-	return err
-}
-
-// MachineDisconnected records that the machine is offline.
-func (e *Engine) MachineDisconnected(ctx context.Context, machineID ID) error {
-	var owner ID
-	err := e.store.Atomic(ctx, func(tx Tx) error {
-		m, err := tx.Machines().Get(ctx, machineID)
-		if err != nil {
-			return err
-		}
-		owner = m.OwnerID
-		m.Online, m.LastSeen = false, e.clock()
-		return tx.Machines().Save(ctx, m)
-	})
-	if err == nil {
-		e.publish(ctx, owner, PushMachines, nil)
-	}
-	return err
-}
-
-// Heartbeat records the free slots of a machine. Session states in the
-// heartbeat are reconciled by the delivery engine.
-func (e *Engine) Heartbeat(ctx context.Context, machineID ID, hb protocol.Heartbeat) error {
-	return e.store.Atomic(ctx, func(tx Tx) error {
-		m, err := tx.Machines().Get(ctx, machineID)
-		if err != nil {
-			return err
-		}
-		m.Online, m.LastSeen, m.Slots = true, e.clock(), hb.FreeSlots
-		return tx.Machines().Save(ctx, m)
-	})
 }
 
 func validMachine(name, tokenHash string) error {

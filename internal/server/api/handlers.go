@@ -13,7 +13,7 @@ import (
 )
 
 // Each handler binds its request, calls the Engine with actor(c), and maps
-// the result to a protocol DTO. Handlers contain no domain rules.
+// the result to its wire form. Handlers contain no domain rules.
 
 // bind decodes a JSON body; a bad body is ErrInvalid (400).
 func bind(c *gin.Context, v any) bool {
@@ -50,7 +50,7 @@ func reply(c *gin.Context, code int, v any, err error) {
 func (h *Handlers) listMachines(c *gin.Context) {
 	a := actor(c)
 	ms, err := h.eng.Machines(c.Request.Context(), a)
-	reply(c, http.StatusOK, mapAll(ms, machineDTO), err)
+	reply(c, http.StatusOK, mapAll(ms, wireMachine), err)
 }
 
 func (h *Handlers) enrollMachine(c *gin.Context) {
@@ -59,7 +59,7 @@ func (h *Handlers) enrollMachine(c *gin.Context) {
 		return
 	}
 	m, err := h.eng.EnrollMachine(c.Request.Context(), r.Name, r.TokenHash)
-	reply(c, http.StatusOK, enrolledDTO(m), err)
+	reply(c, http.StatusOK, wireEnrolled(m), err)
 }
 
 func (h *Handlers) registerMachine(c *gin.Context) {
@@ -68,7 +68,7 @@ func (h *Handlers) registerMachine(c *gin.Context) {
 		return
 	}
 	m, err := h.eng.RegisterMachine(c.Request.Context(), actor(c), r.Name, r.TokenHash)
-	reply(c, http.StatusOK, enrolledDTO(m), err)
+	reply(c, http.StatusOK, wireEnrolled(m), err)
 }
 
 func (h *Handlers) approveMachine(c *gin.Context) {
@@ -77,7 +77,7 @@ func (h *Handlers) approveMachine(c *gin.Context) {
 		return
 	}
 	m, err := h.eng.ApproveMachine(c.Request.Context(), actor(c), r.Code)
-	reply(c, http.StatusOK, machineDTO(m), err)
+	reply(c, http.StatusOK, wireMachine(m), err)
 }
 
 func (h *Handlers) revokeMachine(c *gin.Context) {
@@ -86,7 +86,7 @@ func (h *Handlers) revokeMachine(c *gin.Context) {
 
 func (h *Handlers) listAgents(c *gin.Context) {
 	as, err := h.eng.Agents(c.Request.Context(), actor(c))
-	reply(c, http.StatusOK, mapAll(as, agentDTO), err)
+	reply(c, http.StatusOK, mapAll(as, wireAgent), err)
 }
 
 func (h *Handlers) createAgent(c *gin.Context) {
@@ -121,11 +121,11 @@ func (h *Handlers) replyAgent(c *gin.Context, code int, ag core.Agent, err error
 	views, err := h.eng.Agents(c.Request.Context(), actor(c))
 	for _, v := range views {
 		if v.ID == ag.ID {
-			reply(c, code, agentDTO(v), err)
+			reply(c, code, wireAgent(v), err)
 			return
 		}
 	}
-	reply(c, code, agentDTO(core.AgentView{Agent: ag}), err)
+	reply(c, code, wireAgent(core.AgentView{Agent: ag}), err)
 }
 
 func (h *Handlers) deleteAgent(c *gin.Context) {
@@ -157,7 +157,7 @@ func (h *Handlers) listJobs(c *gin.Context) {
 		return
 	}
 	names := h.agentNames(c)
-	reply(c, http.StatusOK, mapAll(js, func(j core.Job) protocol.Job { return core.JobDTO(j, names[j.AgentID]) }), nil)
+	reply(c, http.StatusOK, mapAll(js, func(j core.Job) protocol.Job { return core.WireJob(j, names[j.AgentID]) }), nil)
 }
 
 func (h *Handlers) getJob(c *gin.Context) {
@@ -199,7 +199,7 @@ func (h *Handlers) replyJob(c *gin.Context, code int, j core.Job, err error) {
 		fail(c, err)
 		return
 	}
-	reply(c, code, core.JobDTO(j, h.agentNames(c)[j.AgentID]), nil)
+	reply(c, code, core.WireJob(j, h.agentNames(c)[j.AgentID]), nil)
 }
 
 // agentNames maps agent IDs to names, deleted agents included.
@@ -225,7 +225,7 @@ func (h *Handlers) superMessages(c *gin.Context) {
 		return
 	}
 	ms, err := h.eng.SuperMessages(c.Request.Context(), actor(c), q.Since, q.Limit)
-	reply(c, http.StatusOK, mapAll(ms, core.MessageDTO), err)
+	reply(c, http.StatusOK, mapAll(ms, core.WireMessage), err)
 }
 
 func (h *Handlers) sendToSuper(c *gin.Context) {
@@ -234,7 +234,7 @@ func (h *Handlers) sendToSuper(c *gin.Context) {
 		return
 	}
 	m, err := h.eng.SendToSuper(c.Request.Context(), actor(c), r.Text)
-	reply(c, http.StatusCreated, core.MessageDTO(m), err)
+	reply(c, http.StatusCreated, core.WireMessage(m), err)
 }
 
 func (h *Handlers) superReply(c *gin.Context) {
@@ -243,5 +243,5 @@ func (h *Handlers) superReply(c *gin.Context) {
 		return
 	}
 	m, err := h.eng.SuperReply(c.Request.Context(), actor(c), r.Text)
-	reply(c, http.StatusCreated, core.MessageDTO(m), err)
+	reply(c, http.StatusCreated, core.WireMessage(m), err)
 }

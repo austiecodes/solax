@@ -1,6 +1,3 @@
-// Package core holds the domain model and the delivery engine. The Engine
-// is the only writer of domain state. It reaches storage, daemons and
-// clients only through the ports in ports.go.
 package core
 
 import (

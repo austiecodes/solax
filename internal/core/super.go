@@ -8,7 +8,6 @@ import (
 
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/pkg/ir"
-	"github.com/austiecodes/solax/pkg/protocol"
 )
 
 // The Super Agent conversation.
@@ -50,7 +49,7 @@ func (e *Engine) SendToSuper(ctx context.Context, a Actor, text string) (Message
 	if err != nil {
 		return Message{}, err
 	}
-	e.publish(ctx, a.OwnerID, PushMessage, MessageDTO(m))
+	e.publish(ctx, a.OwnerID, PushMessage, WireMessage(m))
 	e.wake()
 	return m, nil
 }
@@ -68,7 +67,7 @@ func (e *Engine) SuperReply(ctx context.Context, a Actor, text string) (Message,
 		return err
 	})
 	if err == nil {
-		e.publish(ctx, a.OwnerID, PushMessage, MessageDTO(m))
+		e.publish(ctx, a.OwnerID, PushMessage, WireMessage(m))
 	}
 	return m, err
 }
@@ -120,7 +119,7 @@ func (e *Engine) superEvent(ctx context.Context, tx Tx, ses Session, ev ir.Event
 	if err != nil {
 		return err
 	}
-	post.add(func() { e.publish(context.WithoutCancel(ctx), m.OwnerID, PushMessage, MessageDTO(msg)) })
+	post.add(func() { e.publish(context.WithoutCancel(ctx), m.OwnerID, PushMessage, WireMessage(msg)) })
 	return nil
 }
 
@@ -150,17 +149,9 @@ func (e *Engine) jobFinished(ctx context.Context, tx Tx, j Job, ag Agent, post *
 	if err != nil {
 		return err
 	}
-	post.add(func() { e.publish(context.WithoutCancel(ctx), j.OwnerID, PushMessage, MessageDTO(note)) })
+	post.add(func() { e.publish(context.WithoutCancel(ctx), j.OwnerID, PushMessage, WireMessage(note)) })
 	now := e.clock()
 	return tx.Inputs().Add(ctx, Input{ID: NewIDAt(PrefixInput, now), SessionID: ses.ID, Text: b.String(), CreatedAt: now})
-}
-
-// MessageDTO converts a conversation message to its wire form.
-func MessageDTO(m Message) protocol.Message {
-	return protocol.Message{
-		ID: string(m.ID), Seq: m.Seq, Author: protocol.Author{Kind: string(m.Author.Kind), ID: string(m.Author.ID)},
-		Kind: string(m.Kind), Text: m.Text, CreatedAt: m.CreatedAt,
-	}
 }
 
 // afterCommit collects actions that must run only after the transaction

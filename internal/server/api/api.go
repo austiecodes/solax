@@ -14,8 +14,8 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// Deps are the dependencies of the handlers.
-type Deps struct {
+// Config holds what the router needs.
+type Config struct {
 	Engine *core.Engine
 	Auth   auth.Verifier
 	Daemon http.Handler // the hub, mounted at protocol.DaemonPath
@@ -33,23 +33,23 @@ type Handlers struct {
 }
 
 // NewRouter returns the gin engine with all routes.
-func NewRouter(d Deps) *gin.Engine {
-	h := &Handlers{eng: d.Engine}
+func NewRouter(cfg Config) *gin.Engine {
+	h := &Handlers{eng: cfg.Engine}
 
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/healthz", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 	// Daemons authenticate with a machine token inside the hub.
-	r.GET(protocol.DaemonPath, gin.WrapH(d.Daemon))
+	r.GET(protocol.DaemonPath, gin.WrapH(cfg.Daemon))
 
 	// The only unauthenticated endpoint: a machine enrolls the hash of the
 	// token it generated, and waits for approval. Rate-limited per address.
 	r.POST("/v1/machines/enroll", RateLimit(), h.enrollMachine)
 
-	v1 := r.Group("/v1", Authenticate(d.Auth))
+	v1 := r.Group("/v1", Authenticate(cfg.Auth))
 	v1.GET("/stream", RequireKind(auth.KindClient), func(c *gin.Context) {
-		d.Stream.Serve(c.Writer, c.Request, actor(c).OwnerID)
+		cfg.Stream.Serve(c.Writer, c.Request, actor(c).OwnerID)
 	})
 
 	// The Super Agent lists machines to know what is available. Only a

@@ -7,7 +7,7 @@ import (
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
-// REST DTOs under /v1. These types are the contract with the CLI and the
+// REST types under /v1. These types are the contract with the CLI and the
 // clients. The domain types in internal/core are separate.
 
 type Machine struct {

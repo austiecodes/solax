@@ -48,7 +48,7 @@ func newEnv(t *testing.T) *env {
 	}
 	t.Cleanup(func() { store.Close() })
 	e := &env{store: store, clock: &fakeClock{t: time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)}, disp: &fakeDispatcher{}}
-	e.eng = core.NewEngine(core.Deps{Store: store, Dispatcher: e.disp, Clock: e.clock.now})
+	e.eng = core.NewEngine(core.Config{Store: store, Dispatcher: e.disp, Clock: e.clock.now})
 	if e.owner, err = e.eng.InitOwner(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestEnrollBeforeInit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	_, err = core.NewEngine(core.Deps{Store: store}).EnrollMachine(context.Background(), "m", hash('a'))
+	_, err = core.NewEngine(core.Config{Store: store}).EnrollMachine(context.Background(), "m", hash('a'))
 	is(t, err, errs.ErrUnavailable)
 }
 

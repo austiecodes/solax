@@ -2,13 +2,11 @@ package core
 
 import (
 	"context"
-	"time"
 
 	"github.com/austiecodes/solax/pkg/ir"
-	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// Store is the storage port. internal/store/sqlite implements it.
+// Store keeps the domain state. internal/store/sqlite implements it.
 type Store interface {
 	// Atomic runs fn in one write transaction. Write transactions are
 	// serialised. fn must not call Atomic or Read.
@@ -19,7 +17,7 @@ type Store interface {
 	Close() error
 }
 
-// Tx gives the repositories inside one transaction.
+// Tx gives the tables inside one transaction.
 type Tx interface {
 	Owners() OwnerRepo
 	Machines() MachineRepo
@@ -95,37 +93,3 @@ type SessionEventRepo interface {
 	// Since returns events with seq > after, oldest first.
 	Since(ctx context.Context, sessionID ID, after int64, limit int) ([]ir.Event, error)
 }
-
-// Dispatcher sends commands to daemons. internal/server/hub implements it.
-type Dispatcher interface {
-	// Send sends a command to the daemon of a machine and waits for its ack.
-	Send(ctx context.Context, machineID ID, env protocol.Envelope) (protocol.Ack, error)
-	Online(machineID ID) bool
-	// Disconnect closes the connection of a machine, if any (revocation).
-	Disconnect(machineID ID)
-}
-
-// Notifier pushes events to connected clients. internal/server/stream
-// implements it.
-type Notifier interface {
-	Publish(ctx context.Context, ownerID ID, event string, payload any) error
-}
-
-// TokenRequest describes the agent token of one session.
-type TokenRequest struct {
-	OwnerID   ID
-	AgentID   ID
-	SessionID ID
-	Job       ID // empty for the Super Agent
-	Super     bool
-	TTL       time.Duration
-}
-
-// AgentTokens issues the agent tokens that session.ensure carries.
-// internal/auth implements it; the Engine never signs a token itself.
-type AgentTokens interface {
-	IssueToken(ctx context.Context, r TokenRequest) (string, error)
-}
-
-// Clock returns the current time. Tests replace it.
-type Clock func() time.Time

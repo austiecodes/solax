@@ -1,6 +1,6 @@
 // Package sqlite implements core.Store on SQLite in WAL mode. It uses a
 // cgo-free driver (modernc.org/sqlite). Postgres can come later behind the
-// same port.
+// same interface.
 //
 // Concurrency model: one writer connection whose transactions begin
 // IMMEDIATE, so write transactions are serialised in the process and never
