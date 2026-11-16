@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"github.com/austiecodes/solax/apps/desktop/locales"
 )
 
 // The page kit, after the Codex app's settings. A page is a header over a
@@ -53,7 +55,7 @@ func (d *desktop) header(c *ui.Context, p pageSpec) {
 			if bar.Left > 0 {
 				ui.Box(c).Width(max(bar.Left-gutter, 0)).Shrink(0)
 			}
-			iconButton(c, "show-sidebar", sidebarIcon, tip("Show Sidebar", "sidebar.toggle"), pal, func() { d.run("sidebar.toggle") })
+			iconButton(c, "show-sidebar", sidebarIcon, tip(locales.ShowSidebar(), "sidebar.toggle"), pal, func() { d.run("sidebar.toggle") })
 		}
 		if p.icon != nil {
 			ui.Icon(c, p.icon).Size(14, 14).TextColor(pal.textMuted).Shrink(0)
@@ -249,7 +251,7 @@ func avatar(c *ui.Context, svg *ui.SVG, m mark) {
 // onOff is the mark and the word of an online state.
 func onOff(online bool) (mark, string) {
 	if online {
-		return markGood, "Online"
+		return markGood, locales.Online()
 	}
-	return markQuiet, "Offline"
+	return markQuiet, locales.Offline()
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo"
 
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -60,9 +61,9 @@ func (d *desktop) jobEnded(j protocol.Job, notify bool) {
 	if !notify || d.focused || j.State == "cancelled" {
 		return
 	}
-	title, body := j.Agent+" finished", j.Title
+	title, body := locales.NotifyDone(j.Agent), j.Title
 	if j.State == "failed" {
-		title = j.Agent + " failed"
+		title = locales.NotifyFailed(j.Agent)
 		if j.Error != "" {
 			body += ": " + clip(j.Error, 140)
 		}

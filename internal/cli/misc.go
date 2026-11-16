@@ -6,13 +6,15 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/austiecodes/solax/internal/locale"
 )
 
 func machineCmd(g *globals) *cobra.Command {
-	cmd := &cobra.Command{Use: "machine", Short: "Machines that run a daemon"}
+	cmd := &cobra.Command{Use: "machine", Short: T("Machines that run a daemon")}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "approve <pair-code>",
-		Short: "Approve a pending machine by the code that its daemon printed",
+		Short: T("Approve a pending machine by the code that its daemon printed"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
@@ -23,11 +25,11 @@ func machineCmd(g *globals) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return g.print(cmd.OutOrStdout(), m, func(w io.Writer) { fmt.Fprintf(w, "approved %s (%s)\n", m.Name, m.ID) })
+			return g.print(cmd.OutOrStdout(), m, func(w io.Writer) { fmt.Fprintf(w, T("approved %s (%s)\n"), m.Name, m.ID) })
 		},
 	}, &cobra.Command{
 		Use:   "revoke <machine-id>",
-		Short: "Make the token of a machine invalid",
+		Short: T("Make the token of a machine invalid"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
@@ -38,7 +40,7 @@ func machineCmd(g *globals) *cobra.Command {
 		},
 	}, &cobra.Command{
 		Use:   "list",
-		Short: "List machines",
+		Short: T("List machines"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
 			if err != nil {
@@ -50,7 +52,7 @@ func machineCmd(g *globals) *cobra.Command {
 			}
 			return g.print(cmd.OutOrStdout(), ms, func(w io.Writer) {
 				tw := table(w)
-				fmt.Fprintln(tw, "ID\tNAME\tSTATE\tONLINE\tAGENT CLIS")
+				fmt.Fprintln(tw, T("ID\tNAME\tSTATE\tONLINE\tAGENT CLIS"))
 				for _, m := range ms {
 					var found []string
 					for _, d := range m.Drivers {
@@ -58,7 +60,7 @@ func machineCmd(g *globals) *cobra.Command {
 							found = append(found, string(d.Kind)+" "+d.Version)
 						}
 					}
-					fmt.Fprintf(tw, "%s\t%s\t%s\t%t\t%s\n", m.ID, m.Name, m.State, m.Online, strings.Join(found, ", "))
+					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", m.ID, m.Name, T(string(m.State)), locale.Bool(m.Online), strings.Join(found, ", "))
 				}
 				tw.Flush()
 			})
@@ -70,7 +72,7 @@ func machineCmd(g *globals) *cobra.Command {
 func recallCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "recall <id>",
-		Short: "Recall any object by ID, with the IDs of related objects",
+		Short: T("Recall any object by ID, with the IDs of related objects"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()

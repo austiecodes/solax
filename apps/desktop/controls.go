@@ -143,7 +143,7 @@ func jobLive(state string) bool { return state == "queued" || state == "running"
 // while queued, a turning ring while it runs, a check when done (filled
 // while unread), a red disc when failed, a crossed ring when cancelled.
 func statusIcon(c *ui.Context, pal *palette, state string, unread bool, size float32) ui.Element {
-	box := ui.Box(c).Size(size, size).Shrink(0).Label(state)
+	box := ui.Box(c).Size(size, size).Shrink(0).Label(stateWord(state))
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
 		cx, cy := r.X+r.W/2, r.Y+r.H/2
 		rad := min(r.W, r.H)/2 - 1

@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -39,15 +40,21 @@ type Proc struct {
 	waitErr  error
 }
 
-// Start starts the process in a new process group.
+// Start starts the process in a new process group. The binary is found
+// as Find finds it, and its folder is added to the PATH.
 func Start(cfg Config) (*Proc, error) {
-	cmd := exec.Command(cfg.Binary, cfg.Args...)
+	bin, err := Find(cfg.Binary)
+	if err != nil {
+		return nil, fmt.Errorf("start %w", err)
+	}
+	cmd := exec.Command(bin, cfg.Args...)
 	cmd.Dir = cfg.Dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = os.Environ()
 	for k, v := range cfg.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
+	cmd.Env = pathWith(cmd.Env, filepath.Dir(bin))
 	tail := &tailBuffer{max: 8 << 10}
 	if cfg.Stderr != nil {
 		cmd.Stderr = io.MultiWriter(cfg.Stderr, tail)
@@ -124,7 +131,10 @@ func Version(ctx context.Context, binary string, args ...string) (string, error)
 	if args == nil {
 		args = []string{"--version"}
 	}
-	out, err := exec.CommandContext(ctx, binary, args...).CombinedOutput()
+	if _, err := Find(binary); err != nil {
+		return "", err
+	}
+	out, err := Output(ctx, binary, args...)
 	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
 	if err != nil {
 		if line != "" {
@@ -133,6 +143,18 @@ func Version(ctx context.Context, binary string, args ...string) (string, error)
 		return "", fmt.Errorf("%s: %w", binary, err)
 	}
 	return line, nil
+}
+
+// Output runs "<binary> <args>", found as Start finds it, and returns its
+// stdout and stderr.
+func Output(ctx context.Context, binary string, args ...string) ([]byte, error) {
+	bin, err := Find(binary)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Env = pathWith(os.Environ(), filepath.Dir(bin))
+	return cmd.CombinedOutput()
 }
 
 // tailBuffer keeps the last max bytes written to it.

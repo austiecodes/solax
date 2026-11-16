@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -19,19 +20,19 @@ func (d *desktop) chatPage(c *ui.Context) {
 	sub := ""
 	switch {
 	case sa == nil:
-		sub = "Not set up yet"
+		sub = locales.ChatNotSetUp()
 	case busy:
-		sub = "Working…"
+		sub = locales.ChatWorking()
 	case len(d.messages) > 0:
-		sub = plural(len(d.messages), "message")
+		sub = locales.ChatMessages(len(d.messages))
 	}
-	d.header(c, pageSpec{title: "Solax", sub: sub})
+	d.header(c, pageSpec{title: locales.NavChat(), sub: sub})
 
 	blocks := withWorking(chatBlocks(d.messages, d.events[d.superSes], d.live[d.superSes], d.superBusy), busy)
 	d.transcriptView(c, pal, &d.chatList, blocks, func() { d.chatEmpty(c, pal, sa != nil) })
 
 	composer{
-		key: "composer", placeholder: "Message Solax", draft: &d.draft,
+		key: "composer", placeholder: locales.ChatPlaceholder(), draft: &d.draft,
 		disabled: sa == nil, busy: d.sending, focus: true, send: d.send,
 		info: func() {
 			if sa == nil {
@@ -39,22 +40,23 @@ func (d *desktop) chatPage(c *ui.Context) {
 			}
 			ui.Row(c).Gap(6).AlignItems(ui.Center).MinWidth(0).Children(func() {
 				ui.Icon(c, sparklesIcon).Size(13, 13).TextColor(pal.textMuted)
-				ui.Text(c, sa.Name+" on "+sa.Machine).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
+				ui.Text(c, locales.ChatAgentOn(sa.Name, sa.Machine)).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
 			})
 		},
 	}.view(c, pal)
 }
 
-// suggestion is a prompt that starts an empty chat.
+// suggestion is a prompt that starts an empty chat, in the language
+// shown.
 type suggestion struct {
 	icon *ui.SVG
-	text string
+	text func() string
 }
 
 var suggestions = []suggestion{
-	{pencilIcon, "Ask coder to add a README to the repo"},
-	{agentIcon, "What are my agents doing?"},
-	{jobsIcon, "Which jobs failed today?"},
+	{pencilIcon, locales.ChatSuggestionReadme},
+	{agentIcon, locales.ChatSuggestionDoing},
+	{jobsIcon, locales.ChatSuggestionFailed},
 }
 
 // chatEmpty fills the chat before the first message, as the Codex app's
@@ -63,17 +65,17 @@ var suggestions = []suggestion{
 func (d *desktop) chatEmpty(c *ui.Context, pal *palette, ready bool) {
 	if !ready {
 		emptyState(c, pal, emptySpec{
-			icon: sparklesIcon, title: "Solax is not set up yet",
-			detail: "Solax is the agent you talk to. It gives jobs to your other agents. On the Agents page, choose the agent that is Solax.",
-			action: "Open Agents", run: func() { d.goTo(pageAgents) },
+			icon: sparklesIcon, title: locales.ChatNoSolaxTitle(),
+			detail: locales.ChatNoSolaxDetail(),
+			action: locales.OpenAgents(), run: func() { d.goTo(pageAgents) },
 		})
 		return
 	}
 	ui.Column(c.Key("empty")).Fill().Padding(0, gutter, 14, gutter).Children(func() {
 		ui.Column(c).Grow(1).Center().Gap(10).Children(func() {
 			ui.Icon(c, sparklesIcon).Size(28, 28).TextColor(pal.text).Margin(0, 0, 6, 0)
-			ui.Text(c, "What should your agents do?").FontSize(26).FontWeight(600).TextColor(pal.text).TextAlign(ui.Center)
-			ui.Text(c, "Solax gives jobs to your agents and tells you when they are done.").
+			ui.Text(c, locales.ChatEmptyTitle()).FontSize(26).FontWeight(600).TextColor(pal.text).TextAlign(ui.Center)
+			ui.Text(c, locales.ChatEmptyDetail()).
 				FontSize(14).TextColor(pal.textMuted).MaxWidth(440).TextAlign(ui.Center).LineHeight(1.45)
 		})
 		ui.Row(c).Justify(ui.Center).Children(func() {
@@ -89,17 +91,18 @@ func (d *desktop) chatEmpty(c *ui.Context, pal *palette, ready bool) {
 // suggestionCard is a prompt to start with. A click puts it in the
 // composer, to change before it goes.
 func (d *desktop) suggestionCard(c *ui.Context, pal *palette, i int, s suggestion) {
-	b := ui.ButtonBase(c.Key(i)).Grow(1).Basis(0).MinWidth(0).Column().AlignItems(ui.Start).Justify(ui.Start).Padding(12, 14).Gap(8).Radius(14).Label(s.text).
+	text := s.text()
+	b := ui.ButtonBase(c.Key(i)).Grow(1).Basis(0).MinWidth(0).Column().AlignItems(ui.Start).Justify(ui.Start).Padding(12, 14).Gap(8).Radius(14).Label(text).
 		Border(1, pal.divider)
 	if b.Hovered() {
 		b.Background(pal.rowHover)
 	}
 	b.Children(func() {
 		ui.Icon(c, s.icon).Size(14, 14).TextColor(pal.textMuted)
-		ui.Text(c, s.text).FontSize(13).LineHeight(1.4).TextColor(pal.text).TextAlign(ui.Start).MaxLines(2).Ellipsis("…")
+		ui.Text(c, text).FontSize(13).LineHeight(1.4).TextColor(pal.text).TextAlign(ui.Start).MaxLines(2).Ellipsis("…")
 	})
 	if b.Clicked() {
-		d.draft = s.text
+		d.draft = text
 	}
 }
 

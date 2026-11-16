@@ -7,32 +7,36 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/client"
+	"github.com/austiecodes/solax/pkg/discover"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// agentsPage lists the agents, as Alma lists its crew: a roster, and
-// under it the chosen agent, or the form for a new one. Solax routes by
-// the description, so the roster shows it.
+// agentsPage lists the agents, as Alma lists its crew: a roster, the
+// agent CLIs found on the machines that no agent uses yet, and under them
+// the chosen agent, or the form for a new one. Solax routes by the
+// description, so the roster shows it.
 func (d *desktop) agentsPage(c *ui.Context) {
 	pal := paletteFor(c)
-	d.showPage(c, pageSpec{icon: agentIcon, title: "Agents", sub: "Coding agents on your machines"}, func() {
+	d.showPage(c, pageSpec{icon: agentIcon, title: locales.NavAgents(), sub: locales.AgentsSubtitle()}, func() {
 		section(c, "roster", sectionSpec{
-			title: "Roster", count: countText(len(d.agents)), rows: listRows,
-			desc: "Solax gives each job to the agent whose description fits it best.",
+			title: locales.Roster(), count: countText(len(d.agents)), rows: listRows,
+			desc: locales.RosterHelp(),
 			actions: func() {
-				iconButton(c, "refresh", reloadIcon, "Refresh", pal, d.reloadAgents)
-				iconButton(c, "new", plusIcon, "New agent", pal, func() { d.form.open = true })
+				iconButton(c, "refresh", reloadIcon, locales.Refresh(), pal, d.reloadAgents)
+				iconButton(c, "new", plusIcon, locales.NewAgent(), pal, func() { d.form.open = true })
 			},
 		}, func() {
 			if len(d.agents) == 0 {
-				note(c, "No agents yet. Add one below.")
+				note(c, locales.AgentsEmpty())
 			}
 			for _, a := range d.agents {
 				d.agentItem(c, pal, a)
 			}
 		})
+		d.discoverView(c, pal)
 		if a, ok := d.chosenAgent(); ok && !d.form.open {
 			d.agentDetail(c, a)
 		} else {
@@ -73,7 +77,7 @@ func (d *desktop) agentItem(c *ui.Context, pal *palette, a protocol.Agent) {
 		dot(c, m)
 		ui.Text(c, a.Name).FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
 		if a.Role == "super" {
-			chip(c, "Solax", markAccent)
+			chip(c, locales.NavChat(), markAccent)
 		}
 		ui.Text(c, a.Description).FontSize(13).TextColor(pal.textMuted).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
 		chip(c, string(a.Driver), markQuiet)
@@ -91,22 +95,22 @@ func (d *desktop) agentDetail(c *ui.Context, a protocol.Agent) {
 	}
 	desc := a.Description
 	if desc == "" {
-		desc = "No description. Solax routes by the description, so it does not give jobs to this agent by itself."
+		desc = locales.AgentNoDesc()
 	}
 	section(c, "detail-"+a.ID, sectionSpec{
 		title: a.Name, count: string(a.Driver), desc: desc,
 		lead: func() { avatar(c, icon, m) },
 		actions: func() {
-			if a.Role != "super" && button(c, "make-super", "Make it Solax", plainButton, false) {
+			if a.Role != "super" && button(c, "make-super", locales.AgentMakeSolax(), plainButton, false) {
 				name, yes := a.Name, true
 				d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 					_, err := c.UpdateAgent(ctx, name, protocol.UpdateAgentRequest{Super: &yes})
 					return d.reloadAgents, err
 				})
 			}
-			if button(c, "remove", "Remove", removeButton, false) {
+			if button(c, "remove", locales.AgentRemove(), removeButton, false) {
 				name := a.Name
-				d.ask("Remove "+name+"?", "Solax can no longer give jobs to "+name+". Its past jobs stay.", "Remove", true, func() {
+				d.ask(locales.AgentRemoveQuestion(name), locales.AgentRemoveDetail(name), locales.AgentRemove(), true, func() {
 					d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 						return d.reloadAgents, c.DeleteAgent(ctx, name)
 					})
@@ -115,21 +119,82 @@ func (d *desktop) agentDetail(c *ui.Context, a protocol.Agent) {
 		},
 	}, func() {
 		m, word := onOff(a.Online)
-		row(c, "status", "Status", "Online when its machine is connected and has the driver.", func() {
+		row(c, "status", locales.FieldStatus(), locales.AgentStatusHelp(), func() {
 			dot(c, m)
 			valueText(c, word, false)
 		})
-		row(c, "machine", "Machine", "", func() { valueText(c, a.Machine, false) })
-		row(c, "dir", "Work folder", "The agent works in this folder.", func() { valueText(c, a.Dir, true) })
+		row(c, "machine", locales.FieldMachine(), "", func() { valueText(c, a.Machine, false) })
+		row(c, "dir", locales.FieldDir(), locales.AgentDirHelp(), func() { valueText(c, a.Dir, true) })
 		model := a.Model
 		if model == "" {
-			model = "Driver default"
+			model = locales.ModelDefault()
 		}
-		row(c, "model", "Model", "", func() { valueText(c, model, a.Model != "") })
+		row(c, "model", locales.FieldModel(), "", func() { valueText(c, model, a.Model != "") })
 		if a.Role == "super" {
-			row(c, "role", "Role", "You talk to this agent. It gives jobs to the others.", func() { chip(c, "Solax", markAccent) })
+			row(c, "role", locales.FieldRole(), locales.AgentRoleHelp(), func() { chip(c, locales.NavChat(), markAccent) })
 		}
 	})
+}
+
+// discoverView offers an agent for each agent CLI that the daemons found
+// and that no agent uses yet (package discover). A click sets it up in
+// the folder of the field, "~" when it is empty. It shows nothing when
+// there is nothing to add.
+func (d *desktop) discoverView(c *ui.Context, pal *palette) {
+	found := discover.Suggest(d.machines, d.agents)
+	if len(found) == 0 {
+		return
+	}
+	section(c, "discover", sectionSpec{
+		title: locales.DiscoverTitle(), count: countText(len(found)), desc: locales.DiscoverDetail(),
+		actions: func() {
+			if len(found) > 1 && button(c, "add-all", locales.DiscoverAddAll(), primaryButton, d.adding) {
+				d.addFound(found)
+			}
+		},
+	}, func() {
+		row(c, "discover-dir", locales.DiscoverDir(), "", func() {
+			ui.Row(c).Width(fieldW).Children(func() { textField(c, "discover-dir", &d.discoverDir, discover.DefaultDir) })
+		})
+		for _, s := range found {
+			ui.Row(c.Key(s.MachineID+"/"+string(s.Driver))).MinHeight(itemH).Padding(0, sectionPad).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, s.Name).FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
+				chip(c, string(s.Driver), markQuiet)
+				if s.Super {
+					chip(c, locales.DiscoverBecomesSolax(), markAccent)
+				}
+				ui.Text(c, s.Version+" · "+s.Machine).FontSize(12).TextColor(pal.textFaint).Font("monospace").
+					SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
+				if button(c, "add", locales.DiscoverAdd(), plainButton, d.adding) {
+					d.addFound([]discover.Suggestion{s})
+				}
+			})
+		}
+	})
+}
+
+// addFound sets up suggested agents, in order, then reads the agents
+// again, also after an error: the ones before it are set up.
+func (d *desktop) addFound(found []discover.Suggestion) {
+	dir := strings.TrimSpace(d.discoverDir)
+	d.adding = true
+	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
+		var err error
+		for _, s := range found {
+			if _, err = c.CreateAgent(ctx, s.Request(dir, "")); err != nil {
+				err = fmt.Errorf("%s: %w", s.Name, err)
+				break
+			}
+		}
+		done := func() { d.adding = false; d.reloadAgents() }
+		if err != nil {
+			d.update(done)
+		}
+		return done, err
+	})
+	if _, err := d.api(); err != nil {
+		d.adding = false
+	}
 }
 
 // agentFormView is the form for a new agent.
@@ -146,46 +211,46 @@ func (d *desktop) agentFormView(c *ui.Context) {
 	ready := !f.busy && strings.TrimSpace(f.Name) != "" && f.Machine != "" && f.Driver != "" && strings.TrimSpace(f.Dir) != ""
 	pal := paletteFor(c)
 	section(c, "new-agent", sectionSpec{
-		title: "New agent", desc: "Solax reads the description to choose the agent for a job.",
+		title: locales.NewAgent(), desc: locales.NewAgentHelp(),
 		lead: func() { avatar(c, plusIcon, markAccent) },
 		actions: func() {
 			if len(d.agents) > 0 {
-				iconButton(c, "close", closeIcon, "Close", pal, func() { f.open = false })
+				iconButton(c, "close", closeIcon, locales.Close(), pal, func() { f.open = false })
 			}
 		},
 		footer: func() {
-			if len(d.agents) > 0 && button(c, "cancel", "Cancel", plainButton, false) {
+			if len(d.agents) > 0 && button(c, "cancel", locales.Cancel(), plainButton, false) {
 				d.form = agentForm{Machine: f.Machine}
 			}
-			if button(c, "add-agent", "Add agent", primaryButton, !ready) {
+			if button(c, "add-agent", locales.AgentAdd(), primaryButton, !ready) {
 				d.addAgent()
 			}
 		},
 	}, func() {
-		row(c, "name", "Name", "Lower case, digits and dashes.", func() {
+		row(c, "name", locales.FieldName(), locales.FieldNameHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { textField(c, "name", &f.Name, "coder") })
 		})
-		row(c, "machine", "Machine", "A machine that you approved.", func() {
+		row(c, "machine", locales.FieldMachine(), locales.FieldMachineHelp(), func() {
 			if len(machines) == 0 {
-				valueText(c, "No machines yet", false)
+				valueText(c, locales.NoMachinesYet(), false)
 				return
 			}
 			ui.Row(c).Width(fieldW).Children(func() { selectField(c, "machine", &f.Machine, machines) })
 		})
-		row(c, "driver", "Driver", "The agent CLIs that the daemon found on this machine.", func() {
+		row(c, "driver", locales.FieldDriver(), locales.FieldDriverHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { selectField(c, "driver", &f.Driver, drivers) })
 		})
-		row(c, "dir", "Work folder", "The agent works in this folder on its machine.", func() {
+		row(c, "dir", locales.FieldDir(), locales.FieldDirHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { textField(c, "dir", &f.Dir, "~/src/my-app") })
 		})
-		row(c, "model", "Model", "Optional. Empty uses the driver's default.", func() {
+		row(c, "model", locales.FieldModel(), locales.FieldModelHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { textField(c, "model", &f.Model, "haiku") })
 		})
-		stackRow(c, "desc", "Description", "What this agent is good at. Solax routes by it.", func() {
-			textArea(c, "desc", &f.Desc, "Implements features, refactors and fixes code", 72)
+		stackRow(c, "desc", locales.FieldDesc(), locales.FieldDescHelp(), func() {
+			textArea(c, "desc", &f.Desc, locales.FieldDescPlaceholder(), 72)
 		})
-		row(c, "super", "Make it Solax", "You talk to Solax. It gives jobs to the other agents.", func() {
-			ui.Switch(c, &f.Super).Label("Make it Solax")
+		row(c, "super", locales.AgentMakeSolax(), locales.FieldSuperHelp(), func() {
+			ui.Switch(c, &f.Super).Label(locales.AgentMakeSolax())
 		})
 	})
 }
@@ -227,8 +292,8 @@ func (d *desktop) machineNames() []string {
 	return out
 }
 
-// driversOf returns the working drivers of a machine; all three when the
-// machine never reported any (it may be offline).
+// driversOf returns the working drivers of a machine; the built-in ones
+// when the machine never reported any (it may be offline).
 func (d *desktop) driversOf(machine string) []string {
 	for _, m := range d.machines {
 		if m.Name != machine {
@@ -244,7 +309,11 @@ func (d *desktop) driversOf(machine string) []string {
 			return out
 		}
 	}
-	return []string{"claude", "codex", "pi"}
+	out := make([]string, len(ir.BuiltinKinds))
+	for i, k := range ir.BuiltinKinds {
+		out[i] = string(k)
+	}
+	return out
 }
 
 func contains(list []string, s string) bool {

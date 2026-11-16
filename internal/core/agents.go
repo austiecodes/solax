@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/austiecodes/solax/internal/errs"
@@ -35,10 +36,10 @@ type AgentPatch struct {
 // agentName is a name that a prompt and a shell can carry without quotes.
 var agentName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
-var drivers = map[ir.Kind]bool{ir.KindClaude: true, ir.KindCodex: true, ir.KindPi: true}
-
-// CreateAgent sets up an agent on a machine. The driver does not have to
-// be detected yet: a machine may be offline while a person sets it up.
+// CreateAgent sets up an agent on a machine. A built-in driver does not
+// have to be detected yet: a machine may be offline while a person sets it
+// up. Any other driver (a fork of Claude Code from the config of a daemon)
+// must be one that the machine reported.
 // There is at most one Super Agent; a new one replaces the role of the old.
 func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agent, error) {
 	if err := requireHuman(a); err != nil {
@@ -48,8 +49,8 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 	if !agentName.MatchString(spec.Name) {
 		return Agent{}, fmt.Errorf("%w: agent name must match %s", errs.ErrInvalid, agentName)
 	}
-	if !drivers[spec.Driver] {
-		return Agent{}, fmt.Errorf("%w: driver must be claude, codex or pi", errs.ErrInvalid)
+	if !agentName.MatchString(string(spec.Driver)) {
+		return Agent{}, fmt.Errorf("%w: driver must be one of %s, or one that the machine reports", errs.ErrInvalid, kindList())
 	}
 	if strings.TrimSpace(spec.Dir) == "" {
 		return Agent{}, fmt.Errorf("%w: an agent needs a work folder (dir)", errs.ErrInvalid)
@@ -59,6 +60,10 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 		m, err := resolveMachine(ctx, tx, a, spec.Machine)
 		if err != nil {
 			return err
+		}
+		if !slices.Contains(ir.BuiltinKinds, spec.Driver) && !m.Reports(spec.Driver) {
+			return fmt.Errorf("%w: driver %q: machine %s does not report it; the built-in drivers are %s",
+				errs.ErrInvalid, spec.Driver, m.Name, kindList())
 		}
 		if _, err := tx.AgentByName(ctx, spec.Name); err == nil {
 			return fmt.Errorf("%w: agent %q exists", errs.ErrConflict, spec.Name)
@@ -146,6 +151,15 @@ func (e *Engine) DeleteAgent(ctx context.Context, a Actor, ref string) error {
 		e.publish(ctx, a.OwnerID, PushAgents, nil)
 	}
 	return err
+}
+
+// kindList is "pi, codex or claude".
+func kindList() string {
+	names := make([]string, len(ir.BuiltinKinds))
+	for i, k := range ir.BuiltinKinds {
+		names[i] = string(k)
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
 }
 
 func clearSuper(ctx context.Context, tx Tx) error {

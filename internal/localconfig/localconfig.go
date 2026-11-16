@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/austiecodes/solax/internal/locale"
 )
 
 // EnvHome overrides the local state directory.
@@ -52,6 +54,19 @@ func (p Paths) ServerDB() string  { return filepath.Join(p.ServerDir(), "solax.d
 type Config struct {
 	Backend Backend `yaml:"backend,omitempty" json:"backend"`
 	Machine Machine `yaml:"machine,omitempty" json:"machine"`
+	Drivers Drivers `yaml:"drivers,omitempty" json:"drivers"`
+	// Lang is the language of the CLI: "en", "zh-Hans", or "" to follow
+	// $SOLAX_LANG, then the locale ($LC_ALL, $LC_MESSAGES, $LANG).
+	Lang string `yaml:"lang,omitempty" json:"lang,omitempty"`
+}
+
+// Drivers holds the agent CLIs that the daemon looks for, on top of the
+// built-in ones (claude, codex, pi).
+type Drivers struct {
+	// ClaudeCompatible are forks of Claude Code that speak its
+	// stream-json: a binary name on the PATH or a path. The base name is
+	// the driver kind. The daemon reads it on start.
+	ClaudeCompatible []string `yaml:"claude_compatible,omitempty" json:"claude_compatible,omitempty"`
 }
 
 // Backend is the server that this machine uses.
@@ -144,7 +159,7 @@ func ExpandHome(p string) string {
 // Validate checks what the daemon needs: a backend.
 func (c Config) Validate() error {
 	if c.Backend.URL == "" {
-		return errors.New(`no backend: run "solax set backend --url URL"`)
+		return errors.New(locale.T(`no backend: run "solax set backend --url URL"`))
 	}
 	return nil
 }

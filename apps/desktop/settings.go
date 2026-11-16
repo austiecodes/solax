@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
 
 	"github.com/austiecodes/solax/apps/desktop/internal/profile"
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -18,14 +18,14 @@ import (
 // pairing code.
 func (d *desktop) machinesPage(c *ui.Context) {
 	pal := paletteFor(c)
-	d.showPage(c, pageSpec{icon: machineIcon, title: "Machines", sub: "Where your agents run"}, func() {
+	d.showPage(c, pageSpec{icon: machineIcon, title: locales.NavMachines(), sub: locales.MachinesSubtitle()}, func() {
 		section(c, "machines", sectionSpec{
-			title: "Machines", count: countText(len(d.machines)), rows: listRows,
-			desc:    "Each machine runs \"solax daemon start\". The daemon reports the agent CLIs that it finds.",
-			actions: func() { iconButton(c, "refresh", reloadIcon, "Refresh", pal, d.reloadAgents) },
+			title: locales.NavMachines(), count: countText(len(d.machines)), rows: listRows,
+			desc:    locales.MachinesHelp(),
+			actions: func() { iconButton(c, "refresh", reloadIcon, locales.Refresh(), pal, d.reloadAgents) },
 		}, func() {
 			if len(d.machines) == 0 {
-				note(c, "No machines yet. On this Mac, run \"solax setup local\". On another machine, run \"solax daemon start\".")
+				note(c, locales.MachinesEmpty())
 			}
 			for _, m := range d.machines {
 				d.machineItem(c, pal, m)
@@ -35,12 +35,12 @@ func (d *desktop) machinesPage(c *ui.Context) {
 			d.machineDetail(c, m)
 		}
 		section(c, "pair", sectionSpec{
-			title: "Approve a machine",
-			desc:  "Run \"solax daemon start\" on the new machine. It shows a pairing code. Type the code here.",
+			title: locales.MachineApproveTitle(),
+			desc:  locales.PairHelp(),
 		}, func() {
-			row(c, "code", "Pairing code", "", func() {
+			row(c, "code", locales.PairCode(), "", func() {
 				ui.Row(c).Width(200).Children(func() { textField(c, "pair-code", &d.pairCode, "K7QM-2XRP") })
-				if button(c, "approve", "Approve", primaryButton, strings.TrimSpace(d.pairCode) == "") {
+				if button(c, "approve", locales.Approve(), primaryButton, strings.TrimSpace(d.pairCode) == "") {
 					code := strings.TrimSpace(d.pairCode)
 					d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 						_, err := c.ApproveMachine(ctx, code)
@@ -76,7 +76,7 @@ func (d *desktop) machineItem(c *ui.Context, pal *palette, m protocol.Machine) {
 		dot(c, mk)
 		ui.Text(c, m.Name).FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine().Ellipsis("…").Shrink(1).MinWidth(0)
 		if m.State != protocol.MachineApproved {
-			chip(c, string(m.State), stateMark(m.State))
+			chip(c, stateWord(string(m.State)), stateMark(m.State))
 		}
 		ui.Spacer(c)
 		for _, dr := range m.Drivers {
@@ -84,11 +84,11 @@ func (d *desktop) machineItem(c *ui.Context, pal *palette, m protocol.Machine) {
 				chip(c, string(dr.Kind), markQuiet)
 			}
 		}
-		when := "online"
+		when := locales.SeenOnline()
 		if !m.Online && !m.LastSeen.IsZero() {
 			when = ago(m.LastSeen)
 		} else if !m.Online {
-			when = "never seen"
+			when = locales.NeverSeen()
 		}
 		ui.Text(c, when).FontSize(12).TextColor(pal.textFaint).SingleLine().TextAlign(ui.End).Width(80).Shrink(0)
 	})
@@ -112,19 +112,19 @@ func stateMark(s protocol.MachineState) mark {
 func (d *desktop) machineDetail(c *ui.Context, m protocol.Machine) {
 	mk, word := onOff(m.Online)
 	section(c, "detail-"+m.ID, sectionSpec{
-		title: m.Name, count: string(m.State),
+		title: m.Name, count: stateWord(string(m.State)),
 		lead: func() { avatar(c, machineIcon, mk) },
 	}, func() {
-		row(c, "status", "Status", "", func() {
+		row(c, "status", locales.FieldStatus(), "", func() {
 			dot(c, mk)
 			valueText(c, word, false)
 		})
 		if !m.LastSeen.IsZero() {
-			row(c, "seen", "Last seen", "", func() { valueText(c, ago(m.LastSeen), false) })
+			row(c, "seen", locales.FieldLastSeen(), "", func() { valueText(c, ago(m.LastSeen), false) })
 		}
-		row(c, "id", "Machine ID", "", func() { valueText(c, m.ID, true) })
+		row(c, "id", locales.FieldMachineID(), "", func() { valueText(c, m.ID, true) })
 		if len(m.Drivers) == 0 {
-			row(c, "drivers", "Agent CLIs", "The daemon has not reported yet.", nil)
+			row(c, "drivers", locales.FieldAgentCLIs(), locales.DriversNotReported(), nil)
 		}
 		for _, dr := range m.Drivers {
 			help := dr.Version
@@ -133,9 +133,9 @@ func (d *desktop) machineDetail(c *ui.Context, m protocol.Machine) {
 			}
 			row(c, "driver-"+string(dr.Kind), string(dr.Kind), help, func() {
 				if dr.OK {
-					chip(c, "Ready", markGood)
+					chip(c, locales.DriverReady(), markGood)
 				} else {
-					chip(c, "Not available", markBad)
+					chip(c, locales.DriverNotAvailable(), markBad)
 				}
 			})
 		}
@@ -145,7 +145,7 @@ func (d *desktop) machineDetail(c *ui.Context, m protocol.Machine) {
 // settingsPage sets the look, the server and the client token. The token
 // goes to the macOS keychain.
 func (d *desktop) settingsPage(c *ui.Context) {
-	d.showPage(c, pageSpec{icon: gearIcon, title: "Settings", sub: "How the app looks, and the server it talks to"}, func() {
+	d.showPage(c, pageSpec{icon: gearIcon, title: locales.Settings(), sub: locales.SettingsSubtitle()}, func() {
 		d.lookForm(c)
 		d.sidebarForm(c)
 		d.localForm(c)
@@ -158,21 +158,21 @@ func (d *desktop) settingsPage(c *ui.Context) {
 func (d *desktop) serverForm(c *ui.Context) {
 	ready := strings.TrimSpace(d.setName) != "" && strings.TrimSpace(d.setServer) != ""
 	section(c, "server", sectionSpec{
-		title: "Server", desc: "The Solax server this app talks to.",
+		title: locales.SettingsServer(), desc: locales.ServerHelp(),
 		actions: func() { d.connChip(c) },
 		footer: func() {
-			if button(c, "save", "Save and connect", primaryButton, !ready) {
+			if button(c, "save", locales.SaveConnect(), primaryButton, !ready) {
 				d.saveServer()
 			}
 		},
 	}, func() {
-		row(c, "profile", "Profile", "A name for this server.", func() {
+		row(c, "profile", locales.FieldProfile(), locales.ProfileHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { textField(c, "profile", &d.setName, "local") })
 		})
-		row(c, "url", "Server URL", "", func() {
+		row(c, "url", locales.FieldServerURL(), "", func() {
 			ui.Row(c).Width(fieldW).Children(func() { textField(c, "url", &d.setServer, "http://127.0.0.1:8740") })
 		})
-		row(c, "token", "Client token", "Create one on the server host: solax server token create --name desktop. Leave it empty to keep the saved one.", func() {
+		row(c, "token", locales.FieldToken(), locales.TokenHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { textField(c, "token", &d.setToken, "sxc_…").Password() })
 		})
 	})
@@ -187,9 +187,9 @@ func (d *desktop) connChip(c *ui.Context) {
 	case "connecting":
 		m = markWarn
 	}
-	state := d.conn.State
-	if state == "" {
-		state = "not connected"
+	state := stateWord(d.conn.State)
+	if d.conn.State == "" {
+		state = locales.NotConnected()
 	}
 	ui.Row(c.Key("conn")).Gap(6).AlignItems(ui.Center).Tooltip(strings.TrimSpace(d.conn.Server + "\n" + d.conn.Error)).Children(func() {
 		dot(c, m)
@@ -215,7 +215,7 @@ func (d *desktop) saveServer() {
 		d.update(func() {
 			d.setToken = ""
 			if err != nil {
-				d.status = "settings: " + err.Error()
+				d.status = locales.SettingsError(errText(err))
 				return
 			}
 			d.status = ""
@@ -233,14 +233,14 @@ func (d *desktop) profilesView(c *ui.Context) {
 	if len(ps) == 0 {
 		return
 	}
-	section(c, "profiles", sectionSpec{title: "Saved profiles", count: countText(len(ps))}, func() {
+	section(c, "profiles", sectionSpec{title: locales.SavedProfiles(), count: countText(len(ps))}, func() {
 		for _, p := range ps {
 			row(c, p.Name, p.Name, p.Server, func() {
-				if button(c, "use", "Use", plainButton, false) {
+				if button(c, "use", locales.Use(), plainButton, false) {
 					name := p.Name
 					go func() {
 						if err := d.profiles.Use(name); err != nil {
-							d.update(func() { d.status = err.Error() })
+							d.update(func() { d.status = errText(err) })
 							return
 						}
 						d.connect()
@@ -254,29 +254,29 @@ func (d *desktop) profilesView(c *ui.Context) {
 // localForm offers the server that the solax CLI of this Mac uses. After
 // "solax setup local", one click connects the app to it.
 func (d *desktop) localForm(c *ui.Context) {
-	section(c, "local", sectionSpec{title: "This Mac"}, func() {
+	section(c, "local", sectionSpec{title: locales.ThisMac()}, func() {
 		if d.localErr != nil {
-			help := "To run Solax only on this Mac, run \"solax setup local\" in a terminal. It starts the server and the daemon here."
+			help := locales.LocalHint()
 			if !errors.Is(d.localErr, profile.ErrNoLocal) {
 				help += " " + d.localErr.Error()
 			}
-			row(c, "setup", "Not set up", help, func() {
-				if button(c, "local-check", "Check again", plainButton, false) {
+			row(c, "setup", locales.LocalNotSetUp(), help, func() {
+				if button(c, "local-check", locales.CheckAgain(), plainButton, false) {
 					go d.checkLocal()
 				}
 			})
 			return
 		}
 		if !d.local.Loopback() {
-			row(c, "remote", "Another host", fmt.Sprintf("The solax CLI uses %s. To use it here, add it under Server with a client token.", d.local.Server), nil)
+			row(c, "remote", locales.AnotherHost(), locales.LocalRemote(d.local.Server), nil)
 			return
 		}
 		inUse := d.setName == profile.LocalName && d.setServer == d.local.Server
-		label := "Use this server"
+		label := locales.UseThisServer()
 		if inUse {
-			label = "In use"
+			label = locales.InUse()
 		}
-		row(c, "local", "Local server", fmt.Sprintf("The server and the daemon run on this Mac, on %s.", d.local.Server), func() {
+		row(c, "local", locales.LocalServer(), locales.LocalRuns(d.local.Server), func() {
 			if button(c, "local-use", label, plainButton, inUse) {
 				go d.useLocal()
 			}
@@ -284,28 +284,33 @@ func (d *desktop) localForm(c *ui.Context) {
 	})
 }
 
-// appearances are the Appearance choices, as the Settings page shows them.
-var appearances = []string{"System", "Light", "Dark"}
+// appearances are the Appearance prefs: the system's, light and dark.
+var appearances = []string{"", "light", "dark"}
 
-// lookForm chooses the theme and the appearance. They apply at once.
+// lookForm chooses the theme, the appearance and the language. They apply
+// at once.
 func (d *desktop) lookForm(c *ui.Context) {
-	section(c, "look", sectionSpec{title: "Look"}, func() {
-		row(c, "theme", "Theme", "Graphite is the default. The others are Kero's themes.", func() {
+	section(c, "look", sectionSpec{title: locales.Look()}, func() {
+		row(c, "theme", locales.Theme(), locales.ThemeHelp(), func() {
 			ui.Row(c).Width(180).Children(func() {
 				if selectField(c, "theme", &d.prefs.Theme, themeNames).Changed() {
 					d.savePrefs()
 				}
 			})
 		})
-		row(c, "appearance", "Appearance", "System follows the macOS setting.", func() {
+		row(c, "appearance", locales.Appearance(), locales.AppearanceHelp(), func() {
 			ui.Row(c).Width(180).Children(func() {
-				if selectField(c, "appearance", &d.setAppearance, appearances).Changed() {
-					d.prefs.Appearance = strings.ToLower(d.setAppearance)
-					if d.prefs.Appearance == "system" {
-						d.prefs.Appearance = ""
-					}
-					applyAppearance(d.prefs.Appearance)
+				if a, ok := choose(c, "appearance", d.prefs.Appearance, appearances, appearanceLabel); ok {
+					d.prefs.Appearance = a
+					applyAppearance(a)
 					d.savePrefs()
+				}
+			})
+		})
+		row(c, "language", locales.Language(), locales.LanguageHelp(), func() {
+			ui.Row(c).Width(180).Children(func() {
+				if tag, ok := choose(c, "language", d.lang, languages(), languageLabel); ok {
+					d.setLanguage(tag)
 				}
 			})
 		})
@@ -314,16 +319,11 @@ func (d *desktop) lookForm(c *ui.Context) {
 
 // sidebarForm chooses how the sidebar groups the jobs.
 func (d *desktop) sidebarForm(c *ui.Context) {
-	section(c, "sidebar", sectionSpec{title: "Sidebar"}, func() {
-		row(c, "grouping", "Group jobs by", "How the sidebar lists the recent jobs. A project is the work folder of the job's agent.", func() {
-			label := groupingLabel(d.prefs.JobGroups)
-			labels := make([]string, len(groupings))
-			for i, g := range groupings {
-				labels[i] = g.label
-			}
+	section(c, "sidebar", sectionSpec{title: locales.SidebarSection()}, func() {
+		row(c, "grouping", locales.GroupJobsBy(), locales.GroupJobsHelp(), func() {
 			ui.Row(c).Width(180).Children(func() {
-				if selectField(c, "grouping", &label, labels).Changed() {
-					d.prefs.JobGroups = groupingByLabel(label)
+				if id, ok := choose(c, "grouping", d.prefs.JobGroups, groupingIDs(), groupingLabel); ok {
+					d.prefs.JobGroups = id
 					d.savePrefs()
 				}
 			})
@@ -331,13 +331,35 @@ func (d *desktop) sidebarForm(c *ui.Context) {
 	})
 }
 
+// choose is a select of values shown by their labels in the language
+// shown. It reports a new choice.
+func choose(c *ui.Context, key, value string, values []string, label func(string) string) (string, bool) {
+	labels := make([]string, len(values))
+	shown := ""
+	for i, v := range values {
+		labels[i] = label(v)
+		if v == value {
+			shown = labels[i]
+		}
+	}
+	if !selectField(c, key, &shown, labels).Changed() {
+		return value, false
+	}
+	for i, l := range labels {
+		if l == shown {
+			return values[i], values[i] != value
+		}
+	}
+	return value, false
+}
+
 // appearanceLabel is the Settings label of an Appearance pref.
 func appearanceLabel(a string) string {
 	switch a {
 	case "light":
-		return "Light"
+		return locales.AppearanceLight()
 	case "dark":
-		return "Dark"
+		return locales.AppearanceDark()
 	}
-	return "System"
+	return locales.AppearanceSystem()
 }

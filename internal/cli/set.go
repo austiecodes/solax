@@ -11,12 +11,53 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/austiecodes/solax/internal/localconfig"
+	"github.com/austiecodes/solax/internal/locale"
 )
 
 func setCmd(g *globals) *cobra.Command {
-	cmd := &cobra.Command{Use: "set", Short: "Change the local configuration"}
-	cmd.AddCommand(setBackendCmd(), setMachineCmd())
+	cmd := &cobra.Command{Use: "set", Short: T("Change the local configuration")}
+	cmd.AddCommand(setBackendCmd(), setMachineCmd(), setLangCmd())
 	return cmd
+}
+
+// setLangCmd sets the language of the CLI in config.yaml.
+func setLangCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "lang <en|zh-Hans|auto>",
+		Short: T("Set the language of the CLI"),
+		Long: T(`Set the language of the CLI: en (English), zh-Hans (Simplified
+Chinese), or auto to follow $SOLAX_LANG, then the locale ($LC_ALL,
+$LC_MESSAGES, $LANG). $SOLAX_LANG wins over this setting.`),
+		Example: `  solax set lang zh-Hans
+  solax set lang auto`,
+		Args:      cobra.ExactArgs(1),
+		ValidArgs: []string{locale.English, locale.Chinese, "auto"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !locale.Valid(args[0]) {
+				return fmt.Errorf(T("%q: want en, zh-Hans or auto"), args[0])
+			}
+			p, err := paths()
+			if err != nil {
+				return err
+			}
+			cfg, err := p.Load()
+			if err != nil {
+				return err
+			}
+			cfg.Lang = locale.Match(args[0])
+			if err := p.Save(cfg); err != nil {
+				return err
+			}
+			locale.Set(locale.Detect(cfg.Lang))
+			switch {
+			case cfg.Lang == "":
+				fmt.Fprintf(cmd.OutOrStdout(), T("language: auto (now %s)\n"), locale.Lang())
+			default:
+				fmt.Fprintf(cmd.OutOrStdout(), T("language: %s\n"), cfg.Lang)
+			}
+			return nil
+		},
+	}
 }
 
 func setBackendCmd() *cobra.Command {
@@ -26,13 +67,13 @@ func setBackendCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "backend",
-		Short: "Set the server that this machine uses",
+		Short: T("Set the server that this machine uses"),
 		Example: `  solax set backend --url https://solax.example.com
   echo "$TOKEN" | solax set backend --url https://solax.example.com --token-stdin`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			u, err := url.Parse(rawURL)
 			if err != nil || u.Scheme == "" || u.Host == "" {
-				return fmt.Errorf("--url: want an absolute URL, for example https://solax.example.com")
+				return errors.New(T("--url: want an absolute URL, for example https://solax.example.com"))
 			}
 			p, err := paths()
 			if err != nil {
@@ -48,8 +89,8 @@ func setBackendCmd() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&rawURL, "url", "", "server URL")
-	cmd.Flags().BoolVar(&tokenStdin, "token-stdin", false, "read the client token from stdin")
+	cmd.Flags().StringVar(&rawURL, "url", "", T("server URL"))
+	cmd.Flags().BoolVar(&tokenStdin, "token-stdin", false, T("read the client token from stdin"))
 	_ = cmd.MarkFlagRequired("url")
 	return cmd
 }
@@ -61,7 +102,7 @@ func setMachineCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "machine",
-		Short: "Set the daemon settings of this machine",
+		Short: T("Set the daemon settings of this machine"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := paths()
 			if err != nil {
@@ -76,15 +117,15 @@ func setMachineCmd() *cobra.Command {
 			}
 			if cmd.Flags().Changed("max-sessions") {
 				if maxSessions <= 0 {
-					return errors.New("--max-sessions: want a positive number")
+					return errors.New(T("--max-sessions: want a positive number"))
 				}
 				cfg.Machine.MaxSessions = maxSessions
 			}
 			return p.Save(cfg)
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "machine name")
-	cmd.Flags().IntVar(&maxSessions, "max-sessions", 0, "maximum concurrent agent sessions")
+	cmd.Flags().StringVar(&name, "name", "", T("machine name"))
+	cmd.Flags().IntVar(&maxSessions, "max-sessions", 0, T("maximum concurrent agent sessions"))
 	return cmd
 }
 
@@ -119,7 +160,7 @@ func saveBackend(p localconfig.Paths, rawURL, token string, resetMachine bool) (
 func configCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "config",
-		Short: "Show the effective local configuration (tokens masked)",
+		Short: T("Show the effective local configuration (tokens masked)"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := paths()
 			if err != nil {
@@ -143,12 +184,17 @@ func configCmd(g *globals) *cobra.Command {
 				MachineToken: mask(creds.MachineToken),
 			}}
 			return g.print(cmd.OutOrStdout(), view, func(w io.Writer) {
-				fmt.Fprintf(w, "home:          %s\n", p.Dir)
-				fmt.Fprintf(w, "backend.url:   %s\n", cfg.Backend.URL)
-				fmt.Fprintf(w, "client token:  %s\n", view.Credentials.ClientToken)
-				fmt.Fprintf(w, "machine:       %s (max %d sessions)\n", cfg.Machine.Name, cfg.Machine.MaxSessions)
-				fmt.Fprintf(w, "machine id:    %s\n", creds.MachineID)
-				fmt.Fprintf(w, "machine token: %s\n", view.Credentials.MachineToken)
+				fmt.Fprintf(w, T("home:          %s\n"), p.Dir)
+				fmt.Fprintf(w, T("backend.url:   %s\n"), cfg.Backend.URL)
+				fmt.Fprintf(w, T("client token:  %s\n"), view.Credentials.ClientToken)
+				fmt.Fprintf(w, T("machine:       %s (max %d sessions)\n"), cfg.Machine.Name, cfg.Machine.MaxSessions)
+				fmt.Fprintf(w, T("machine id:    %s\n"), creds.MachineID)
+				lang := cfg.Lang
+				if lang == "" {
+					lang = Tf("auto (now %s)", locale.Lang())
+				}
+				fmt.Fprintf(w, T("language:      %s\n"), lang)
+				fmt.Fprintf(w, T("machine token: %s\n"), view.Credentials.MachineToken)
 			})
 		},
 	}
@@ -161,7 +207,7 @@ func readToken(r io.Reader) (string, error) {
 	}
 	t := strings.TrimSpace(line)
 	if t == "" {
-		return "", errors.New("--token-stdin: empty token")
+		return "", errors.New(T("--token-stdin: empty token"))
 	}
 	return t, nil
 }

@@ -225,6 +225,32 @@ func TestMachineConnectedStoresDrivers(t *testing.T) {
 	}
 }
 
+// A built-in driver needs no report; a fork of Claude Code from the
+// config of a daemon must be one that the machine reported.
+func TestCreateAgentDrivers(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	m, err := e.eng.RegisterMachine(ctx, e.human, "mac", hash('a'))
+	if err != nil {
+		t.Fatal(err)
+	}
+	add := func(name string, k ir.Kind) error {
+		_, err := e.eng.CreateAgent(ctx, e.human, core.AgentSpec{Machine: "mac", Name: name, Driver: k, Dir: "~"})
+		return err
+	}
+	if err := add("cc", ir.KindClaude); err != nil {
+		t.Fatalf("claude before any report: %v", err)
+	}
+	is(t, add("fork", "mycc"), errs.ErrInvalid)
+	is(t, add("bad", "My CC"), errs.ErrInvalid)
+	err = e.eng.MachineConnected(ctx, m.ID, protocol.Hello{Drivers: []protocol.DriverProbe{{Kind: "mycc", OK: true}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := add("fork", "mycc"); err != nil {
+		t.Fatalf("mycc after the report: %v", err)
+	}
+}
 func TestScopesAndRecall(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()

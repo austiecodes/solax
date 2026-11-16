@@ -11,6 +11,7 @@ import (
 
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/localconfig"
+	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/internal/server"
 	"github.com/austiecodes/solax/internal/svc"
 	"github.com/austiecodes/solax/pkg/client"
@@ -20,7 +21,7 @@ import (
 const localClientName = "local-cli"
 
 func setupCmd(g *globals) *cobra.Command {
-	cmd := &cobra.Command{Use: "setup", Short: "Set up Solax on this machine"}
+	cmd := &cobra.Command{Use: "setup", Short: T("Set up Solax on this machine")}
 	cmd.AddCommand(setupLocalCmd(g))
 	return cmd
 }
@@ -29,8 +30,8 @@ func setupLocalCmd(g *globals) *cobra.Command {
 	var addr string
 	cmd := &cobra.Command{
 		Use:   "local",
-		Short: "Run the server and the daemon on this machine",
-		Long: `Set up Solax with no other host: the server and the daemon both run on
+		Short: T("Run the server and the daemon on this machine"),
+		Long: T(`Set up Solax with no other host: the server and the daemon both run on
 this machine, as two background processes.
 
   1. Create the server database, if there is none (~/.solax/server/).
@@ -38,12 +39,12 @@ this machine, as two background processes.
   3. Use it from this CLI: save its URL and a client token.
   4. Start the daemon, if it does not run. The machine is approved at once.
 
-You can run it again at any time. It changes only what is missing.`,
+You can run it again at any time. It changes only what is missing.`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return setupLocal(cmd, g, addr)
 		},
 	}
-	cmd.Flags().StringVar(&addr, "addr", addrStart, "listen address of the server")
+	cmd.Flags().StringVar(&addr, "addr", addrStart, T("listen address of the server"))
 	return cmd
 }
 
@@ -68,7 +69,7 @@ func setupLocal(cmd *cobra.Command, g *globals, addr string) error {
 	fresh := err == nil
 	switch {
 	case fresh:
-		step(out, "server", "created %s", f.cfg.DBPath)
+		step(out, T("server"), Tf("created %s", f.cfg.DBPath))
 	case !errors.Is(err, errs.ErrConflict):
 		return err
 	}
@@ -78,12 +79,12 @@ func setupLocal(cmd *cobra.Command, g *globals, addr string) error {
 	var running *svc.RunningError
 	switch {
 	case err == nil:
-		step(out, "server", "started on %s (pid %d)", url, pid)
+		step(out, T("server"), Tf("started on %s (pid %d)", url, pid))
 	case errors.As(err, &running):
 		if client.New(url, "").Ping(ctx) != nil {
-			return fmt.Errorf(`the server runs (pid %d), but not on %s: run "solax server stop", or set --addr`, running.PID, url)
+			return fmt.Errorf(T(`the server runs (pid %d), but not on %s: run "solax server stop", or set --addr`), running.PID, url)
 		}
-		step(out, "server", "runs on %s (pid %d)", url, running.PID)
+		step(out, T("server"), Tf("runs on %s (pid %d)", url, running.PID))
 	default:
 		return err
 	}
@@ -104,9 +105,9 @@ func setupLocal(cmd *cobra.Command, g *globals, addr string) error {
 		return err
 	}
 	if old.Backend.URL != "" && old.Backend.URL != url {
-		step(out, "client", "uses %s (before: %s)", url, old.Backend.URL)
+		step(out, T("client"), Tf("uses %s (before: %s)", url, old.Backend.URL))
 	} else {
-		step(out, "client", "uses %s", url)
+		step(out, T("client"), Tf("uses %s", url))
 	}
 
 	// 4. Daemon. It reads its machine identity on start, so restart it
@@ -123,23 +124,27 @@ func setupLocal(cmd *cobra.Command, g *globals, addr string) error {
 		ok = false
 	}
 	if ok {
-		step(out, "daemon", "runs (pid %d)", dpid)
+		step(out, T("daemon"), Tf("runs (pid %d)", dpid))
 	} else {
 		if dpid, err = startDaemon(cmd, g, p); err != nil {
 			return err
 		}
-		step(out, "daemon", "started (pid %d)", dpid)
+		step(out, T("daemon"), Tf("started (pid %d)", dpid))
 	}
 
-	fmt.Fprint(out, `
-Solax runs on this machine. Add agents next, for example:
+	fmt.Fprint(out, T(`
+Solax runs on this machine. Add agents next. To add one for each agent
+CLI that the daemon found (claude, codex, pi):
 
-  solax agent add coder --driver codex --dir ~/src/app --desc "Writes code"
+  solax agent discover          # list them
+  solax agent discover --add    # add them
+
+Or set one up yourself, for example:
+
   solax agent add reviewer --driver claude --dir ~/src/app --desc "Reviews code"
-  solax agent add router --driver pi --dir ~ --super
 
 Stop it with "solax daemon stop" and "solax server stop".
-`)
+`))
 	return nil
 }
 
@@ -163,7 +168,7 @@ func localToken(ctx context.Context, p localconfig.Paths, f *serverFlags, url st
 		case err == nil:
 			return creds.ClientToken, nil
 		case !errors.As(err, &ce) || (ce.Status != http.StatusUnauthorized && ce.Status != http.StatusForbidden):
-			return "", fmt.Errorf("check the saved client token: %w", err)
+			return "", fmt.Errorf(T("check the saved client token: %w"), err)
 		}
 		// Unknown (401) or revoked (403): create a new one.
 	}
@@ -176,7 +181,12 @@ func localToken(ctx context.Context, p localconfig.Paths, f *serverFlags, url st
 	return token, err
 }
 
-// step prints one line of setup progress.
-func step(w io.Writer, what, format string, args ...any) {
-	fmt.Fprintf(w, "  %-7s %s\n", what, fmt.Sprintf(format, args...))
+// step prints one line of setup progress: what (server, client or
+// daemon) in a column as wide as the widest of them, then what happened.
+func step(w io.Writer, what, text string) {
+	col := 7
+	for _, s := range []string{T("server"), T("client"), T("daemon")} {
+		col = max(col, locale.Width(s))
+	}
+	fmt.Fprintf(w, "  %s %s\n", locale.Pad(what, col), text)
 }

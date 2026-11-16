@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/austiecodes/solax/apps/desktop/internal/actions"
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -52,7 +53,7 @@ func (d *desktop) jobItems() []paletteItem {
 	for i := range d.jobs {
 		j := &d.jobs[i]
 		id := j.ID
-		out = append(out, paletteItem{group: "Jobs", title: j.Title, detail: j.Agent + " · " + j.State + " · " + ago(j.CreatedAt),
+		out = append(out, paletteItem{group: locales.NavJobs(), title: j.Title, detail: j.Agent + " · " + stateWord(j.State) + " · " + ago(j.CreatedAt),
 			job: j, run: func() { d.openJob(id) }})
 	}
 	return out
@@ -71,7 +72,7 @@ func (d *desktop) actionItems() []paletteItem {
 				icon = p.icon
 			}
 		}
-		out = append(out, paletteItem{group: "Actions", title: strings.TrimSuffix(a.Title, "…"), detail: a.Menu,
+		out = append(out, paletteItem{group: locales.PaletteActions(), title: strings.TrimSuffix(title(id), "…"), detail: menuTitle(a.Menu),
 			keys: actions.Glyphs(a.Keys), icon: icon, run: func() { d.run(id) }})
 	}
 	return out
@@ -82,9 +83,9 @@ func (d *desktop) agentItems() []paletteItem {
 	for _, a := range d.agents {
 		detail := string(a.Driver) + " · " + a.Machine
 		if a.Role == "super" {
-			detail = "Solax · " + detail
+			detail = locales.NavChat() + " · " + detail
 		}
-		out = append(out, paletteItem{group: "Agents", title: a.Name, detail: detail, icon: agentIcon,
+		out = append(out, paletteItem{group: locales.NavAgents(), title: a.Name, detail: detail, icon: agentIcon,
 			run: func() { d.goTo(pageAgents) }})
 	}
 	return out
@@ -165,11 +166,11 @@ func (d *desktop) paletteView(c *ui.Context, pal *palette) {
 	var chosen func()
 	ui.DialogBase(c.Key("palette"), &d.pal.open, func(backdrop, panel ui.Element) {
 		backdrop.Background(pal.overlay).Justify(ui.Start).Padding(96, 0, 0, 0)
-		floating(panel.Width(560).MaxHeight(440).Radius(14).Background(pal.popover), pal).Clip().Label("Go to")
+		floating(panel.Width(560).MaxHeight(440).Radius(14).Background(pal.popover), pal).Clip().Label(locales.GoTo())
 		ui.Row(c).Height(46).Shrink(0).Padding(0, 14).Gap(10).AlignItems(ui.Center).Children(func() {
 			ui.Icon(c, searchIcon).Size(15, 15).TextColor(pal.textFaint)
 			in := ui.TextInputBase(c.Key("q"), &d.pal.query).Grow(1).FontSize(14).
-				Placeholder("Search jobs, agents and actions").Label("Search").AutoFocus()
+				Placeholder(locales.PalettePlaceholder()).Label(locales.PaletteSearch()).AutoFocus()
 			if in.Changed() {
 				d.pal.index, d.pal.reveal = 0, true
 			}
@@ -188,7 +189,7 @@ func (d *desktop) paletteView(c *ui.Context, pal *palette) {
 		d.pal.reveal = false
 		ui.Scroll(c.Key("results")).Grow(1).MinHeight(0).Padding(6).Children(func() {
 			if len(items) == 0 {
-				ui.Text(c, "No matches.").FontSize(13).TextColor(pal.textFaint).Padding(12)
+				ui.Text(c, locales.PaletteNoMatches()).FontSize(13).TextColor(pal.textFaint).Padding(12)
 			}
 			group := ""
 			for i, it := range items {
@@ -224,7 +225,7 @@ func (d *desktop) paletteView(c *ui.Context, pal *palette) {
 		})
 		ui.Row(c).Height(34).Shrink(0).Padding(0, 14).Gap(14).AlignItems(ui.Center).
 			BorderWidth(1, 0, 0, 0).BorderColor(pal.divider).Children(func() {
-			for _, k := range [][2]string{{"↑↓", "Move"}, {"↩", "Open"}, {"esc", "Close"}} {
+			for _, k := range [][2]string{{"↑↓", locales.PaletteMove()}, {"↩", locales.PaletteOpen()}, {"esc", locales.Close()}} {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					kbd(c, pal, k[0])
 					ui.Text(c, k[1]).FontSize(12).TextColor(pal.textFaint).SingleLine()

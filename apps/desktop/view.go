@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"github.com/austiecodes/solax/apps/desktop/locales"
 )
 
 // Layout. The title bar has no frame: the traffic lights sit over the
@@ -83,7 +85,7 @@ func (d *desktop) statusBanner(c *ui.Context, pal *palette) {
 	}
 	ui.Row(c.Key("status")).Gap(10).Padding(8, 12, 8, 16).AlignItems(ui.Center).Background(pal.dangerBg).Children(func() {
 		ui.Text(c, d.status).FontSize(12.5).TextColor(pal.danger).Grow(1).Selectable()
-		if button(c, "dismiss", "Dismiss", plainButton, false) {
+		if button(c, "dismiss", locales.Dismiss(), plainButton, false) {
 			d.status = ""
 		}
 	})
@@ -141,7 +143,7 @@ func iconButton(c *ui.Context, key string, svg *ui.SVG, label string, pal *palet
 // stateBadge is a colored pill for a job state.
 func stateBadge(c *ui.Context, state string) {
 	pal := paletteFor(c)
-	b := ui.Badge(c, state)
+	b := ui.Badge(c, stateWord(state))
 	switch state {
 	case "done":
 		b.Background(pal.success).TextColor(pal.onAccent)

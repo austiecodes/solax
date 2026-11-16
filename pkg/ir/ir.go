@@ -23,6 +23,11 @@ const (
 	KindClaude Kind = "claude"
 )
 
+// BuiltinKinds are the drivers of every daemon. A daemon can also run
+// forks of Claude Code that speak its stream-json, each its own kind
+// (config.yaml drivers.claude_compatible).
+var BuiltinKinds = []Kind{KindPi, KindCodex, KindClaude}
+
 // SessionRef is the stable native reference of a session. The daemon uses
 // it to resume the session after a restart.
 type SessionRef struct {

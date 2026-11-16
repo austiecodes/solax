@@ -17,19 +17,20 @@ import (
 	"github.com/austiecodes/solax/internal/daemon"
 	"github.com/austiecodes/solax/internal/daemon/control"
 	"github.com/austiecodes/solax/internal/localconfig"
+	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/internal/svc"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
 func daemonCmd(g *globals) *cobra.Command {
-	cmd := &cobra.Command{Use: "daemon", Short: "Control the daemon of this machine"}
+	cmd := &cobra.Command{Use: "daemon", Short: T("Control the daemon of this machine")}
 	cmd.AddCommand(
 		daemonRunCmd(),
 		daemonStartCmd(g),
 		daemonStopCmd(),
 		daemonRestartCmd(g),
-		daemonCtlCmd("reload", "Reload config.yaml and probe the agent CLIs again", func(ctx context.Context, c *control.Client, _ io.Writer) error {
+		daemonCtlCmd("reload", T("Reload config.yaml and probe the agent CLIs again"), func(ctx context.Context, c *control.Client, _ io.Writer) error {
 			return c.Reload(ctx)
 		}),
 		daemonStatusCmd(g),
@@ -41,7 +42,7 @@ func daemonCmd(g *globals) *cobra.Command {
 func daemonRunCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "run",
-		Short: "Run the daemon in the foreground",
+		Short: T("Run the daemon in the foreground"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := paths()
 			if err != nil {
@@ -71,13 +72,13 @@ func daemonRunCmd() *cobra.Command {
 func daemonStartCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
-		Short: "Set up this machine on first use, and start the daemon in the background",
-		Long: `On first use, start generates the machine token on this machine and
+		Short: T("Set up this machine on first use, and start the daemon in the background"),
+		Long: T(`On first use, start generates the machine token on this machine and
 sends only its hash to the server:
 
   - With a client token on this machine, the machine is approved at once.
   - Without one, the machine enrolls as pending and start prints a pairing
-    code. Approve it from any client: solax machine approve <code>.`,
+    code. Approve it from any client: solax machine approve <code>.`),
 		RunE: func(cmd *cobra.Command, args []string) error { return startDaemonCmd(cmd, g) },
 	}
 }
@@ -91,7 +92,7 @@ func startDaemonCmd(cmd *cobra.Command, g *globals) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "daemon started (pid %d), log: %s\n", pid, p.Log())
+	fmt.Fprintf(cmd.OutOrStdout(), T("daemon started (pid %d), log: %s\n"), pid, p.Log())
 	return nil
 }
 
@@ -116,7 +117,7 @@ func startDaemon(cmd *cobra.Command, g *globals, p localconfig.Paths) (pid int, 
 	}
 	if creds.MachineID == "" {
 		if err := setupMachine(cmd, g, p, cfg, &creds); err != nil {
-			return 0, fmt.Errorf("set up machine: %w", err)
+			return 0, fmt.Errorf(T("set up machine: %w"), err)
 		}
 	}
 	return daemonService(p).Start(cmd.Context())
@@ -140,7 +141,7 @@ func daemonService(p localconfig.Paths) svc.Service {
 func daemonStopCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the daemon and wait until it ends",
+		Short: T("Stop the daemon and wait until it ends"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := paths()
 			if err != nil {
@@ -149,7 +150,7 @@ func daemonStopCmd() *cobra.Command {
 			if err := daemonService(p).Stop(cmd.Context()); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "daemon stopped")
+			fmt.Fprintln(cmd.OutOrStdout(), T("daemon stopped"))
 			return nil
 		},
 	}
@@ -158,7 +159,7 @@ func daemonStopCmd() *cobra.Command {
 func daemonRestartCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
-		Short: "Stop the daemon if it runs, then start it",
+		Short: T("Stop the daemon if it runs, then start it"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, err := paths()
 			if err != nil {
@@ -205,7 +206,7 @@ func setupMachine(cmd *cobra.Command, g *globals, p localconfig.Paths, cfg local
 		return err
 	}
 	if res.State == protocol.MachinePending {
-		fmt.Fprintf(cmd.OutOrStdout(), "machine %s waits for approval. From any client run:\n  solax machine approve %s\n(valid until %s)\n",
+		fmt.Fprintf(cmd.OutOrStdout(), T("machine %s waits for approval. From any client run:\n  solax machine approve %s\n(valid until %s)\n"),
 			res.MachineID, res.PairCode, res.PairUntil.Format("2006-01-02 15:04"))
 	}
 	return nil
@@ -214,7 +215,7 @@ func setupMachine(cmd *cobra.Command, g *globals, p localconfig.Paths, cfg local
 func daemonStatusCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: "Show the daemon status",
+		Short: T("Show the daemon status"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := requireDaemon(); err != nil {
 				return err
@@ -228,11 +229,11 @@ func daemonStatusCmd(g *globals) *cobra.Command {
 				return err
 			}
 			return g.print(cmd.OutOrStdout(), st, func(w io.Writer) {
-				fmt.Fprintf(w, "pid %d, version %s\n", st.PID, st.Version)
-				fmt.Fprintf(w, "machine %s, backend %s, connected=%t\n", st.Machine, st.Backend, st.Connected)
-				fmt.Fprintf(w, "free slots %d, sessions %d\n", st.FreeSlots, len(st.Sessions))
+				fmt.Fprintf(w, T("pid %d, version %s\n"), st.PID, st.Version)
+				fmt.Fprintf(w, T("machine %s, backend %s, connected: %s\n"), st.Machine, st.Backend, locale.Bool(st.Connected))
+				fmt.Fprintf(w, T("free slots %d, sessions %d\n"), st.FreeSlots, len(st.Sessions))
 				for id, state := range st.Sessions {
-					fmt.Fprintf(w, "  %s  %s\n", id, state)
+					fmt.Fprintf(w, "  %s  %s\n", id, T(string(state)))
 				}
 			})
 		},
@@ -243,7 +244,7 @@ func daemonLogsCmd() *cobra.Command {
 	var follow bool
 	cmd := &cobra.Command{
 		Use:   "logs",
-		Short: "Show the daemon log",
+		Short: T("Show the daemon log"),
 		// Read the file, not the control socket: the log matters most
 		// when the daemon has stopped.
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -254,7 +255,7 @@ func daemonLogsCmd() *cobra.Command {
 			return svc.Tail(cmd.Context(), p.Log(), cmd.OutOrStdout(), follow)
 		},
 	}
-	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow the log")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, T("follow the log"))
 	return cmd
 }
 
@@ -285,7 +286,7 @@ func requireDaemon() error {
 	if _, ok, err := svc.Running(p.PID()); err != nil {
 		return err
 	} else if !ok {
-		return errors.New(`daemon is not running: run "solax daemon start"`)
+		return errors.New(T(`daemon is not running: run "solax daemon start"`))
 	}
 	return nil
 }

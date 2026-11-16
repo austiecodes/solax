@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/austiecodes/solax/internal/daemon/control"
 	"github.com/austiecodes/solax/internal/daemon/supervisor"
 	"github.com/austiecodes/solax/internal/localconfig"
+	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/internal/svc"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -31,6 +33,11 @@ var Version = "dev"
 // probeTimeout bounds one driver probe. A hung external CLI must not hang
 // the WebSocket handshake.
 const probeTimeout = 5 * time.Second
+
+// driverWatch is how often the daemon looks for agent CLIs that were
+// installed, updated or removed. A look starts no process (see
+// agent.Fingerprinter); a change probes again and sends a new hello.
+const driverWatch = 30 * time.Second
 
 // Daemon is one running daemon process.
 type Daemon struct {
@@ -45,9 +52,12 @@ type Daemon struct {
 	cfg localconfig.Config
 
 	drivers []agent.Driver
-	sup     *supervisor.Supervisor
-	conn    *conn.Conn
-	stop    context.CancelFunc
+	// fpMu guards fp, the driver fingerprints of the last hello.
+	fpMu sync.Mutex
+	fp   string
+	sup  *supervisor.Supervisor
+	conn *conn.Conn
+	stop context.CancelFunc
 }
 
 // New builds a daemon from the local state. It needs the machine token that
@@ -83,7 +93,11 @@ func New(paths localconfig.Paths, log *slog.Logger) (*Daemon, error) {
 	if exe, err := os.Executable(); err == nil {
 		bin = filepath.Dir(exe)
 	}
-	d := &Daemon{paths: paths, cfg: cfg, creds: creds, log: log, assets: assetsDir, bin: bin, drivers: driver.All(state)}
+	ds, err := driver.All(state, cfg.Drivers.ClaudeCompatible...)
+	if err != nil {
+		return nil, err
+	}
+	d := &Daemon{paths: paths, cfg: cfg, creds: creds, log: log, assets: assetsDir, bin: bin, drivers: ds}
 	d.conn = conn.New(cfg.Backend.URL, creds.MachineToken, d.hello, d.heartbeat, d.handle, log)
 	return d, nil
 }
@@ -112,6 +126,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	errc := make(chan error, 2)
 	go func() { errc <- control.Serve(ctx, d.paths.Socket(), d) }()
 	go func() { errc <- d.conn.Run(ctx) }()
+	go d.watchDrivers(ctx, driverWatch)
 
 	var err error
 	select {
@@ -129,6 +144,9 @@ func (d *Daemon) sessionEnv(e protocol.SessionEnsure) map[string]string {
 		"SOLAX_TOKEN":   e.AgentToken,
 		"SOLAX_AGENT":   e.Agent,
 		"SOLAX_SESSION": e.SessionID,
+		// The prompts of the agents are English, and so is what they read
+		// back from the solax CLI, whatever the language of this machine.
+		locale.EnvLang: locale.English,
 	}
 	if e.Job != "" {
 		env["SOLAX_JOB"] = e.Job
@@ -197,6 +215,10 @@ func (d *Daemon) handle(ctx context.Context, env protocol.Envelope) protocol.Ack
 // hello builds the Hello record for each connect. Each driver probe gets
 // its own timeout, so one hung CLI cannot stall the handshake.
 func (d *Daemon) hello(ctx context.Context) protocol.Hello {
+	fp := d.fingerprints()
+	d.fpMu.Lock()
+	d.fp = fp
+	d.fpMu.Unlock()
 	cfg := d.config()
 	h := protocol.Hello{MachineID: d.creds.MachineID, MachineName: cfg.Machine.Name, DaemonVersion: Version}
 	if d.sup != nil {
@@ -216,6 +238,43 @@ func (d *Daemon) hello(ctx context.Context) protocol.Hello {
 		h.Drivers = append(h.Drivers, dp)
 	}
 	return h
+}
+
+// watchDrivers sends a new hello when an agent CLI was installed,
+// updated or removed, so the server, and the agents it suggests, know the
+// CLIs of this machine without a restart or "solax daemon reload".
+func (d *Daemon) watchDrivers(ctx context.Context, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		d.fpMu.Lock()
+		last := d.fp
+		d.fpMu.Unlock()
+		if !d.conn.Connected() || d.fingerprints() == last {
+			continue // a reconnect sends a fresh hello anyway
+		}
+		d.log.Info("agent CLIs changed: probing again")
+		if err := d.conn.Send(ctx, protocol.Envelope{Type: protocol.TypeHello, Payload: mustJSON(d.hello(ctx))}); err != nil {
+			d.log.Warn("send hello", "err", err)
+		}
+	}
+}
+
+// fingerprints names the binaries of all drivers as they are on disk.
+func (d *Daemon) fingerprints() string {
+	var b strings.Builder
+	for _, drv := range d.drivers {
+		if f, ok := drv.(agent.Fingerprinter); ok {
+			b.WriteString(f.Fingerprint())
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 func (d *Daemon) heartbeat() protocol.Heartbeat {

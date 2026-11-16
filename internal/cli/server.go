@@ -16,6 +16,7 @@ import (
 
 	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/internal/server"
 	"github.com/austiecodes/solax/internal/svc"
 	"github.com/austiecodes/solax/pkg/client"
@@ -72,7 +73,7 @@ func (f *serverFlags) service(addr string) svc.Service {
 func localURL(addr string) (string, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return "", fmt.Errorf("--addr %q: %w", addr, err)
+		return "", fmt.Errorf(T("--addr %q: %w"), addr, err)
 	}
 	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
 		host = "127.0.0.1"
@@ -87,16 +88,16 @@ func serverCmd(g *globals) *cobra.Command {
 	f := &serverFlags{}
 	cmd := &cobra.Command{
 		Use:   "server",
-		Short: "Run and manage a Solax server",
-		Long: `The server owns all state. Clients and daemons connect to it.
+		Short: T("Run and manage a Solax server"),
+		Long: T(`The server owns all state. Clients and daemons connect to it.
 
 On a laptop, the server and the daemon can run on the same machine:
 "solax server start" runs the server in the background.
 
 The server files are in ~/.solax/server/ unless you set --db. The pid
-file and the log are next to the database.`,
+file and the log are next to the database.`),
 	}
-	cmd.PersistentFlags().StringVar(&f.cfg.DBPath, "db", "", "SQLite database path (default ~/.solax/server/solax.db)")
+	cmd.PersistentFlags().StringVar(&f.cfg.DBPath, "db", "", T("SQLite database path (default ~/.solax/server/solax.db)"))
 	cmd.PersistentPreRunE = func(*cobra.Command, []string) error {
 		if f.cfg.DBPath == "" {
 			p, err := paths()
@@ -121,7 +122,7 @@ func serverRunCmd(f *serverFlags) *cobra.Command {
 	var addr string
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Run the server in the foreground",
+		Short: T("Run the server in the foreground"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := f.open(); err != nil {
 				return err
@@ -144,7 +145,7 @@ func serverRunCmd(f *serverFlags) *cobra.Command {
 			return server.Serve(ctx, f.cfg, ln, slog.New(slog.NewTextHandler(os.Stderr, nil)))
 		},
 	}
-	cmd.Flags().StringVar(&addr, "addr", addrRun, "listen address")
+	cmd.Flags().StringVar(&addr, "addr", addrRun, T("listen address"))
 	return cmd
 }
 
@@ -152,11 +153,11 @@ func serverStartCmd(f *serverFlags) *cobra.Command {
 	var addr string
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Run the server in the background",
-		Long: `Run "solax server run" in the background and wait until it answers.
+		Short: T("Run the server in the background"),
+		Long: T(`Run "solax server run" in the background and wait until it answers.
 
 By default the server listens only on 127.0.0.1, so only this machine
-can reach it. To accept other machines, set --addr, for example :8740.`,
+can reach it. To accept other machines, set --addr, for example :8740.`),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			url, err := localURL(addr)
 			if err != nil {
@@ -166,23 +167,23 @@ can reach it. To accept other machines, set --addr, for example :8740.`,
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "server started (pid %d) on %s, log: %s\n", pid, url, f.logFile())
+			fmt.Fprintf(cmd.OutOrStdout(), T("server started (pid %d) on %s, log: %s\n"), pid, url, f.logFile())
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&addr, "addr", addrStart, "listen address")
+	cmd.Flags().StringVar(&addr, "addr", addrStart, T("listen address"))
 	return cmd
 }
 
 func serverStopCmd(f *serverFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the background server and wait until it ends",
+		Short: T("Stop the background server and wait until it ends"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := f.service("").Stop(cmd.Context()); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "server stopped")
+			fmt.Fprintln(cmd.OutOrStdout(), T("server stopped"))
 			return nil
 		},
 	}
@@ -199,7 +200,7 @@ type serverStatus struct {
 func serverStatusCmd(g *globals, f *serverFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: "Show if the server runs on this machine",
+		Short: T("Show if the server runs on this machine"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pid, ok, err := svc.Running(f.pidFile())
 			if err != nil {
@@ -208,11 +209,11 @@ func serverStatusCmd(g *globals, f *serverFlags) *cobra.Command {
 			st := serverStatus{Running: ok, PID: pid, DB: f.cfg.DBPath, Log: f.logFile()}
 			if err := g.print(cmd.OutOrStdout(), st, func(w io.Writer) {
 				if ok {
-					fmt.Fprintf(w, "running (pid %d)\n", pid)
+					fmt.Fprintf(w, T("running (pid %d)\n"), pid)
 				} else {
-					fmt.Fprintln(w, "not running")
+					fmt.Fprintln(w, T("not running"))
 				}
-				fmt.Fprintf(w, "db:  %s\nlog: %s\n", st.DB, st.Log)
+				fmt.Fprintf(w, T("db:  %s\nlog: %s\n"), st.DB, st.Log)
 			}); err != nil {
 				return err
 			}
@@ -229,12 +230,12 @@ func serverLogsCmd(f *serverFlags) *cobra.Command {
 	var follow bool
 	cmd := &cobra.Command{
 		Use:   "logs",
-		Short: "Show the server log",
+		Short: T("Show the server log"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return svc.Tail(cmd.Context(), f.logFile(), cmd.OutOrStdout(), follow)
 		},
 	}
-	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow the log")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, T("follow the log"))
 	return cmd
 }
 
@@ -242,7 +243,7 @@ func serverInitCmd(f *serverFlags) *cobra.Command {
 	var name string
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Create the owner and the first client token",
+		Short: T("Create the owner and the first client token"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := f.open(); err != nil {
 				return err
@@ -255,17 +256,17 @@ func serverInitCmd(f *serverFlags) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "admin", "name of the first client token")
+	cmd.Flags().StringVar(&name, "name", "admin", T("name of the first client token"))
 	return cmd
 }
 
 func serverTokenCmd(f *serverFlags) *cobra.Command {
-	cmd := &cobra.Command{Use: "token", Short: "Manage client tokens"}
+	cmd := &cobra.Command{Use: "token", Short: T("Manage client tokens")}
 
 	var name string
 	create := &cobra.Command{
 		Use:   "create",
-		Short: "Create a client token for one CLI or desktop app",
+		Short: T("Create a client token for one CLI or desktop app"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			admin, closeDB, err := f.admin(cmd.Context())
 			if err != nil {
@@ -280,12 +281,12 @@ func serverTokenCmd(f *serverFlags) *cobra.Command {
 			return nil
 		},
 	}
-	create.Flags().StringVar(&name, "name", "", "client name, for example macbook-cli")
+	create.Flags().StringVar(&name, "name", "", T("client name, for example macbook-cli"))
 	_ = create.MarkFlagRequired("name")
 
 	list := &cobra.Command{
 		Use:   "list",
-		Short: "List client tokens",
+		Short: T("List client tokens"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			admin, closeDB, err := f.admin(cmd.Context())
 			if err != nil {
@@ -297,13 +298,13 @@ func serverTokenCmd(f *serverFlags) *cobra.Command {
 				return err
 			}
 			tw := table(cmd.OutOrStdout())
-			fmt.Fprintln(tw, "ID\tNAME\tREVOKED\tLAST USED")
+			fmt.Fprintln(tw, T("ID\tNAME\tREVOKED\tLAST USED"))
 			for _, t := range ts {
-				used := "never"
+				used := T("never")
 				if !t.LastUsed.IsZero() {
 					used = t.LastUsed.Format("2006-01-02 15:04")
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%t\t%s\n", t.ID, t.Name, t.Revoked, used)
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", t.ID, t.Name, locale.Bool(t.Revoked), used)
 			}
 			return tw.Flush()
 		},
@@ -311,7 +312,7 @@ func serverTokenCmd(f *serverFlags) *cobra.Command {
 
 	revoke := &cobra.Command{
 		Use:   "revoke <id>",
-		Short: "Revoke a client token",
+		Short: T("Revoke a client token"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			admin, closeDB, err := f.admin(cmd.Context())
@@ -329,8 +330,8 @@ func serverTokenCmd(f *serverFlags) *cobra.Command {
 
 func printToken(cmd *cobra.Command, token string) {
 	fmt.Fprintln(cmd.OutOrStdout(), token)
-	fmt.Fprintln(cmd.ErrOrStderr(), "This token is shown once. Give it to a client with:")
-	fmt.Fprintln(cmd.ErrOrStderr(), "  solax set backend --url URL --token-stdin")
+	fmt.Fprintln(cmd.ErrOrStderr(), T("This token is shown once. Give it to a client with:"))
+	fmt.Fprintln(cmd.ErrOrStderr(), T("  solax set backend --url URL --token-stdin"))
 }
 
 // admin opens the database for the token commands.

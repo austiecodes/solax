@@ -1,5 +1,6 @@
 // Package claude is the driver for Claude Code in stream-json mode
-// (claude -p --input-format stream-json --output-format stream-json).
+// (claude -p --input-format stream-json --output-format stream-json), and
+// for forks of it that speak the same protocol.
 package claude
 
 import (
@@ -36,32 +37,76 @@ var Caps = ir.Caps{
 
 // Config configures the driver.
 type Config struct {
-	Binary   string // default "claude"
-	StateDir string // prompt files and session logs
+	// Kind names the driver. A fork of Claude Code that speaks the same
+	// stream-json is its own kind with its own binary.
+	Kind     ir.Kind // default ir.KindClaude
+	Binary   string  // default the kind
+	StateDir string  // prompt files and session logs
+	// InlinePrompt passes the instructions with --append-system-prompt,
+	// never in a file. A fork that adds its own --append-system-prompt
+	// fails on --append-system-prompt-file: Claude Code takes only one of
+	// the two.
+	InlinePrompt bool
 }
 
 // Driver starts Claude Code sessions.
 type Driver struct {
 	cfg Config
+
+	// mu guards prompts: whether the binary of a fingerprint has
+	// --permission-prompts. Forks and older versions do not.
+	mu      sync.Mutex
+	prompts map[string]bool
 }
 
 // New returns a Claude Code driver.
 func New(cfg Config) *Driver {
-	if cfg.Binary == "" {
-		cfg.Binary = "claude"
+	if cfg.Kind == "" {
+		cfg.Kind = ir.KindClaude
 	}
-	return &Driver{cfg: cfg}
+	if cfg.Binary == "" {
+		cfg.Binary = string(cfg.Kind)
+	}
+	return &Driver{cfg: cfg, prompts: map[string]bool{}}
 }
 
-func (d *Driver) Kind() ir.Kind { return ir.KindClaude }
+func (d *Driver) Kind() ir.Kind { return d.cfg.Kind }
 
-// Probe runs "claude --version".
+// Fingerprint changes when the binary is installed, updated or removed.
+func (d *Driver) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
+
+// Probe runs "claude --version", and "claude --help" to learn its flags.
 func (d *Driver) Probe(ctx context.Context) (agent.Probe, error) {
 	v, err := proc.Version(ctx, d.cfg.Binary)
 	if err != nil {
 		return agent.Probe{Problem: err.Error(), Caps: Caps}, nil
 	}
+	d.hasPermissionPrompts(ctx)
 	return agent.Probe{Version: v, OK: true, Caps: Caps}, nil
+}
+
+// hasPermissionPrompts tells whether the binary has --permission-prompts.
+// Without it, print mode denies what would prompt, which is what "none"
+// asks for. The answer is kept per fingerprint, so an update asks again.
+func (d *Driver) hasPermissionPrompts(ctx context.Context) bool {
+	fp := d.Fingerprint()
+	d.mu.Lock()
+	ok, known := d.prompts[fp]
+	d.mu.Unlock()
+	if known {
+		return ok
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := proc.Output(ctx, d.cfg.Binary, "--help")
+	if err != nil {
+		return true // the default of current Claude Code; do not keep a guess
+	}
+	ok = strings.Contains(string(out), "--permission-prompts")
+	d.mu.Lock()
+	d.prompts[fp] = ok
+	d.mu.Unlock()
+	return ok
 }
 
 // Start runs:
@@ -80,7 +125,9 @@ func (d *Driver) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sessi
 		"-p", "--input-format", "stream-json", "--output-format", "stream-json",
 		"--verbose", "--include-partial-messages",
 		"--permission-mode", spec.Option("permission_mode", "auto"),
-		"--permission-prompts", "none",
+	}
+	if d.hasPermissionPrompts(ctx) {
+		args = append(args, "--permission-prompts", "none")
 	}
 	if spec.Resume != nil && spec.Resume.NativeID != "" {
 		native = spec.Resume.NativeID
@@ -106,7 +153,7 @@ func (d *Driver) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sessi
 		switch {
 		case err != nil:
 			return nil, err
-		case ok:
+		case ok && !d.cfg.InlinePrompt:
 			args = append(args, "--append-system-prompt-file", f)
 		default:
 			args = append(args, "--append-system-prompt", spec.Instructions)
@@ -119,7 +166,7 @@ func (d *Driver) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sessi
 		return nil, err
 	}
 	s := &session{
-		ref: ir.SessionRef{Kind: ir.KindClaude, NativeID: native},
+		ref: ir.SessionRef{Kind: d.cfg.Kind, NativeID: native},
 		p:   p, w: framing.NewWriter(p.Stdin), em: proc.NewEmitter(spec.SessionID),
 		dec: NewDecoder(), seen: map[string]bool{}, log: logw,
 	}

@@ -40,6 +40,17 @@ func (m Machine) HasDriver(k ir.Kind) bool {
 	return false
 }
 
+// Reports tells whether the daemon reported a driver of kind k, working
+// or not.
+func (m Machine) Reports(k ir.Kind) bool {
+	for _, d := range m.Drivers {
+		if d.Kind == k {
+			return true
+		}
+	}
+	return false
+}
+
 // MachineState is the approval state of a machine.
 type MachineState string
 
