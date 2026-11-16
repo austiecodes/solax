@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -297,15 +296,4 @@ func ctlClient() (*control.Client, error) {
 		return nil, err
 	}
 	return control.NewClient(p.Socket()), nil
-}
-
-// Local agent definitions.
-
-func expandHome(p string) string {
-	if len(p) > 1 && p[:2] == "~/" {
-		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, p[2:])
-		}
-	}
-	return p
 }

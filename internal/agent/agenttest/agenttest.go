@@ -1,5 +1,5 @@
-// Package agenttest records native transcripts and replays them through a
-// Decoder for golden tests. Transcripts live in testdata/transcripts/<kind>/.
+// Package agenttest replays native transcripts through a Decoder for
+// golden tests. Transcripts live in testdata/transcripts/<kind>/.
 package agenttest
 
 import (
@@ -18,17 +18,6 @@ import (
 )
 
 var update = flag.Bool("update", false, "rewrite golden IR files")
-
-// Recorder copies the raw stdout of an agent process to w.
-type Recorder struct {
-	w io.Writer
-}
-
-// NewRecorder returns a Recorder that writes to w.
-func NewRecorder(w io.Writer) *Recorder { return &Recorder{w: w} }
-
-// Wrap returns a reader that records everything read from r.
-func (r *Recorder) Wrap(rd io.Reader) io.Reader { return io.TeeReader(rd, r.w) }
 
 // Transcript returns the path of a transcript under testdata/transcripts
 // at the repository root.

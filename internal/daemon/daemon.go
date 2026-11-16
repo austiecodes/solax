@@ -190,8 +190,6 @@ func (d *Daemon) Logs(ctx context.Context, w io.Writer, follow bool) error {
 	return svc.Tail(ctx, d.paths.Log(), w, follow)
 }
 
-var _ control.Daemon = (*Daemon)(nil)
-
 func (d *Daemon) handle(ctx context.Context, env protocol.Envelope) protocol.Ack {
 	return d.sup.Handle(ctx, env)
 }

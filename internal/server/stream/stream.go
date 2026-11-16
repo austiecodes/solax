@@ -132,5 +132,3 @@ func (s *Stream) remove(owner core.ID, sb *sub) {
 	defer s.mu.Unlock()
 	delete(s.subs[owner], sb)
 }
-
-var _ core.Notifier = (*Stream)(nil)

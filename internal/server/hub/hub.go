@@ -316,5 +316,3 @@ func mustJSON(v any) json.RawMessage {
 	}
 	return b
 }
-
-var _ core.Dispatcher = (*Hub)(nil)

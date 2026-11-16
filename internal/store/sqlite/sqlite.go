@@ -152,21 +152,6 @@ func mapErr(err error) error {
 	return err
 }
 
-// mustAffect turns "no row changed" into ErrNotFound.
-func mustAffect(res sql.Result, err error) error {
-	if err != nil {
-		return err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return errs.ErrNotFound
-	}
-	return nil
-}
-
 // Times are stored as Unix milliseconds; 0 is the zero time.
 
 func ms(t time.Time) int64 {

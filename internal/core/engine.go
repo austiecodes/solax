@@ -12,8 +12,7 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// Actor is the identity behind a call. The API layer builds it from the
-// token.
+// Actor is the identity behind a call. The API builds it from the token.
 type Actor struct {
 	Kind    AuthorKind
 	ID      ID

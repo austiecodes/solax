@@ -28,7 +28,6 @@ import (
 const (
 	EnvServer = "SOLAX_SERVER"
 	EnvToken  = "SOLAX_TOKEN"
-	EnvAgent  = "SOLAX_AGENT"
 )
 
 type globals struct {

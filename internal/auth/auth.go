@@ -329,5 +329,3 @@ func (t *Tokens) verifyAgent(token string) (Claims, error) {
 		Job: c.Job, SessionID: c.SessionID, Expires: c.Expires,
 	}, nil
 }
-
-var _ core.TokenIssuer = (*Tokens)(nil)

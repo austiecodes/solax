@@ -53,5 +53,3 @@ func scanClient(sc scanner) (auth.ClientToken, error) {
 	t.CreatedAt, t.LastUsed, t.Revoked = tm(created), tm(used), revoked != 0
 	return t, nil
 }
-
-var _ auth.Store = (*Store)(nil)
