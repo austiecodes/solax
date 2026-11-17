@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/server/api"
 	"github.com/austiecodes/solax/internal/server/delivery"
 	"github.com/austiecodes/solax/internal/server/hub"
 	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/internal/server/router"
 	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/internal/server/stream"
 )
@@ -76,7 +76,7 @@ func New(secret []byte, log *slog.Logger) *App {
 	service.Wake = loop.Kick
 
 	return &App{
-		Handler: api.NewRouter(api.Config{Tokens: tokens, Daemon: h, Stream: st}),
+		Handler: router.New(tokens, h, st),
 		Tokens:  tokens,
 		hub:     h,
 		loop:    loop,

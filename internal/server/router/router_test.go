@@ -1,4 +1,4 @@
-package api_test
+package router_test
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 
 	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/errs"
-	"github.com/austiecodes/solax/internal/server/api"
 	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/internal/server/router"
 	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/internal/server/stream"
 	"github.com/austiecodes/solax/pkg/client"
@@ -42,10 +42,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	defer model.Close()
 	tokens := auth.NewTokens([]byte("secret"))
 	// The service functions keep their defaults: no daemon is connected.
-	srv := httptest.NewServer(api.NewRouter(api.Config{
-		Tokens: tokens,
-		Daemon: http.NotFoundHandler(), Stream: stream.New(),
-	}))
+	srv := httptest.NewServer(router.New(tokens, http.NotFoundHandler(), stream.New()))
 	defer srv.Close()
 
 	// Bootstrap, as "solax server init" does.

@@ -1,4 +1,4 @@
-package api
+package controller
 
 import (
 	"github.com/austiecodes/solax/internal/server/model"

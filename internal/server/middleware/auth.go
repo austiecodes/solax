@@ -1,4 +1,8 @@
-package api
+// Package middleware holds the gin middleware of the REST API: token
+// checks that store the claims of the caller, and request limits.
+// Controllers read the caller with Actor and end a failed request with
+// Abort.
+package middleware
 
 import (
 	"slices"
@@ -19,16 +23,16 @@ func Authenticate(tokens *auth.Tokens) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, ok := strings.CutPrefix(c.GetHeader("Authorization"), "Bearer ")
 		if !ok || token == "" {
-			fail(c, errs.ErrUnauthorized)
+			Abort(c, errs.ErrUnauthorized)
 			return
 		}
 		cl, err := tokens.Verify(c.Request.Context(), token)
 		if err != nil {
-			fail(c, err)
+			Abort(c, err)
 			return
 		}
 		if cl.Kind == auth.KindMachine {
-			fail(c, errs.ErrForbidden)
+			Abort(c, errs.ErrForbidden)
 			return
 		}
 		c.Set(claimsKey, cl)
@@ -36,19 +40,11 @@ func Authenticate(tokens *auth.Tokens) gin.HandlerFunc {
 	}
 }
 
-// RateLimit limits requests per client address.
-func RateLimit() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// TODO: token bucket per address.
-		c.Next()
-	}
-}
-
 // RequireKind rejects tokens of other kinds.
 func RequireKind(kinds ...auth.Kind) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !slices.Contains(kinds, claims(c).Kind) {
-			fail(c, errs.ErrForbidden)
+		if !slices.Contains(kinds, Claims(c).Kind) {
+			Abort(c, errs.ErrForbidden)
 			return
 		}
 		c.Next()
@@ -58,8 +54,8 @@ func RequireKind(kinds ...auth.Kind) gin.HandlerFunc {
 // RequireSuper rejects tokens other than the Super Agent token.
 func RequireSuper() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if cl := claims(c); cl.Kind != auth.KindAgent || !cl.Super {
-			fail(c, errs.ErrForbidden)
+		if cl := Claims(c); cl.Kind != auth.KindAgent || !cl.Super {
+			Abort(c, errs.ErrForbidden)
 			return
 		}
 		c.Next()
@@ -71,19 +67,21 @@ func RequireSuper() gin.HandlerFunc {
 // 403. It guards the job routes.
 func RequireClientOrSuper() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cl := claims(c)
+		cl := Claims(c)
 		if cl.Kind != auth.KindClient && !(cl.Kind == auth.KindAgent && cl.Super) {
-			fail(c, errs.ErrForbidden)
+			Abort(c, errs.ErrForbidden)
 			return
 		}
 		c.Next()
 	}
 }
 
-func claims(c *gin.Context) auth.Claims {
+// Claims returns the claims that Authenticate stored.
+func Claims(c *gin.Context) auth.Claims {
 	v, _ := c.Get(claimsKey)
 	cl, _ := v.(auth.Claims)
 	return cl
 }
 
-func actor(c *gin.Context) model.Actor { return claims(c).Actor() }
+// Actor returns the identity of the caller.
+func Actor(c *gin.Context) model.Actor { return Claims(c).Actor() }
