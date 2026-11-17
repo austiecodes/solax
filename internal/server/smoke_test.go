@@ -93,7 +93,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 		Env: func(e protocol.SessionEnsure) map[string]string {
 			return map[string]string{"SOLAX_SERVER": srv.URL, "SOLAX_TOKEN": e.AgentToken, "SOLAX_JOB": e.Job}
 		},
-		MaxSlots: 4, Sink: cn, Log: log,
+		MaxSlots: 4, Send: cn.Send, Log: log,
 	})
 	go cn.Run(ctx)
 	go r.client.Stream(ctx, func(p protocol.Push) {

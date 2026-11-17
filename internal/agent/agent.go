@@ -32,12 +32,6 @@ type Session interface {
 	Close(ctx context.Context) error
 }
 
-// Decoder translates native records into IR events. Each runtime has one.
-// It has no I/O, so golden tests can replay recorded transcripts through it.
-type Decoder interface {
-	Decode(record []byte) ([]ir.Event, error)
-}
-
 // SessionSpec describes a session to start.
 type SessionSpec struct {
 	SessionID    string         // Solax ses_ ID

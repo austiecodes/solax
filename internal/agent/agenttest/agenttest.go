@@ -12,12 +12,18 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/austiecodes/solax/internal/agent"
 	"github.com/austiecodes/solax/internal/agent/framing"
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
 var update = flag.Bool("update", false, "rewrite golden IR files")
+
+// Decoder translates native records into IR events. The decoder of each
+// runtime has no I/O, so a test can replay a recorded transcript through
+// it.
+type Decoder interface {
+	Decode(record []byte) ([]ir.Event, error)
+}
 
 // Transcript returns the path of a transcript under testdata/transcripts
 // at the repository root.
@@ -30,7 +36,7 @@ func Transcript(kind ir.Kind, name string) string {
 // Decode replays a transcript through d and returns the IR events. A
 // decoder with NoteInput is told about one input first, as a session does
 // before it writes the prompt.
-func Decode(t *testing.T, d agent.Decoder, path string) []ir.Event {
+func Decode(t *testing.T, d Decoder, path string) []ir.Event {
 	t.Helper()
 	f, err := os.Open(path)
 	if err != nil {
@@ -62,7 +68,7 @@ func Decode(t *testing.T, d agent.Decoder, path string) []ir.Event {
 // Replay decodes the transcript at path and compares the IR with the
 // golden file next to it (<path>.ir.json). With -update, it writes the
 // golden file. It returns the events for further checks.
-func Replay(t *testing.T, d agent.Decoder, path string) []ir.Event {
+func Replay(t *testing.T, d Decoder, path string) []ir.Event {
 	t.Helper()
 	evs := Decode(t, d, path)
 	got, err := json.MarshalIndent(evs, "", "  ")

@@ -301,5 +301,3 @@ func (d *Decoder) settled(r record) []ir.Event {
 	}
 	return out
 }
-
-var _ agent.Decoder = (*Decoder)(nil)

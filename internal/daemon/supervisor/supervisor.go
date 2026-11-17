@@ -35,13 +35,9 @@ type Config struct {
 	// Dir resolves the work folder of an agent, for example "~/src".
 	Dir      func(string) string
 	MaxSlots int
-	Sink     Sink
-	Log      *slog.Logger
-}
-
-// Sink receives records for the server.
-type Sink interface {
-	Send(ctx context.Context, env protocol.Envelope) error
+	// Send sends a record to the server.
+	Send func(ctx context.Context, env protocol.Envelope) error
+	Log  *slog.Logger
 }
 
 // Supervisor runs sessions.
@@ -324,7 +320,7 @@ func (s *Supervisor) pump(r *running) {
 		if !e.Type.Reliable() {
 			ch = protocol.ChannelLive
 		}
-		if err := s.cfg.Sink.Send(s.base, envelope(protocol.TypeSessionEvent, protocol.SessionEvent{Channel: ch, Event: e})); err != nil {
+		if err := s.cfg.Send(s.base, envelope(protocol.TypeSessionEvent, protocol.SessionEvent{Channel: ch, Event: e})); err != nil {
 			s.cfg.Log.Warn("event not queued", "session", r.id, "err", err)
 		}
 	}
@@ -406,7 +402,7 @@ func (s *Supervisor) get(id string) *running {
 }
 
 func (s *Supervisor) report(r protocol.SessionStateReport) {
-	_ = s.cfg.Sink.Send(s.base, envelope(protocol.TypeSessionState, r))
+	_ = s.cfg.Send(s.base, envelope(protocol.TypeSessionState, r))
 }
 
 func envelope(t protocol.MessageType, v any) protocol.Envelope {

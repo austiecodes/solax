@@ -265,5 +265,3 @@ func changeOp(raw json.RawMessage) string {
 	}
 	return "modify"
 }
-
-var _ agent.Decoder = (*Decoder)(nil)

@@ -297,5 +297,3 @@ func (s *session) run() {
 	s.em.Emit(append(tail, agent.SessionExited(ref, code, proc.LastLine(s.p.StderrTail())))...)
 	s.em.Close()
 }
-
-var _ agent.Runtime = (*Runtime)(nil)

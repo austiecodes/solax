@@ -312,5 +312,3 @@ func (d *Decoder) system(r record) []ir.Event {
 	}
 	return nil
 }
-
-var _ agent.Decoder = (*Decoder)(nil)

@@ -67,7 +67,7 @@ func TestDeliverModes(t *testing.T) {
 		Reply: func(_ agent.SessionSpec, text string) string { return "re: " + text }}
 	sk := &sink{}
 	ctx := context.Background()
-	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 1, Sink: sk})
+	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 1, Send: sk.Send})
 
 	ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Runtime: ir.KindClaude, Dir: "/x"}
 	if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
@@ -121,7 +121,7 @@ func TestDeliverModes(t *testing.T) {
 func TestEvictIdle(t *testing.T) {
 	fake := &agenttest.FakeRuntime{KindV: ir.KindClaude, TurnDelay: time.Second}
 	ctx := context.Background()
-	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 2, Sink: &sink{}})
+	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 2, Send: (&sink{}).Send})
 	ensure := func(id string, role protocol.SessionRole) protocol.Ack {
 		return s.Handle(ctx, cmd(protocol.TypeSessionEnsure, protocol.SessionEnsure{SessionID: id, Role: role, Runtime: ir.KindClaude}))
 	}
@@ -188,7 +188,7 @@ func TestEventSeqContinues(t *testing.T) {
 	// A new daemon process resumes a session whose events the server
 	// holds up to seq 50.
 	sk := &sink{}
-	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 1, Sink: sk})
+	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 1, Send: sk.Send})
 	run(s, sk, 50, "one")
 	first := seqs(sk)
 	increasing(first, 50)

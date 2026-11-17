@@ -119,7 +119,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		Env:      d.sessionEnv,
 		Dir:      localconfig.ExpandHome,
 		MaxSlots: d.config().Machine.MaxSessions,
-		Sink:     d.conn,
+		Send:     d.conn.Send,
 		Log:      d.log,
 	})
 
