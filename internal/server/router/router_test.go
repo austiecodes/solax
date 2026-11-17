@@ -40,9 +40,9 @@ func TestTopologyOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer model.Close()
-	tokens := auth.NewTokens([]byte("secret"))
+	auth.SetSecret([]byte("secret"))
 	// The service functions keep their defaults: no daemon is connected.
-	srv := httptest.NewServer(router.New(tokens, http.NotFoundHandler(), stream.New()))
+	srv := httptest.NewServer(router.New(http.NotFoundHandler(), stream.New()))
 	defer srv.Close()
 
 	// Bootstrap, as "solax server init" does.
@@ -50,7 +50,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, _, err := tokens.CreateClient(ctx, "", "test")
+	token, _, err := auth.CreateClient(ctx, "", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	if err != nil || reg.State != protocol.MachineApproved {
 		t.Fatalf("register = %+v, %v", reg, err)
 	}
-	cl, err := tokens.Verify(ctx, machineToken)
+	cl, err := auth.Verify(ctx, machineToken)
 	if err != nil || cl.Kind != auth.KindMachine || string(cl.Subject) != reg.MachineID {
 		t.Fatalf("machine claims = %+v, %v", cl, err)
 	}
@@ -82,7 +82,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	if err != nil || enr.State != protocol.MachinePending || enr.PairCode == "" {
 		t.Fatalf("enroll = %+v, %v", enr, err)
 	}
-	if _, err := tokens.Verify(ctx, otherToken); !errors.Is(err, errs.ErrForbidden) {
+	if _, err := auth.Verify(ctx, otherToken); !errors.Is(err, errs.ErrForbidden) {
 		t.Fatalf("pending machine verify = %v", err)
 	}
 	if _, err := c.ApproveMachine(ctx, enr.PairCode); err != nil {
@@ -119,7 +119,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	}
 
 	// A worker agent token reads, but cannot dispatch or manage.
-	agentToken, err := tokens.IssueToken(ctx, model.TokenRequest{OwnerID: owner.ID, AgentID: model.ID(agents[0].ID), Job: "job_1"})
+	agentToken, err := auth.IssueToken(ctx, model.TokenRequest{OwnerID: owner.ID, AgentID: model.ID(agents[0].ID), Job: "job_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,16 +148,16 @@ func TestTopologyOverHTTP(t *testing.T) {
 	if err := c.RevokeMachine(ctx, reg.MachineID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tokens.Verify(ctx, machineToken); !errors.Is(err, errs.ErrForbidden) {
+	if _, err := auth.Verify(ctx, machineToken); !errors.Is(err, errs.ErrForbidden) {
 		t.Fatalf("revoked machine verify = %v", err)
 	}
 
 	// Revoking the client token locks the client out.
-	list, err := tokens.Clients(ctx, "")
+	list, err := auth.ListClients(ctx, "")
 	if err != nil || len(list) != 1 || list[0].LastUsed.IsZero() {
 		t.Fatalf("clients = %+v, %v", list, err)
 	}
-	if err := tokens.RevokeClient(ctx, list[0].ID); err != nil {
+	if err := auth.RevokeClient(ctx, list[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	if code := status(t, c.Ping(ctx)); code != http.StatusUnauthorized {

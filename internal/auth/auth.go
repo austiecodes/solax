@@ -98,37 +98,35 @@ func (c Claims) Actor() model.Actor {
 	return a
 }
 
-// Tokens verifies the tokens of Solax and creates client and agent tokens:
-// hash lookups for client and machine tokens, HMAC-signed agent tokens.
-type Tokens struct {
-	secret []byte // signs agent tokens
-}
+// secret signs agent tokens. Without it, agent tokens are unavailable.
+var secret []byte
 
-// NewTokens returns a Tokens. Client and machine tokens are looked up in
-// the model database.
-func NewTokens(secret []byte) *Tokens { return &Tokens{secret: secret} }
+// SetSecret sets the secret that signs agent tokens. The server calls it
+// once at start, before it serves. Client and machine tokens need no
+// secret: they are looked up by hash in the model database.
+func SetSecret(s []byte) { secret = s }
 
 // Verify returns the claims of a token. A machine that is not approved
 // gives errs.ErrForbidden.
-func (t *Tokens) Verify(ctx context.Context, token string) (Claims, error) {
+func Verify(ctx context.Context, token string) (Claims, error) {
 	kind, ok := KindOf(token)
 	if !ok {
 		return Claims{}, errs.ErrUnauthorized
 	}
 	switch kind {
 	case KindClient:
-		return t.verifyClient(ctx, token)
+		return verifyClient(ctx, token)
 	case KindMachine:
-		return t.verifyMachine(ctx, token)
+		return verifyMachine(ctx, token)
 	default:
-		return t.verifyAgent(token)
+		return verifyAgent(token)
 	}
 }
 
 // CreateClient creates a client token. It returns the token once; the
 // server keeps only its hash. "solax server token create" calls it.
 // An empty ownerID means the default owner.
-func (t *Tokens) CreateClient(ctx context.Context, ownerID model.ID, name string) (string, model.ClientToken, error) {
+func CreateClient(ctx context.Context, ownerID model.ID, name string) (string, model.ClientToken, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", model.ClientToken{}, fmt.Errorf("%w: a token needs a name", errs.ErrInvalid)
@@ -157,7 +155,7 @@ func (t *Tokens) CreateClient(ctx context.Context, ownerID model.ID, name string
 }
 
 // RevokeClient makes a client token invalid.
-func (t *Tokens) RevokeClient(ctx context.Context, id model.ID) error {
+func RevokeClient(ctx context.Context, id model.ID) error {
 	ct, err := model.GetClient(ctx, model.ReadDB, id)
 	if err != nil {
 		return err
@@ -169,9 +167,9 @@ func (t *Tokens) RevokeClient(ctx context.Context, id model.ID) error {
 	return model.SaveClient(ctx, model.WriteDB, ct)
 }
 
-// Clients lists the client tokens of an owner. An empty ownerID means the
+// ListClients lists the client tokens of an owner. An empty ownerID means the
 // default owner.
-func (t *Tokens) Clients(ctx context.Context, ownerID model.ID) ([]model.ClientToken, error) {
+func ListClients(ctx context.Context, ownerID model.ID) ([]model.ClientToken, error) {
 	if ownerID == "" {
 		var err error
 		if ownerID, err = model.GetDefaultOwner(ctx, model.ReadDB); err != nil {
@@ -187,12 +185,12 @@ const sessionTTL = 6 * time.Hour
 
 // IssueToken issues the agent token of one session. The service reaches it
 // through service.IssueToken.
-func (t *Tokens) IssueToken(ctx context.Context, r model.TokenRequest) (string, error) {
+func IssueToken(ctx context.Context, r model.TokenRequest) (string, error) {
 	ttl := r.TTL
 	if ttl <= 0 {
 		ttl = sessionTTL
 	}
-	return t.signAgent(Claims{
+	return signAgent(Claims{
 		Kind:      KindAgent,
 		Subject:   r.AgentID,
 		OwnerID:   r.OwnerID,
@@ -216,8 +214,8 @@ type agentClaims struct {
 
 // signAgent returns "sxa_<claims>.<hmac>", both parts base64url without
 // padding. The HMAC covers the claims part as it appears in the token.
-func (t *Tokens) signAgent(c Claims) (string, error) {
-	if len(t.secret) == 0 {
+func signAgent(c Claims) (string, error) {
+	if len(secret) == 0 {
 		return "", errs.ErrUnavailable
 	}
 	body, err := json.Marshal(agentClaims{
@@ -228,11 +226,11 @@ func (t *Tokens) signAgent(c Claims) (string, error) {
 		return "", err
 	}
 	payload := base64.RawURLEncoding.EncodeToString(body)
-	return PrefixAgent + payload + "." + t.mac(payload), nil
+	return PrefixAgent + payload + "." + mac(payload), nil
 }
 
-func (t *Tokens) mac(payload string) string {
-	m := hmac.New(sha256.New, t.secret)
+func mac(payload string) string {
+	m := hmac.New(sha256.New, secret)
 	m.Write([]byte(payload))
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
@@ -242,7 +240,7 @@ func (t *Tokens) mac(payload string) string {
 const lastUsedEvery = time.Minute
 
 // verifyClient looks up the hash and rejects revoked tokens.
-func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error) {
+func verifyClient(ctx context.Context, token string) (Claims, error) {
 	ct, err := model.GetClientByHash(ctx, model.ReadDB, Hash(token))
 	if errors.Is(err, errs.ErrNotFound) || (err == nil && ct.Revoked) {
 		return Claims{}, errs.ErrUnauthorized
@@ -259,7 +257,7 @@ func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error)
 
 // verifyMachine looks up the hash on the machine record. Pending and
 // revoked machines give errs.ErrForbidden.
-func (t *Tokens) verifyMachine(ctx context.Context, token string) (Claims, error) {
+func verifyMachine(ctx context.Context, token string) (Claims, error) {
 	m, err := model.GetMachineByTokenHash(ctx, model.ReadDB, Hash(token))
 	if errors.Is(err, errs.ErrNotFound) {
 		return Claims{}, errs.ErrUnauthorized
@@ -278,15 +276,15 @@ func (t *Tokens) verifyMachine(ctx context.Context, token string) (Claims, error
 }
 
 // verifyAgent checks the HMAC and the expiry.
-func (t *Tokens) verifyAgent(token string) (Claims, error) {
-	if len(t.secret) == 0 {
+func verifyAgent(token string) (Claims, error) {
+	if len(secret) == 0 {
 		return Claims{}, errs.ErrUnauthorized
 	}
 	payload, sig, ok := strings.Cut(strings.TrimPrefix(token, PrefixAgent), ".")
 	if !ok || payload == "" || sig == "" {
 		return Claims{}, errs.ErrUnauthorized
 	}
-	if !hmac.Equal([]byte(sig), []byte(t.mac(payload))) {
+	if !hmac.Equal([]byte(sig), []byte(mac(payload))) {
 		return Claims{}, errs.ErrUnauthorized
 	}
 	body, err := base64.RawURLEncoding.DecodeString(payload)

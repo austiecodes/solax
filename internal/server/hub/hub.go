@@ -42,8 +42,7 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return
 
 // Hub holds one connection for each online machine.
 type Hub struct {
-	tokens *auth.Tokens
-	log    *slog.Logger
+	log *slog.Logger
 
 	mu     sync.RWMutex
 	conns  map[model.ID]*conn // the registered connection of each machine
@@ -69,11 +68,11 @@ type conn struct {
 }
 
 // New returns a Hub. It reports what daemons say to the service.
-func New(tokens *auth.Tokens, log *slog.Logger) *Hub {
+func New(log *slog.Logger) *Hub {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Hub{tokens: tokens, log: log, conns: map[model.ID]*conn{}, live: map[*conn]struct{}{}}
+	return &Hub{log: log, conns: map[model.ID]*conn{}, live: map[*conn]struct{}{}}
 }
 
 // ServeHTTP verifies the machine token (the daemon generated it; the server
@@ -82,7 +81,7 @@ func New(tokens *auth.Tokens, log *slog.Logger) *Hub {
 // "pending approval", and the daemon retries with backoff.
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	claims, err := h.tokens.Verify(r.Context(), token)
+	claims, err := auth.Verify(r.Context(), token)
 	switch {
 	case err == nil && claims.Kind == auth.KindMachine:
 	case errors.Is(err, errs.ErrForbidden):

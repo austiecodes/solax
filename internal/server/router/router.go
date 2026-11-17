@@ -16,7 +16,7 @@ import (
 
 // New returns the gin engine with all routes. daemon is the hub, mounted
 // at protocol.DaemonPath; st is the client stream, mounted at /v1/stream.
-func New(tokens *auth.Tokens, daemon http.Handler, st *stream.Stream) *gin.Engine {
+func New(daemon http.Handler, st *stream.Stream) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/healthz", func(c *gin.Context) { c.Status(http.StatusNoContent) })
@@ -28,7 +28,7 @@ func New(tokens *auth.Tokens, daemon http.Handler, st *stream.Stream) *gin.Engin
 	// token it generated, and waits for approval. Rate-limited per address.
 	r.POST("/v1/machines/enroll", middleware.RateLimit(), controller.EnrollMachine)
 
-	v1 := r.Group("/v1", middleware.Authenticate(tokens))
+	v1 := r.Group("/v1", middleware.Authenticate())
 	v1.GET("/stream", middleware.RequireKind(auth.KindClient), func(c *gin.Context) {
 		st.Serve(c.Writer, c.Request, middleware.Actor(c).OwnerID)
 	})

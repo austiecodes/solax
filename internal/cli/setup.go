@@ -9,10 +9,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/localconfig"
 	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/internal/server"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/internal/svc"
 	"github.com/austiecodes/solax/pkg/client"
 )
@@ -167,12 +169,11 @@ func localToken(ctx context.Context, p localconfig.Paths, f *serverFlags, url st
 		}
 		// Unknown (401) or revoked (403): create a new one.
 	}
-	admin, closeDB, err := f.admin(ctx)
-	if err != nil {
+	if err := f.openDB(ctx); err != nil {
 		return "", err
 	}
-	defer closeDB()
-	token, _, err := admin.CreateClient(ctx, "", localClientName)
+	defer model.Close()
+	token, _, err := auth.CreateClient(ctx, "", localClientName)
 	return token, err
 }
 

@@ -40,24 +40,14 @@ func Init(ctx context.Context, cfg Config, clientName string) (token string, err
 	if err != nil {
 		return "", err
 	}
-	token, _, err = auth.NewTokens(cfg.Secret).CreateClient(ctx, owner.ID, clientName)
+	token, _, err = auth.CreateClient(ctx, owner.ID, clientName)
 	return token, err
-}
-
-// Admin opens the database for "solax server token ..." commands. They
-// run on the server host and need no token.
-func Admin(ctx context.Context, cfg Config) (*auth.Tokens, func() error, error) {
-	if err := model.Open(ctx, cfg.DBPath); err != nil {
-		return nil, nil, err
-	}
-	return auth.NewTokens(cfg.Secret), model.Close, nil
 }
 
 // App is the assembled server: the HTTP handler and its delivery loop.
 // Serve serves it; tests serve its Handler with httptest.
 type App struct {
 	Handler http.Handler
-	Tokens  *auth.Tokens
 	hub     *hub.Hub
 	loop    *delivery.Loop
 }
@@ -65,19 +55,18 @@ type App struct {
 // New assembles the server and sets the service functions. The model
 // database must be open.
 func New(secret []byte, log *slog.Logger) *App {
-	tokens := auth.NewTokens(secret)
-	h := hub.New(tokens, log)
+	auth.SetSecret(secret)
+	h := hub.New(log)
 	st := stream.New()
 	loop := delivery.New(h, log)
 
 	service.Send, service.Online, service.Disconnect = h.Send, h.Online, h.Disconnect
 	service.Publish = st.Publish
-	service.IssueToken = tokens.IssueToken
+	service.IssueToken = auth.IssueToken
 	service.Wake = loop.Kick
 
 	return &App{
-		Handler: router.New(tokens, h, st),
-		Tokens:  tokens,
+		Handler: router.New(h, st),
 		hub:     h,
 		loop:    loop,
 	}

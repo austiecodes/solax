@@ -10,11 +10,18 @@ import (
 	"github.com/austiecodes/solax/internal/server/model"
 )
 
+// withSecret sets the signing secret for one test.
+func withSecret(t *testing.T, s string) {
+	old := secret
+	SetSecret([]byte(s))
+	t.Cleanup(func() { SetSecret(old) })
+}
+
 func TestAgentTokenRoundTrip(t *testing.T) {
-	s := NewTokens([]byte("test-secret"))
+	withSecret(t, "test-secret")
 	ctx := context.Background()
 
-	token, err := s.IssueToken(ctx, model.TokenRequest{
+	token, err := IssueToken(ctx, model.TokenRequest{
 		OwnerID:   "own_1",
 		AgentID:   "agt_1",
 		SessionID: "ses_1",
@@ -26,7 +33,7 @@ func TestAgentTokenRoundTrip(t *testing.T) {
 	if !strings.HasPrefix(token, PrefixAgent) {
 		t.Fatalf("token %q lacks prefix %q", token, PrefixAgent)
 	}
-	cl, err := s.Verify(ctx, token)
+	cl, err := Verify(ctx, token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,9 +46,9 @@ func TestAgentTokenRoundTrip(t *testing.T) {
 }
 
 func TestAgentTokenTampered(t *testing.T) {
-	s := NewTokens([]byte("test-secret"))
+	withSecret(t, "test-secret")
 	ctx := context.Background()
-	token, err := s.IssueToken(ctx, model.TokenRequest{AgentID: "agt_1", Job: "job_1"})
+	token, err := IssueToken(ctx, model.TokenRequest{AgentID: "agt_1", Job: "job_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,33 +57,36 @@ func TestAgentTokenTampered(t *testing.T) {
 
 	// A rewritten payload with the old signature.
 	forged := PrefixAgent + payload[:len(payload)-1] + "A." + sig
-	if _, err := s.Verify(ctx, forged); err == nil {
+	if _, err := Verify(ctx, forged); err == nil {
 		t.Fatal("a forged claims part was accepted")
 	}
 	// A token signed with another secret.
-	other, err := NewTokens([]byte("other-secret")).IssueToken(ctx, model.TokenRequest{AgentID: "agt_1"})
+	SetSecret([]byte("other-secret"))
+	other, err := IssueToken(ctx, model.TokenRequest{AgentID: "agt_1"})
+	SetSecret([]byte("test-secret"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Verify(ctx, other); err == nil {
+	if _, err := Verify(ctx, other); err == nil {
 		t.Fatal("a token of another secret was accepted")
 	}
 }
 
 func TestAgentTokenExpired(t *testing.T) {
-	s := NewTokens([]byte("test-secret"))
-	token, err := s.IssueToken(context.Background(), model.TokenRequest{AgentID: "agt_1", TTL: time.Millisecond})
+	withSecret(t, "test-secret")
+	token, err := IssueToken(context.Background(), model.TokenRequest{AgentID: "agt_1", TTL: time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(5 * time.Millisecond)
-	if _, err := s.Verify(context.Background(), token); err == nil {
+	if _, err := Verify(context.Background(), token); err == nil {
 		t.Fatal("an expired token was accepted")
 	}
 }
 
 func TestIssueWithoutSecret(t *testing.T) {
-	if _, err := NewTokens(nil).IssueToken(context.Background(), model.TokenRequest{}); err != errs.ErrUnavailable {
+	withSecret(t, "")
+	if _, err := IssueToken(context.Background(), model.TokenRequest{}); err != errs.ErrUnavailable {
 		t.Fatalf("err = %v, want ErrUnavailable", err)
 	}
 }

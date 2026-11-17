@@ -268,12 +268,11 @@ func serverTokenCmd(f *serverFlags) *cobra.Command {
 		Use:   "create",
 		Short: T("Create a client token for one CLI or desktop app"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			admin, closeDB, err := f.admin(cmd.Context())
-			if err != nil {
+			if err := f.openDB(cmd.Context()); err != nil {
 				return err
 			}
-			defer closeDB()
-			token, _, err := admin.CreateClient(cmd.Context(), "", name)
+			defer model.Close()
+			token, _, err := auth.CreateClient(cmd.Context(), "", name)
 			if err != nil {
 				return err
 			}
@@ -288,12 +287,11 @@ func serverTokenCmd(f *serverFlags) *cobra.Command {
 		Use:   "list",
 		Short: T("List client tokens"),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			admin, closeDB, err := f.admin(cmd.Context())
-			if err != nil {
+			if err := f.openDB(cmd.Context()); err != nil {
 				return err
 			}
-			defer closeDB()
-			ts, err := admin.Clients(cmd.Context(), "")
+			defer model.Close()
+			ts, err := auth.ListClients(cmd.Context(), "")
 			if err != nil {
 				return err
 			}
@@ -315,12 +313,11 @@ func serverTokenCmd(f *serverFlags) *cobra.Command {
 		Short: T("Revoke a client token"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			admin, closeDB, err := f.admin(cmd.Context())
-			if err != nil {
+			if err := f.openDB(cmd.Context()); err != nil {
 				return err
 			}
-			defer closeDB()
-			return admin.RevokeClient(cmd.Context(), model.ID(args[0]))
+			defer model.Close()
+			return auth.RevokeClient(cmd.Context(), model.ID(args[0]))
 		},
 	}
 
@@ -334,12 +331,13 @@ func printToken(cmd *cobra.Command, token string) {
 	fmt.Fprintln(cmd.ErrOrStderr(), T("  solax set backend --url URL --token-stdin"))
 }
 
-// admin opens the database for the token commands.
-func (f *serverFlags) admin(ctx context.Context) (*auth.Tokens, func() error, error) {
+// openDB opens the database for the token commands, which run on the
+// server host and need no token. The caller closes it with model.Close.
+func (f *serverFlags) openDB(ctx context.Context) error {
 	if err := f.open(); err != nil {
-		return nil, nil, err
+		return err
 	}
-	return server.Admin(ctx, f.cfg)
+	return model.Open(ctx, f.cfg.DBPath)
 }
 
 // errSilent makes the command fail without a message. The command printed
