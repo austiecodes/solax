@@ -12,11 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/server/api"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/internal/server/stream"
-	"github.com/austiecodes/solax/internal/store/sqlite"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
@@ -24,11 +24,11 @@ import (
 
 type nopDispatcher struct{}
 
-func (nopDispatcher) Send(context.Context, core.ID, protocol.Envelope) (protocol.Ack, error) {
+func (nopDispatcher) Send(context.Context, model.ID, protocol.Envelope) (protocol.Ack, error) {
 	return protocol.Ack{}, errs.ErrUnavailable
 }
-func (nopDispatcher) Online(core.ID) bool { return false }
-func (nopDispatcher) Disconnect(core.ID)  {}
+func (nopDispatcher) Online(model.ID) bool { return false }
+func (nopDispatcher) Disconnect(model.ID)  {}
 
 func status(t *testing.T, err error) int {
 	t.Helper()
@@ -44,13 +44,12 @@ func status(t *testing.T, err error) int {
 func TestTopologyOverHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx := context.Background()
-	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "solax.db"))
-	if err != nil {
+	if err := model.Open(ctx, filepath.Join(t.TempDir(), "solax.db")); err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
-	tokens := auth.NewTokens(store, []byte("secret"))
-	eng := core.NewEngine(core.Config{Store: store, Dispatcher: nopDispatcher{}, Tokens: tokens})
+	defer model.Close()
+	tokens := auth.NewTokens([]byte("secret"))
+	eng := engine.New(engine.Config{Dispatcher: nopDispatcher{}, Tokens: tokens})
 	srv := httptest.NewServer(api.NewRouter(api.Config{
 		Engine: eng, Tokens: tokens,
 		Daemon: http.NotFoundHandler(), Stream: stream.New(),
@@ -103,7 +102,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 
 	// The daemon of "mac" connects and reports its agent CLIs; a person
 	// sets up the agents.
-	if err := eng.MachineConnected(ctx, core.ID(reg.MachineID), protocol.Hello{Runtimes: []protocol.RuntimeProbe{
+	if err := eng.MachineConnected(ctx, model.ID(reg.MachineID), protocol.Hello{Runtimes: []protocol.RuntimeProbe{
 		{Kind: ir.KindClaude, OK: true}, {Kind: ir.KindCodex, OK: true}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +130,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	}
 
 	// A worker agent token reads, but cannot dispatch or manage.
-	agentToken, err := tokens.IssueToken(ctx, core.TokenRequest{OwnerID: owner.ID, AgentID: core.ID(agents[0].ID), Job: "job_1"})
+	agentToken, err := tokens.IssueToken(ctx, model.TokenRequest{OwnerID: owner.ID, AgentID: model.ID(agents[0].ID), Job: "job_1"})
 	if err != nil {
 		t.Fatal(err)
 	}

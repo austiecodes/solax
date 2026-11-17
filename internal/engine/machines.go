@@ -1,11 +1,14 @@
-package core
+package engine
 
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/austiecodes/solax/internal/server/model"
 
 	"github.com/austiecodes/solax/internal/errs"
 )
@@ -13,32 +16,32 @@ import (
 // RegisterMachine adds an approved machine with the hash of the token that
 // the machine generated. A client calls it from the machine itself. A retry
 // with the same hash returns the same machine.
-func (e *Engine) RegisterMachine(ctx context.Context, a Actor, name, tokenHash string) (Machine, error) {
+func (e *Engine) RegisterMachine(ctx context.Context, a model.Actor, name, tokenHash string) (model.Machine, error) {
 	if err := requireHuman(a); err != nil {
-		return Machine{}, err
+		return model.Machine{}, err
 	}
 	if err := validMachine(name, tokenHash); err != nil {
-		return Machine{}, err
+		return model.Machine{}, err
 	}
-	var m Machine
-	err := e.store.Atomic(ctx, func(tx Tx) error {
-		existing, err := tx.MachineByTokenHash(ctx, tokenHash)
+	var m model.Machine
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
+		existing, err := model.GetMachineByTokenHash(ctx, tx, tokenHash)
 		switch {
 		case err == nil:
-			if existing.OwnerID != a.OwnerID || existing.State == MachineRevoked {
+			if existing.OwnerID != a.OwnerID || existing.State == model.MachineRevoked {
 				return fmt.Errorf("%w: token already used", errs.ErrConflict)
 			}
 			// A retry, or a pending machine that its owner registers directly.
-			existing.State, existing.PairCode, existing.PairUntil = MachineApproved, "", zeroTime
+			existing.State, existing.PairCode, existing.PairUntil = model.MachineApproved, "", zeroTime
 			existing.Name = name
 			m = existing
 		case errors.Is(err, errs.ErrNotFound):
-			m = Machine{ID: NewIDAt(PrefixMachine, e.clock()), OwnerID: a.OwnerID, Name: name,
-				State: MachineApproved, TokenHash: tokenHash}
+			m = model.Machine{ID: model.NewIDAt(model.PrefixMachine, e.clock()), OwnerID: a.OwnerID, Name: name,
+				State: model.MachineApproved, TokenHash: tokenHash}
 		default:
 			return err
 		}
-		return tx.SaveMachine(ctx, m)
+		return model.SaveMachine(ctx, tx, m)
 	})
 	return m, err
 }
@@ -46,23 +49,23 @@ func (e *Engine) RegisterMachine(ctx context.Context, a Actor, name, tokenHash s
 // EnrollMachine creates a pending machine with a pairing code that is
 // valid for PairTTL. The same token hash enrolls once; a retry returns the
 // same machine and code.
-func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (Machine, error) {
+func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (model.Machine, error) {
 	if err := validMachine(name, tokenHash); err != nil {
-		return Machine{}, err
+		return model.Machine{}, err
 	}
-	var m Machine
-	err := e.store.Atomic(ctx, func(tx Tx) error {
-		owners, err := tx.Owners(ctx)
+	var m model.Machine
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
+		owners, err := model.ListOwners(ctx, tx)
 		if err != nil {
 			return err
 		}
 		if len(owners) == 0 {
 			return fmt.Errorf("%w: server not initialised", errs.ErrUnavailable)
 		}
-		existing, err := tx.MachineByTokenHash(ctx, tokenHash)
+		existing, err := model.GetMachineByTokenHash(ctx, tx, tokenHash)
 		switch {
 		case err == nil:
-			if existing.State != MachinePending {
+			if existing.State != model.MachinePending {
 				m = existing // approved: nothing to do; revoked: stays revoked
 				return nil
 			}
@@ -70,63 +73,63 @@ func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (Mac
 				m = existing
 				return nil
 			}
-			existing.PairCode, existing.PairUntil = newPairCode(), e.clock().Add(PairTTL)
+			existing.PairCode, existing.PairUntil = newPairCode(), e.clock().Add(model.PairTTL)
 			m = existing
 		case errors.Is(err, errs.ErrNotFound):
-			m = Machine{ID: NewIDAt(PrefixMachine, e.clock()), OwnerID: owners[0].ID, Name: name,
-				State: MachinePending, TokenHash: tokenHash, PairCode: newPairCode(), PairUntil: e.clock().Add(PairTTL)}
+			m = model.Machine{ID: model.NewIDAt(model.PrefixMachine, e.clock()), OwnerID: owners[0].ID, Name: name,
+				State: model.MachinePending, TokenHash: tokenHash, PairCode: newPairCode(), PairUntil: e.clock().Add(model.PairTTL)}
 		default:
 			return err
 		}
-		return tx.SaveMachine(ctx, m)
+		return model.SaveMachine(ctx, tx, m)
 	})
 	return m, err
 }
 
 // ApproveMachine approves a pending machine by its pairing code.
-func (e *Engine) ApproveMachine(ctx context.Context, a Actor, code string) (Machine, error) {
+func (e *Engine) ApproveMachine(ctx context.Context, a model.Actor, code string) (model.Machine, error) {
 	if err := requireHuman(a); err != nil {
-		return Machine{}, err
+		return model.Machine{}, err
 	}
 	code = normPairCode(code)
 	if code == "" {
-		return Machine{}, fmt.Errorf("%w: empty pairing code", errs.ErrInvalid)
+		return model.Machine{}, fmt.Errorf("%w: empty pairing code", errs.ErrInvalid)
 	}
-	var m Machine
-	err := e.store.Atomic(ctx, func(tx Tx) error {
+	var m model.Machine
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		var err error
-		m, err = tx.MachineByPairCode(ctx, code)
+		m, err = model.GetMachineByPairCode(ctx, tx, code)
 		if err != nil {
 			return err
 		}
 		if err := owned(a, m.OwnerID); err != nil {
 			return err
 		}
-		if m.State != MachinePending || !e.clock().Before(m.PairUntil) {
+		if m.State != model.MachinePending || !e.clock().Before(m.PairUntil) {
 			return fmt.Errorf("%w: pairing code expired", errs.ErrNotFound)
 		}
-		m.State, m.PairCode, m.PairUntil = MachineApproved, "", zeroTime
-		return tx.SaveMachine(ctx, m)
+		m.State, m.PairCode, m.PairUntil = model.MachineApproved, "", zeroTime
+		return model.SaveMachine(ctx, tx, m)
 	})
 	return m, err
 }
 
 // RevokeMachine makes the token of a machine invalid and closes its
 // connection. Its sessions end with the connection.
-func (e *Engine) RevokeMachine(ctx context.Context, a Actor, machineID ID) error {
+func (e *Engine) RevokeMachine(ctx context.Context, a model.Actor, machineID model.ID) error {
 	if err := requireHuman(a); err != nil {
 		return err
 	}
-	err := e.store.Atomic(ctx, func(tx Tx) error {
-		m, err := tx.Machine(ctx, machineID)
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
+		m, err := model.GetMachine(ctx, tx, machineID)
 		if err != nil {
 			return err
 		}
 		if err := owned(a, m.OwnerID); err != nil {
 			return err
 		}
-		m.State, m.Online, m.PairCode, m.PairUntil = MachineRevoked, false, "", zeroTime
-		return tx.SaveMachine(ctx, m)
+		m.State, m.Online, m.PairCode, m.PairUntil = model.MachineRevoked, false, "", zeroTime
+		return model.SaveMachine(ctx, tx, m)
 	})
 	if err != nil {
 		return err

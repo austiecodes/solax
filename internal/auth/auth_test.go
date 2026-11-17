@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 )
 
 func TestAgentTokenRoundTrip(t *testing.T) {
-	s := NewTokens(nil, []byte("test-secret"))
+	s := NewTokens([]byte("test-secret"))
 	ctx := context.Background()
 
-	token, err := s.IssueToken(ctx, core.TokenRequest{
+	token, err := s.IssueToken(ctx, model.TokenRequest{
 		OwnerID:   "own_1",
 		AgentID:   "agt_1",
 		SessionID: "ses_1",
@@ -39,9 +39,9 @@ func TestAgentTokenRoundTrip(t *testing.T) {
 }
 
 func TestAgentTokenTampered(t *testing.T) {
-	s := NewTokens(nil, []byte("test-secret"))
+	s := NewTokens([]byte("test-secret"))
 	ctx := context.Background()
-	token, err := s.IssueToken(ctx, core.TokenRequest{AgentID: "agt_1", Job: "job_1"})
+	token, err := s.IssueToken(ctx, model.TokenRequest{AgentID: "agt_1", Job: "job_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestAgentTokenTampered(t *testing.T) {
 		t.Fatal("a forged claims part was accepted")
 	}
 	// A token signed with another secret.
-	other, err := NewTokens(nil, []byte("other-secret")).IssueToken(ctx, core.TokenRequest{AgentID: "agt_1"})
+	other, err := NewTokens([]byte("other-secret")).IssueToken(ctx, model.TokenRequest{AgentID: "agt_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,8 +64,8 @@ func TestAgentTokenTampered(t *testing.T) {
 }
 
 func TestAgentTokenExpired(t *testing.T) {
-	s := NewTokens(nil, []byte("test-secret"))
-	token, err := s.IssueToken(context.Background(), core.TokenRequest{AgentID: "agt_1", TTL: time.Millisecond})
+	s := NewTokens([]byte("test-secret"))
+	token, err := s.IssueToken(context.Background(), model.TokenRequest{AgentID: "agt_1", TTL: time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestAgentTokenExpired(t *testing.T) {
 }
 
 func TestIssueWithoutSecret(t *testing.T) {
-	if _, err := NewTokens(nil, nil).IssueToken(context.Background(), core.TokenRequest{}); err != errs.ErrUnavailable {
+	if _, err := NewTokens(nil).IssueToken(context.Background(), model.TokenRequest{}); err != errs.ErrUnavailable {
 		t.Fatalf("err = %v, want ErrUnavailable", err)
 	}
 }

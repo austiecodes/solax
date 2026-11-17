@@ -1,4 +1,4 @@
-// Package server builds the server process ("solax server run"): store,
+// Package server builds the server process ("solax server run"): database,
 // engine, hub, delivery loop, client stream and the gin router.
 package server
 
@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/server/api"
 	"github.com/austiecodes/solax/internal/server/delivery"
 	"github.com/austiecodes/solax/internal/server/hub"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/internal/server/stream"
-	"github.com/austiecodes/solax/internal/store/sqlite"
 )
 
 // Config configures the server.
@@ -32,44 +32,43 @@ type Config struct {
 // Init creates the owner and the first client token in a new database. It
 // prints the token once. "solax server init" calls it.
 func Init(ctx context.Context, cfg Config, clientName string) (token string, err error) {
-	store, err := sqlite.Open(ctx, cfg.DBPath)
+	if err := model.Open(ctx, cfg.DBPath); err != nil {
+		return "", err
+	}
+	defer model.Close()
+	owner, err := engine.New(engine.Config{}).InitOwner(ctx)
 	if err != nil {
 		return "", err
 	}
-	defer store.Close()
-	owner, err := core.NewEngine(core.Config{Store: store}).InitOwner(ctx)
-	if err != nil {
-		return "", err
-	}
-	token, _, err = auth.NewTokens(store, cfg.Secret).CreateClient(ctx, owner.ID, clientName)
+	token, _, err = auth.NewTokens(cfg.Secret).CreateClient(ctx, owner.ID, clientName)
 	return token, err
 }
 
 // Admin opens the database for "solax server token ..." commands. They
 // run on the server host and need no token.
 func Admin(ctx context.Context, cfg Config) (*auth.Tokens, func() error, error) {
-	store, err := sqlite.Open(ctx, cfg.DBPath)
-	if err != nil {
+	if err := model.Open(ctx, cfg.DBPath); err != nil {
 		return nil, nil, err
 	}
-	return auth.NewTokens(store, cfg.Secret), store.Close, nil
+	return auth.NewTokens(cfg.Secret), model.Close, nil
 }
 
 // App is the assembled server: the HTTP handler and its delivery loop.
 // Serve serves it; tests serve its Handler with httptest.
 type App struct {
 	Handler http.Handler
-	Engine  *core.Engine
+	Engine  *engine.Engine
 	Tokens  *auth.Tokens
+	hub     *hub.Hub
 	loop    *delivery.Loop
 }
 
-// New assembles the server on an open store.
-func New(store *sqlite.Store, secret []byte, log *slog.Logger) *App {
-	tokens := auth.NewTokens(store, secret)
+// New assembles the server. The model database must be open.
+func New(secret []byte, log *slog.Logger) *App {
+	tokens := auth.NewTokens(secret)
 	h := hub.New(tokens, log)
 	st := stream.New()
-	eng := core.NewEngine(core.Config{Store: store, Dispatcher: h, Notifier: st, Tokens: tokens})
+	eng := engine.New(engine.Config{Dispatcher: h, Notifier: st, Tokens: tokens})
 	h.SetEngine(eng)
 	loop := delivery.New(eng, h, log)
 	eng.OnWork(loop.Kick)
@@ -77,9 +76,14 @@ func New(store *sqlite.Store, secret []byte, log *slog.Logger) *App {
 		Handler: api.NewRouter(api.Config{Engine: eng, Tokens: tokens, Daemon: h, Stream: st}),
 		Engine:  eng,
 		Tokens:  tokens,
+		hub:     h,
 		loop:    loop,
 	}
 }
+
+// Close closes the daemon connections and waits for their handlers. Call
+// it after the HTTP server stops and before the database closes.
+func (a *App) Close() { a.hub.Close() }
 
 // Start runs the delivery loop until ctx ends. Its error goes to errc.
 func (a *App) Start(ctx context.Context, errc chan<- error) {
@@ -90,13 +94,12 @@ func (a *App) Start(ctx context.Context, errc chan<- error) {
 // The caller can listen first, so a busy port fails before the database
 // opens. cfg.Addr is not used.
 func Serve(ctx context.Context, cfg Config, ln net.Listener, log *slog.Logger) error {
-	store, err := sqlite.Open(ctx, cfg.DBPath)
-	if err != nil {
+	if err := model.Open(ctx, cfg.DBPath); err != nil {
 		ln.Close()
 		return err
 	}
-	defer store.Close()
-	app := New(store, cfg.Secret, log)
+	defer model.Close()
+	app := New(cfg.Secret, log)
 	srv := &http.Server{Handler: app.Handler, ReadHeaderTimeout: 10 * time.Second}
 
 	errc := make(chan error, 4)
@@ -107,13 +110,16 @@ func Serve(ctx context.Context, cfg Config, ln net.Listener, log *slog.Logger) e
 			errc <- err
 		}
 	}()
+	var err error
 	select {
 	case <-ctx.Done():
 	case err = <-errc:
 	}
 	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return errors.Join(err, srv.Shutdown(shutdown))
+	err = errors.Join(err, srv.Shutdown(shutdown))
+	app.Close()
+	return err
 }
 
 // LoadSecret returns the secret that signs agent tokens: the value of env

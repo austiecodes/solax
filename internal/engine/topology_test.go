@@ -1,4 +1,4 @@
-package core_test
+package engine_test
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/errs"
-	"github.com/austiecodes/solax/internal/store/sqlite"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -22,37 +22,36 @@ func (c *fakeClock) now() time.Time      { return c.t }
 func (c *fakeClock) add(d time.Duration) { c.t = c.t.Add(d) }
 
 // fakeDispatcher records disconnects.
-type fakeDispatcher struct{ disconnected []core.ID }
+type fakeDispatcher struct{ disconnected []model.ID }
 
-func (d *fakeDispatcher) Send(context.Context, core.ID, protocol.Envelope) (protocol.Ack, error) {
+func (d *fakeDispatcher) Send(context.Context, model.ID, protocol.Envelope) (protocol.Ack, error) {
 	return protocol.Ack{OK: true}, nil
 }
-func (d *fakeDispatcher) Online(core.ID) bool   { return false }
-func (d *fakeDispatcher) Disconnect(id core.ID) { d.disconnected = append(d.disconnected, id) }
+func (d *fakeDispatcher) Online(model.ID) bool   { return false }
+func (d *fakeDispatcher) Disconnect(id model.ID) { d.disconnected = append(d.disconnected, id) }
 
 type env struct {
-	eng   *core.Engine
-	store *sqlite.Store
+	eng   *engine.Engine
 	clock *fakeClock
 	disp  *fakeDispatcher
-	owner core.Owner
-	human core.Actor
+	owner model.Owner
+	human model.Actor
 }
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
 	ctx := context.Background()
-	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "solax.db"))
-	if err != nil {
+	if err := model.Open(ctx, filepath.Join(t.TempDir(), "solax.db")); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.Close() })
-	e := &env{store: store, clock: &fakeClock{t: time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)}, disp: &fakeDispatcher{}}
-	e.eng = core.NewEngine(core.Config{Store: store, Dispatcher: e.disp, Clock: e.clock.now})
+	t.Cleanup(func() { model.Close() })
+	e := &env{clock: &fakeClock{t: time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)}, disp: &fakeDispatcher{}}
+	e.eng = engine.New(engine.Config{Dispatcher: e.disp, Clock: e.clock.now})
+	var err error
 	if e.owner, err = e.eng.InitOwner(ctx); err != nil {
 		t.Fatal(err)
 	}
-	e.human = core.Actor{Kind: core.AuthorHuman, ID: "cli_1", OwnerID: e.owner.ID}
+	e.human = model.Actor{Kind: model.AuthorHuman, ID: "cli_1", OwnerID: e.owner.ID}
 	return e
 }
 
@@ -66,7 +65,7 @@ type agentDef struct {
 	Role    string
 }
 
-func (e *env) machine(t *testing.T, name string, h byte, agents ...agentDef) core.Machine {
+func (e *env) machine(t *testing.T, name string, h byte, agents ...agentDef) model.Machine {
 	t.Helper()
 	ctx := context.Background()
 	m, err := e.eng.RegisterMachine(ctx, e.human, name, hash(h))
@@ -77,7 +76,7 @@ func (e *env) machine(t *testing.T, name string, h byte, agents ...agentDef) cor
 		t.Fatal(err)
 	}
 	for _, a := range agents {
-		_, err := e.eng.CreateAgent(ctx, e.human, core.AgentSpec{
+		_, err := e.eng.CreateAgent(ctx, e.human, engine.AgentSpec{
 			Machine: string(m.ID), Name: a.Name, Runtime: a.Runtime, Dir: "/src", Super: a.Role == "super",
 		})
 		if err != nil {
@@ -108,7 +107,7 @@ func TestEnrollApproveRevoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.State != core.MachinePending || len(m.PairCode) != 9 || m.OwnerID != e.owner.ID {
+	if m.State != model.MachinePending || len(m.PairCode) != 9 || m.OwnerID != e.owner.ID {
 		t.Fatalf("enrolled = %+v", m)
 	}
 	// A retry keeps the identity and the code.
@@ -118,19 +117,19 @@ func TestEnrollApproveRevoke(t *testing.T) {
 	}
 
 	// Only a person approves; codes are case- and dash-insensitive.
-	agent := core.Actor{Kind: core.AuthorSuper, ID: "agt_s", OwnerID: e.owner.ID}
+	agent := model.Actor{Kind: model.AuthorSuper, ID: "agt_s", OwnerID: e.owner.ID}
 	_, err = e.eng.ApproveMachine(ctx, agent, m.PairCode)
 	is(t, err, errs.ErrForbidden)
 	loose := strings.ToLower(strings.ReplaceAll(m.PairCode, "-", ""))
 	approved, err := e.eng.ApproveMachine(ctx, e.human, loose)
-	if err != nil || approved.State != core.MachineApproved || approved.PairCode != "" {
+	if err != nil || approved.State != model.MachineApproved || approved.PairCode != "" {
 		t.Fatalf("approve = %+v, %v", approved, err)
 	}
 	_, err = e.eng.ApproveMachine(ctx, e.human, m.PairCode)
 	is(t, err, errs.ErrNotFound) // the code is used up
 
 	// Another owner cannot see it.
-	stranger := core.Actor{Kind: core.AuthorHuman, ID: "cli_x", OwnerID: "own_other"}
+	stranger := model.Actor{Kind: model.AuthorHuman, ID: "cli_x", OwnerID: "own_other"}
 	is(t, e.eng.RevokeMachine(ctx, stranger, m.ID), errs.ErrNotFound)
 
 	if err := e.eng.RevokeMachine(ctx, e.human, m.ID); err != nil {
@@ -141,7 +140,7 @@ func TestEnrollApproveRevoke(t *testing.T) {
 	}
 	// A revoked machine stays revoked, even when it enrolls again.
 	back, err := e.eng.EnrollMachine(ctx, "pi5", hash('a'))
-	if err != nil || back.State != core.MachineRevoked {
+	if err != nil || back.State != model.MachineRevoked {
 		t.Fatalf("re-enroll after revoke = %+v, %v", back, err)
 	}
 	is(t, e.eng.MachineConnected(ctx, m.ID, protocol.Hello{}), errs.ErrForbidden)
@@ -154,7 +153,7 @@ func TestPairCodeExpires(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.clock.add(core.PairTTL + time.Second)
+	e.clock.add(model.PairTTL + time.Second)
 	_, err = e.eng.ApproveMachine(ctx, e.human, m.PairCode)
 	is(t, err, errs.ErrNotFound)
 	// Enrolling again issues a fresh code.
@@ -168,12 +167,11 @@ func TestPairCodeExpires(t *testing.T) {
 }
 
 func TestEnrollBeforeInit(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "x.db"))
-	if err != nil {
+	if err := model.Open(context.Background(), filepath.Join(t.TempDir(), "x.db")); err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
-	_, err = core.NewEngine(core.Config{Store: store}).EnrollMachine(context.Background(), "m", hash('a'))
+	defer model.Close()
+	_, err := engine.New(engine.Config{}).EnrollMachine(context.Background(), "m", hash('a'))
 	is(t, err, errs.ErrUnavailable)
 }
 
@@ -207,7 +205,7 @@ func TestMachineConnectedStoresRuntimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = e.eng.CreateAgent(ctx, e.human, core.AgentSpec{Machine: "linux", Name: "backend", Runtime: ir.KindCodex, Dir: "/x"})
+	_, err = e.eng.CreateAgent(ctx, e.human, engine.AgentSpec{Machine: "linux", Name: "backend", Runtime: ir.KindCodex, Dir: "/x"})
 	is(t, err, errs.ErrConflict)
 	machines, _ := e.eng.Machines(ctx, e.human)
 	if len(machines) != 2 || other.Online {
@@ -235,7 +233,7 @@ func TestCreateAgentRuntimes(t *testing.T) {
 		t.Fatal(err)
 	}
 	add := func(name string, k ir.Kind) error {
-		_, err := e.eng.CreateAgent(ctx, e.human, core.AgentSpec{Machine: "mac", Name: name, Runtime: k, Dir: "~"})
+		_, err := e.eng.CreateAgent(ctx, e.human, engine.AgentSpec{Machine: "mac", Name: name, Runtime: k, Dir: "~"})
 		return err
 	}
 	if err := add("cc", ir.KindClaude); err != nil {
@@ -261,7 +259,7 @@ func TestScopesAndRecall(t *testing.T) {
 	if err != nil || len(views) != 2 {
 		t.Fatalf("agents = %+v, %v", views, err)
 	}
-	var backend core.AgentView
+	var backend engine.AgentView
 	for _, v := range views {
 		if v.Name == "backend" {
 			backend = v
@@ -269,7 +267,7 @@ func TestScopesAndRecall(t *testing.T) {
 	}
 
 	// A worker agent cannot manage or dispatch.
-	worker := core.Actor{Kind: core.AuthorAgent, ID: backend.ID, OwnerID: e.owner.ID}
+	worker := model.Actor{Kind: model.AuthorAgent, ID: backend.ID, OwnerID: e.owner.ID}
 	_, err = e.eng.Machines(ctx, worker)
 	is(t, err, errs.ErrForbidden)
 	_, err = e.eng.Dispatch(ctx, worker, "backend", "x")
@@ -288,7 +286,7 @@ func TestScopesAndRecall(t *testing.T) {
 	// The conversation is hidden from workers and other owners.
 	_, err = e.eng.Recall(ctx, worker, msg.ID)
 	is(t, err, errs.ErrNotFound)
-	stranger := core.Actor{Kind: core.AuthorHuman, OwnerID: "own_other"}
+	stranger := model.Actor{Kind: model.AuthorHuman, OwnerID: "own_other"}
 	_, err = e.eng.Recall(ctx, stranger, msg.ID)
 	is(t, err, errs.ErrNotFound)
 	_, err = e.eng.Recall(ctx, stranger, m.ID)

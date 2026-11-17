@@ -6,8 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -81,7 +82,7 @@ func (h *Handlers) approveMachine(c *gin.Context) {
 }
 
 func (h *Handlers) revokeMachine(c *gin.Context) {
-	reply(c, 0, nil, h.eng.RevokeMachine(c.Request.Context(), actor(c), core.ID(c.Param("machine"))))
+	reply(c, 0, nil, h.eng.RevokeMachine(c.Request.Context(), actor(c), model.ID(c.Param("machine"))))
 }
 
 func (h *Handlers) listAgents(c *gin.Context) {
@@ -94,7 +95,7 @@ func (h *Handlers) createAgent(c *gin.Context) {
 	if !bind(c, &r) {
 		return
 	}
-	ag, err := h.eng.CreateAgent(c.Request.Context(), actor(c), core.AgentSpec{
+	ag, err := h.eng.CreateAgent(c.Request.Context(), actor(c), engine.AgentSpec{
 		Machine: r.Machine, Name: r.Name, Description: r.Description, Instructions: r.Instructions, Runtime: r.Runtime,
 		Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
 	})
@@ -106,14 +107,14 @@ func (h *Handlers) updateAgent(c *gin.Context) {
 	if !bind(c, &r) {
 		return
 	}
-	ag, err := h.eng.UpdateAgent(c.Request.Context(), actor(c), c.Param("agent"), core.AgentPatch{
+	ag, err := h.eng.UpdateAgent(c.Request.Context(), actor(c), c.Param("agent"), engine.AgentPatch{
 		Description: r.Description, Instructions: r.Instructions, Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
 	})
 	h.replyAgent(c, http.StatusOK, ag, err)
 }
 
 // replyAgent answers with the agent as the list shows it, with its machine.
-func (h *Handlers) replyAgent(c *gin.Context, code int, ag core.Agent, err error) {
+func (h *Handlers) replyAgent(c *gin.Context, code int, ag model.Agent, err error) {
 	if err != nil {
 		fail(c, err)
 		return
@@ -125,7 +126,7 @@ func (h *Handlers) replyAgent(c *gin.Context, code int, ag core.Agent, err error
 			return
 		}
 	}
-	reply(c, code, wireAgent(core.AgentView{Agent: ag}), err)
+	reply(c, code, wireAgent(engine.AgentView{Agent: ag}), err)
 }
 
 func (h *Handlers) deleteAgent(c *gin.Context) {
@@ -157,11 +158,11 @@ func (h *Handlers) listJobs(c *gin.Context) {
 		return
 	}
 	names := h.agentNames(c)
-	reply(c, http.StatusOK, mapAll(js, func(j core.Job) protocol.Job { return core.WireJob(j, names[j.AgentID]) }), nil)
+	reply(c, http.StatusOK, mapAll(js, func(j model.Job) protocol.Job { return model.WireJob(j, names[j.AgentID]) }), nil)
 }
 
 func (h *Handlers) getJob(c *gin.Context) {
-	j, err := h.eng.Job(c.Request.Context(), actor(c), core.ID(c.Param("job")))
+	j, err := h.eng.Job(c.Request.Context(), actor(c), model.ID(c.Param("job")))
 	h.replyJob(c, http.StatusOK, j, err)
 }
 
@@ -170,12 +171,12 @@ func (h *Handlers) followUpJob(c *gin.Context) {
 	if !bind(c, &r) {
 		return
 	}
-	j, err := h.eng.FollowUp(c.Request.Context(), actor(c), core.ID(c.Param("job")), r.Text)
+	j, err := h.eng.FollowUp(c.Request.Context(), actor(c), model.ID(c.Param("job")), r.Text)
 	h.replyJob(c, http.StatusAccepted, j, err)
 }
 
 func (h *Handlers) cancelJob(c *gin.Context) {
-	j, err := h.eng.CancelJob(c.Request.Context(), actor(c), core.ID(c.Param("job")))
+	j, err := h.eng.CancelJob(c.Request.Context(), actor(c), model.ID(c.Param("job")))
 	h.replyJob(c, http.StatusOK, j, err)
 }
 
@@ -187,24 +188,24 @@ func (h *Handlers) sessionEvents(c *gin.Context) {
 	if !bindQuery(c, &q) {
 		return
 	}
-	evs, err := h.eng.SessionEvents(c.Request.Context(), actor(c), core.ID(c.Param("session")), q.After, q.Limit)
+	evs, err := h.eng.SessionEvents(c.Request.Context(), actor(c), model.ID(c.Param("session")), q.After, q.Limit)
 	if evs == nil {
 		evs = []ir.Event{}
 	}
 	reply(c, http.StatusOK, evs, err)
 }
 
-func (h *Handlers) replyJob(c *gin.Context, code int, j core.Job, err error) {
+func (h *Handlers) replyJob(c *gin.Context, code int, j model.Job, err error) {
 	if err != nil {
 		fail(c, err)
 		return
 	}
-	reply(c, code, core.WireJob(j, h.agentNames(c)[j.AgentID]), nil)
+	reply(c, code, model.WireJob(j, h.agentNames(c)[j.AgentID]), nil)
 }
 
 // agentNames maps agent IDs to names, deleted agents included.
-func (h *Handlers) agentNames(c *gin.Context) map[core.ID]string {
-	out := map[core.ID]string{}
+func (h *Handlers) agentNames(c *gin.Context) map[model.ID]string {
+	out := map[model.ID]string{}
 	views, _ := h.eng.Agents(c.Request.Context(), actor(c))
 	for _, v := range views {
 		out[v.ID] = v.Name
@@ -213,7 +214,7 @@ func (h *Handlers) agentNames(c *gin.Context) map[core.ID]string {
 }
 
 func (h *Handlers) recall(c *gin.Context) {
-	obj, err := h.eng.Recall(c.Request.Context(), actor(c), core.ID(c.Param("id")))
+	obj, err := h.eng.Recall(c.Request.Context(), actor(c), model.ID(c.Param("id")))
 	reply(c, http.StatusOK, obj, err)
 }
 
@@ -225,7 +226,7 @@ func (h *Handlers) superMessages(c *gin.Context) {
 		return
 	}
 	ms, err := h.eng.SuperMessages(c.Request.Context(), actor(c), q.Since, q.Limit)
-	reply(c, http.StatusOK, mapAll(ms, core.WireMessage), err)
+	reply(c, http.StatusOK, mapAll(ms, model.WireMessage), err)
 }
 
 func (h *Handlers) sendToSuper(c *gin.Context) {
@@ -234,7 +235,7 @@ func (h *Handlers) sendToSuper(c *gin.Context) {
 		return
 	}
 	m, err := h.eng.SendToSuper(c.Request.Context(), actor(c), r.Text)
-	reply(c, http.StatusCreated, core.WireMessage(m), err)
+	reply(c, http.StatusCreated, model.WireMessage(m), err)
 }
 
 func (h *Handlers) superReply(c *gin.Context) {
@@ -243,5 +244,5 @@ func (h *Handlers) superReply(c *gin.Context) {
 		return
 	}
 	m, err := h.eng.SuperReply(c.Request.Context(), actor(c), r.Text)
-	reply(c, http.StatusCreated, core.WireMessage(m), err)
+	reply(c, http.StatusCreated, model.WireMessage(m), err)
 }

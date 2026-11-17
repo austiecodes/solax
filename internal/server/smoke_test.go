@@ -19,7 +19,7 @@ import (
 	"github.com/austiecodes/solax/internal/daemon/conn"
 	"github.com/austiecodes/solax/internal/daemon/supervisor"
 	"github.com/austiecodes/solax/internal/server"
-	"github.com/austiecodes/solax/internal/store/sqlite"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
@@ -43,14 +43,18 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 	t.Cleanup(cancel)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "solax.db"))
-	if err != nil {
+	if err := model.Open(ctx, filepath.Join(t.TempDir(), "solax.db")); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { store.Close() })
-	app := server.New(store, []byte("test-secret"), log)
+	t.Cleanup(func() { model.Close() })
+	app := server.New([]byte("test-secret"), log)
 	srv := httptest.NewServer(app.Handler)
-	t.Cleanup(srv.Close)
+	// Cleanups run last first: stop the daemon, the HTTP server and the
+	// daemon handlers, then close the database.
+	t.Cleanup(func() {
+		srv.Close()
+		app.Close()
+	})
 	app.Start(ctx, make(chan error, 4))
 
 	owner, err := app.Engine.InitOwner(ctx)
@@ -97,6 +101,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 		r.mu.Unlock()
 	})
 	waitFor(t, "daemon online", func() bool { return cn.Connected() })
+	t.Cleanup(cancel)
 	return r
 }
 

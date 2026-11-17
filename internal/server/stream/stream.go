@@ -1,5 +1,5 @@
 // Package stream pushes live events to connected clients over WebSocket
-// (/v1/stream). It implements core.Notifier.
+// (/v1/stream). It implements engine.Notifier.
 //
 // The stream is best-effort: a client that reads too slowly loses pushes,
 // and a client that connects late reads the state from the REST API. Every
@@ -15,7 +15,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -29,7 +29,7 @@ const (
 // Stream fans out events to the clients of each owner.
 type Stream struct {
 	mu   sync.RWMutex
-	subs map[core.ID]map[*sub]struct{}
+	subs map[model.ID]map[*sub]struct{}
 }
 
 type sub struct {
@@ -37,7 +37,7 @@ type sub struct {
 }
 
 // New returns a Stream.
-func New() *Stream { return &Stream{subs: map[core.ID]map[*sub]struct{}{}} }
+func New() *Stream { return &Stream{subs: map[model.ID]map[*sub]struct{}{}} }
 
 // upgrader accepts client connections. Clients authenticate with a bearer
 // token header, which a browser page cannot send cross-site, so the origin
@@ -46,7 +46,7 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return
 
 // Serve upgrades a client connection of an owner and sends pushes until
 // the client goes away. The caller has verified the token.
-func (s *Stream) Serve(w http.ResponseWriter, r *http.Request, owner core.ID) {
+func (s *Stream) Serve(w http.ResponseWriter, r *http.Request, owner model.ID) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
@@ -94,7 +94,7 @@ func (s *Stream) Serve(w http.ResponseWriter, r *http.Request, owner core.ID) {
 
 // Publish sends an event to all clients of an owner. It drops the event
 // for clients that read too slowly.
-func (s *Stream) Publish(ctx context.Context, ownerID core.ID, event string, payload any) error {
+func (s *Stream) Publish(ctx context.Context, ownerID model.ID, event string, payload any) error {
 	push := protocol.Push{Event: event}
 	if payload != nil {
 		p, err := json.Marshal(payload)
@@ -118,7 +118,7 @@ func (s *Stream) Publish(ctx context.Context, ownerID core.ID, event string, pay
 	return nil
 }
 
-func (s *Stream) add(owner core.ID, sb *sub) {
+func (s *Stream) add(owner model.ID, sb *sub) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.subs[owner] == nil {
@@ -127,7 +127,7 @@ func (s *Stream) add(owner core.ID, sb *sub) {
 	s.subs[owner][sb] = struct{}{}
 }
 
-func (s *Stream) remove(owner core.ID, sb *sub) {
+func (s *Stream) remove(owner model.ID, sb *sub) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.subs[owner], sb)

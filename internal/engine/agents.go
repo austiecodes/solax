@@ -1,12 +1,15 @@
-package core
+package engine
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/austiecodes/solax/internal/server/model"
 
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/pkg/ir"
@@ -43,22 +46,22 @@ var agentName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 // up. Any other runtime (a fork of Claude Code from the config of a daemon)
 // must be one that the machine reported.
 // There is at most one Super Agent; a new one replaces the role of the old.
-func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agent, error) {
+func (e *Engine) CreateAgent(ctx context.Context, a model.Actor, spec AgentSpec) (model.Agent, error) {
 	if err := requireHuman(a); err != nil {
-		return Agent{}, err
+		return model.Agent{}, err
 	}
 	spec.Name = strings.TrimSpace(spec.Name)
 	if !agentName.MatchString(spec.Name) {
-		return Agent{}, fmt.Errorf("%w: agent name must match %s", errs.ErrInvalid, agentName)
+		return model.Agent{}, fmt.Errorf("%w: agent name must match %s", errs.ErrInvalid, agentName)
 	}
 	if !agentName.MatchString(string(spec.Runtime)) {
-		return Agent{}, fmt.Errorf("%w: runtime must be one of %s, or one that the machine reports", errs.ErrInvalid, kindList())
+		return model.Agent{}, fmt.Errorf("%w: runtime must be one of %s, or one that the machine reports", errs.ErrInvalid, kindList())
 	}
 	if strings.TrimSpace(spec.Dir) == "" {
-		return Agent{}, fmt.Errorf("%w: an agent needs a work folder (dir)", errs.ErrInvalid)
+		return model.Agent{}, fmt.Errorf("%w: an agent needs a work folder (dir)", errs.ErrInvalid)
 	}
-	var ag Agent
-	err := e.store.Atomic(ctx, func(tx Tx) error {
+	var ag model.Agent
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		m, err := resolveMachine(ctx, tx, a, spec.Machine)
 		if err != nil {
 			return err
@@ -67,23 +70,23 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 			return fmt.Errorf("%w: runtime %q: machine %s does not report it; the built-in runtimes are %s",
 				errs.ErrInvalid, spec.Runtime, m.Name, kindList())
 		}
-		if _, err := tx.AgentByName(ctx, spec.Name); err == nil {
+		if _, err := model.GetAgentByName(ctx, tx, spec.Name); err == nil {
 			return fmt.Errorf("%w: agent %q exists", errs.ErrConflict, spec.Name)
 		} else if !errors.Is(err, errs.ErrNotFound) {
 			return err
 		}
 		now := e.clock()
-		ag = Agent{
-			ID: NewIDAt(PrefixAgent, now), MachineID: m.ID, Name: spec.Name, Description: strings.TrimSpace(spec.Description),
+		ag = model.Agent{
+			ID: model.NewIDAt(model.PrefixAgent, now), MachineID: m.ID, Name: spec.Name, Description: strings.TrimSpace(spec.Description),
 			Instructions: strings.TrimSpace(spec.Instructions), Runtime: spec.Runtime, Dir: spec.Dir, Model: spec.Model, Options: spec.Options, CreatedAt: now,
 		}
 		if spec.Super {
 			if err := clearSuper(ctx, tx); err != nil {
 				return err
 			}
-			ag.Role = RoleSuper
+			ag.Role = model.RoleSuper
 		}
-		return tx.SaveAgent(ctx, ag)
+		return model.SaveAgent(ctx, tx, ag)
 	})
 	if err == nil {
 		e.publish(ctx, a.OwnerID, PushAgents, nil)
@@ -93,12 +96,12 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 
 // UpdateAgent changes an agent. Running sessions keep their settings
 // until they restart.
-func (e *Engine) UpdateAgent(ctx context.Context, a Actor, ref string, p AgentPatch) (Agent, error) {
+func (e *Engine) UpdateAgent(ctx context.Context, a model.Actor, ref string, p AgentPatch) (model.Agent, error) {
 	if err := requireHuman(a); err != nil {
-		return Agent{}, err
+		return model.Agent{}, err
 	}
-	var ag Agent
-	err := e.store.Atomic(ctx, func(tx Tx) error {
+	var ag model.Agent
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		var err error
 		if ag, err = resolveAgentRef(ctx, tx, a, ref); err != nil {
 			return err
@@ -122,16 +125,16 @@ func (e *Engine) UpdateAgent(ctx context.Context, a Actor, ref string, p AgentPa
 			ag.Options = p.Options
 		}
 		if p.Super != nil {
-			if *p.Super && ag.Role != RoleSuper {
+			if *p.Super && ag.Role != model.RoleSuper {
 				if err := clearSuper(ctx, tx); err != nil {
 					return err
 				}
-				ag.Role = RoleSuper
+				ag.Role = model.RoleSuper
 			} else if !*p.Super {
-				ag.Role = RoleWorker
+				ag.Role = model.RoleWorker
 			}
 		}
-		return tx.SaveAgent(ctx, ag)
+		return model.SaveAgent(ctx, tx, ag)
 	})
 	if err == nil {
 		e.publish(ctx, a.OwnerID, PushAgents, nil)
@@ -140,17 +143,17 @@ func (e *Engine) UpdateAgent(ctx context.Context, a Actor, ref string, p AgentPa
 }
 
 // DeleteAgent removes an agent. Its jobs and session history stay.
-func (e *Engine) DeleteAgent(ctx context.Context, a Actor, ref string) error {
+func (e *Engine) DeleteAgent(ctx context.Context, a model.Actor, ref string) error {
 	if err := requireHuman(a); err != nil {
 		return err
 	}
-	err := e.store.Atomic(ctx, func(tx Tx) error {
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		ag, err := resolveAgentRef(ctx, tx, a, ref)
 		if err != nil {
 			return err
 		}
 		ag.Deleted = true
-		return tx.SaveAgent(ctx, ag)
+		return model.SaveAgent(ctx, tx, ag)
 	})
 	if err == nil {
 		e.publish(ctx, a.OwnerID, PushAgents, nil)
@@ -167,15 +170,15 @@ func kindList() string {
 	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
 }
 
-func clearSuper(ctx context.Context, tx Tx) error {
-	all, err := tx.Agents(ctx)
+func clearSuper(ctx context.Context, tx *sql.Tx) error {
+	all, err := model.ListAgents(ctx, tx)
 	if err != nil {
 		return err
 	}
 	for _, old := range all {
-		if old.Role == RoleSuper {
-			old.Role = RoleWorker
-			if err := tx.SaveAgent(ctx, old); err != nil {
+		if old.Role == model.RoleSuper {
+			old.Role = model.RoleWorker
+			if err := model.SaveAgent(ctx, tx, old); err != nil {
 				return err
 			}
 		}
@@ -184,75 +187,75 @@ func clearSuper(ctx context.Context, tx Tx) error {
 }
 
 // resolveMachine finds a machine of the actor by ID or by name.
-func resolveMachine(ctx context.Context, tx Tx, a Actor, ref string) (Machine, error) {
+func resolveMachine(ctx context.Context, tx *sql.Tx, a model.Actor, ref string) (model.Machine, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
-		return Machine{}, fmt.Errorf("%w: machine is required", errs.ErrInvalid)
+		return model.Machine{}, fmt.Errorf("%w: machine is required", errs.ErrInvalid)
 	}
-	if ID(ref).Prefix() == PrefixMachine {
-		m, err := tx.Machine(ctx, ID(ref))
+	if model.ID(ref).Prefix() == model.PrefixMachine {
+		m, err := model.GetMachine(ctx, tx, model.ID(ref))
 		if err != nil {
-			return Machine{}, err
+			return model.Machine{}, err
 		}
 		return m, owned(a, m.OwnerID)
 	}
-	all, err := tx.Machines(ctx)
+	all, err := model.ListMachines(ctx, tx, a.OwnerID)
 	if err != nil {
-		return Machine{}, err
+		return model.Machine{}, err
 	}
-	var found []Machine
+	var found []model.Machine
 	for _, m := range all {
-		if m.OwnerID == a.OwnerID && m.Name == ref && m.State != MachineRevoked {
+		if m.Name == ref && m.State != model.MachineRevoked {
 			found = append(found, m)
 		}
 	}
 	switch len(found) {
 	case 0:
-		return Machine{}, fmt.Errorf("machine %q: %w", ref, errs.ErrNotFound)
+		return model.Machine{}, fmt.Errorf("machine %q: %w", ref, errs.ErrNotFound)
 	case 1:
 		return found[0], nil
 	}
-	return Machine{}, fmt.Errorf("%w: machine name %q is not unique; use its ID", errs.ErrInvalid, ref)
+	return model.Machine{}, fmt.Errorf("%w: machine name %q is not unique; use its ID", errs.ErrInvalid, ref)
 }
 
 // resolveAgentRef finds a live agent by ID or by name.
-func resolveAgentRef(ctx context.Context, tx Tx, a Actor, ref string) (Agent, error) {
+func resolveAgentRef(ctx context.Context, tx *sql.Tx, a model.Actor, ref string) (model.Agent, error) {
 	ref = strings.TrimPrefix(strings.TrimSpace(ref), "@")
 	var (
-		ag  Agent
+		ag  model.Agent
 		err error
 	)
-	if ID(ref).Prefix() == PrefixAgent {
-		ag, err = tx.Agent(ctx, ID(ref))
+	if model.ID(ref).Prefix() == model.PrefixAgent {
+		ag, err = model.GetAgent(ctx, tx, model.ID(ref))
 		if err == nil && ag.Deleted {
 			err = errs.ErrNotFound
 		}
 	} else {
-		ag, err = tx.AgentByName(ctx, ref)
+		ag, err = model.GetAgentByName(ctx, tx, ref)
 	}
 	if err != nil {
-		return Agent{}, fmt.Errorf("agent %q: %w", ref, err)
+		return model.Agent{}, fmt.Errorf("agent %q: %w", ref, err)
 	}
-	m, err := tx.Machine(ctx, ag.MachineID)
+	m, err := model.GetMachine(ctx, tx, ag.MachineID)
 	if err != nil {
-		return Agent{}, err
+		return model.Agent{}, err
 	}
 	if err := owned(a, m.OwnerID); err != nil {
-		return Agent{}, fmt.Errorf("agent %q: %w", ref, err)
+		return model.Agent{}, fmt.Errorf("agent %q: %w", ref, err)
 	}
 	return ag, nil
 }
 
 // superAgent returns the Super Agent, or ErrNotFound.
-func superAgent(ctx context.Context, tx Tx) (Agent, error) {
-	all, err := tx.Agents(ctx)
+func superAgent(ctx context.Context, tx *sql.Tx) (model.Agent, error) {
+	all, err := model.ListAgents(ctx, tx)
 	if err != nil {
-		return Agent{}, err
+		return model.Agent{}, err
 	}
 	for _, ag := range all {
-		if ag.Role == RoleSuper {
+		if ag.Role == model.RoleSuper {
 			return ag, nil
 		}
 	}
-	return Agent{}, fmt.Errorf("no Super Agent is set up: %w", errs.ErrNotFound)
+	return model.Agent{}, fmt.Errorf("no Super Agent is set up: %w", errs.ErrNotFound)
 }

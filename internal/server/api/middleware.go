@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 )
 
 const claimsKey = "solax.claims"
@@ -86,4 +86,4 @@ func claims(c *gin.Context) auth.Claims {
 	return cl
 }
 
-func actor(c *gin.Context) core.Actor { return claims(c).Actor() }
+func actor(c *gin.Context) model.Actor { return claims(c).Actor() }

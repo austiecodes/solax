@@ -15,8 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/server/hub"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -37,18 +38,18 @@ const unknownSession = "unknown session"
 
 // Loop delivers inputs.
 type Loop struct {
-	eng  *core.Engine
+	eng  *engine.Engine
 	hub  *hub.Hub
 	log  *slog.Logger
 	wake chan struct{}
 
 	mu       sync.Mutex
-	inFlight map[core.ID]bool // sessions with a delivery under way
+	inFlight map[model.ID]bool // sessions with a delivery under way
 }
 
 // New returns a Loop.
-func New(eng *core.Engine, h *hub.Hub, log *slog.Logger) *Loop {
-	return &Loop{eng: eng, hub: h, log: log, wake: make(chan struct{}, 1), inFlight: map[core.ID]bool{}}
+func New(eng *engine.Engine, h *hub.Hub, log *slog.Logger) *Loop {
+	return &Loop{eng: eng, hub: h, log: log, wake: make(chan struct{}, 1), inFlight: map[model.ID]bool{}}
 }
 
 // Kick asks for a pass soon. It never blocks.
@@ -102,7 +103,7 @@ func (l *Loop) pass(ctx context.Context) {
 	}
 }
 
-func (l *Loop) deliver(ctx context.Context, d core.Delivery) {
+func (l *Loop) deliver(ctx context.Context, d engine.Delivery) {
 	log := l.log.With("session", d.SessionID, "machine", d.MachineID)
 	if d.Ensure != nil {
 		ectx, cancel := context.WithTimeout(ctx, ensureTimeout)

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/core"
+	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/server/stream"
 	"github.com/austiecodes/solax/pkg/protocol"
@@ -17,7 +17,7 @@ import (
 
 // Config holds what the router needs.
 type Config struct {
-	Engine *core.Engine
+	Engine *engine.Engine
 	Tokens *auth.Tokens
 	Daemon http.Handler   // the hub, mounted at protocol.DaemonPath
 	Stream *stream.Stream // the client stream, mounted at /v1/stream
@@ -25,7 +25,7 @@ type Config struct {
 
 // Handlers implements the REST endpoints.
 type Handlers struct {
-	eng *core.Engine
+	eng *engine.Engine
 }
 
 // NewRouter returns the gin engine with all routes.

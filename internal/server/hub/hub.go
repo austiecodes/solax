@@ -1,5 +1,5 @@
 // Package hub keeps the WebSocket connections of the daemons. It
-// implements core.Dispatcher for commands to daemons, and reports what
+// implements engine.Dispatcher for commands to daemons, and reports what
 // daemons say to the Engine.
 package hub
 
@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,8 +21,8 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -37,15 +39,15 @@ const (
 // origin check does not apply; the machine token authenticates them.
 var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 
-// Engine is the part of *core.Engine that receives what daemons report.
+// Engine is the part of *engine.Engine that receives what daemons report.
 // It is an interface because the Engine and the Hub need each other: the
 // server builds the Hub first and sets the Engine with SetEngine.
 type Engine interface {
-	MachineConnected(ctx context.Context, machineID core.ID, h protocol.Hello) error
-	MachineDisconnected(ctx context.Context, machineID core.ID) error
-	Heartbeat(ctx context.Context, machineID core.ID, hb protocol.Heartbeat) error
-	SessionStateChanged(ctx context.Context, machineID core.ID, r protocol.SessionStateReport) error
-	SessionEvent(ctx context.Context, machineID core.ID, e protocol.SessionEvent) error
+	MachineConnected(ctx context.Context, machineID model.ID, h protocol.Hello) error
+	MachineDisconnected(ctx context.Context, machineID model.ID) error
+	Heartbeat(ctx context.Context, machineID model.ID, hb protocol.Heartbeat) error
+	SessionStateChanged(ctx context.Context, machineID model.ID, r protocol.SessionStateReport) error
+	SessionEvent(ctx context.Context, machineID model.ID, e protocol.SessionEvent) error
 }
 
 // Hub holds one connection for each online machine.
@@ -54,13 +56,19 @@ type Hub struct {
 	eng    Engine
 	log    *slog.Logger
 
-	mu    sync.RWMutex
-	conns map[core.ID]*conn
+	mu     sync.RWMutex
+	conns  map[model.ID]*conn // the registered connection of each machine
+	live   map[*conn]struct{} // every upgraded connection, registered or not
+	closed bool               // Close ran; new connections are refused
+
+	// handlers counts the handlers of live connections. The HTTP server
+	// does not wait for a hijacked connection; Close does.
+	handlers sync.WaitGroup
 }
 
 // conn is one daemon connection. It correlates commands with acks by ID.
 type conn struct {
-	machineID core.ID
+	machineID model.ID
 	ws        *websocket.Conn
 	done      chan struct{}
 
@@ -77,7 +85,7 @@ func New(tokens *auth.Tokens, log *slog.Logger) *Hub {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Hub{tokens: tokens, log: log, conns: map[core.ID]*conn{}}
+	return &Hub{tokens: tokens, log: log, conns: map[model.ID]*conn{}, live: map[*conn]struct{}{}}
 }
 
 // SetEngine sets the receiver of what daemons report.
@@ -105,6 +113,11 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ws.SetReadLimit(maxRecord)
 	c := &conn{machineID: claims.Subject, ws: ws, done: make(chan struct{}), pending: map[string]chan protocol.Ack{}}
+	if !h.track(c) {
+		c.close(websocket.CloseGoingAway, "server shutdown")
+		return
+	}
+	defer h.untrack(c)
 	defer close(c.done)
 	// The request context ends with the handler; the connection lives on it.
 	ctx := r.Context()
@@ -120,6 +133,42 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = h.eng.MachineDisconnected(context.WithoutCancel(ctx), c.machineID)
 	}
 	ws.Close()
+}
+
+// Close closes the daemon connections and waits until their handlers
+// end, which marks the machines offline. A connection that arrives later
+// is refused. Call Close after the HTTP server stops and before the
+// database closes.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	h.closed = true
+	live := slices.Collect(maps.Keys(h.live))
+	h.mu.Unlock()
+	for _, c := range live {
+		c.close(websocket.CloseGoingAway, "server shutdown")
+	}
+	h.handlers.Wait()
+}
+
+// track adds a new connection to the live set. It reports false after
+// Close.
+func (h *Hub) track(c *conn) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return false
+	}
+	h.live[c] = struct{}{}
+	h.handlers.Add(1)
+	return true
+}
+
+// untrack removes a connection whose handler ends.
+func (h *Hub) untrack(c *conn) {
+	h.mu.Lock()
+	delete(h.live, c)
+	h.mu.Unlock()
+	h.handlers.Done()
 }
 
 func (h *Hub) handshake(ctx context.Context, c *conn) error {
@@ -220,7 +269,7 @@ func (h *Hub) report(ctx context.Context, c *conn, env protocol.Envelope) error 
 
 // Send sends a command to a machine and waits for its ack. A command that
 // the daemon rejects gives an Ack with OK false and no error.
-func (h *Hub) Send(ctx context.Context, machineID core.ID, env protocol.Envelope) (protocol.Ack, error) {
+func (h *Hub) Send(ctx context.Context, machineID model.ID, env protocol.Envelope) (protocol.Ack, error) {
 	h.mu.RLock()
 	c := h.conns[machineID]
 	h.mu.RUnlock()
@@ -252,7 +301,7 @@ func (h *Hub) Send(ctx context.Context, machineID core.ID, env protocol.Envelope
 }
 
 // Online reports whether a machine has a live connection.
-func (h *Hub) Online(machineID core.ID) bool {
+func (h *Hub) Online(machineID model.ID) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	_, ok := h.conns[machineID]
@@ -260,7 +309,7 @@ func (h *Hub) Online(machineID core.ID) bool {
 }
 
 // Disconnect closes the connection of a machine, if any.
-func (h *Hub) Disconnect(machineID core.ID) {
+func (h *Hub) Disconnect(machineID model.ID) {
 	h.mu.RLock()
 	c := h.conns[machineID]
 	h.mu.RUnlock()

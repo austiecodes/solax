@@ -1,7 +1,8 @@
-package sqlite
+package model
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -32,11 +33,11 @@ func migrations() ([]migration, error) {
 		base := strings.TrimPrefix(f, "migrations/")
 		num, _, ok := strings.Cut(base, "_")
 		if !ok {
-			return nil, fmt.Errorf("sqlite: migration %q: want NNNN_name.sql", base)
+			return nil, fmt.Errorf("model: migration %q: want NNNN_name.sql", base)
 		}
 		v, err := strconv.Atoi(num)
 		if err != nil {
-			return nil, fmt.Errorf("sqlite: migration %q: %w", base, err)
+			return nil, fmt.Errorf("model: migration %q: %w", base, err)
 		}
 		b, err := migrationFS.ReadFile(f)
 		if err != nil {
@@ -47,7 +48,7 @@ func migrations() ([]migration, error) {
 	slices.SortFunc(out, func(a, b migration) int { return a.version - b.version })
 	for i, m := range out {
 		if m.version != i+1 {
-			return nil, fmt.Errorf("sqlite: migration versions must be 1..n without gaps, got %d at %d", m.version, i+1)
+			return nil, fmt.Errorf("model: migration versions must be 1..n without gaps, got %d at %d", m.version, i+1)
 		}
 	}
 	return out, nil
@@ -55,30 +56,30 @@ func migrations() ([]migration, error) {
 
 // migrate applies the migrations that are not applied yet, each in its own
 // transaction. A database from a newer server is refused.
-func (s *Store) migrate(ctx context.Context) error {
+func migrate(ctx context.Context, w *sql.DB) error {
 	ms, err := migrations()
 	if err != nil {
 		return err
 	}
-	if _, err := s.w.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+	if _, err := w.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at INTEGER NOT NULL)`); err != nil {
-		return fmt.Errorf("sqlite: migrations table: %w", err)
+		return fmt.Errorf("model: migrations table: %w", err)
 	}
 	var cur int
-	if err := s.w.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&cur); err != nil {
+	if err := w.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&cur); err != nil {
 		return err
 	}
 	if cur > len(ms) {
-		return fmt.Errorf("sqlite: database schema v%d is newer than this server (v%d)", cur, len(ms))
+		return fmt.Errorf("model: database schema v%d is newer than this server (v%d)", cur, len(ms))
 	}
 	for _, m := range ms[cur:] {
-		tx, err := s.w.BeginTx(ctx, nil)
+		tx, err := w.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, m.sql); err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("sqlite: migration %s: %w", m.name, err)
+			return fmt.Errorf("model: migration %s: %w", m.name, err)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)`,
 			m.version, m.name, time.Now().UnixMilli()); err != nil {

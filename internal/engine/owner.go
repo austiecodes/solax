@@ -1,8 +1,11 @@
-package core
+package engine
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+
+	"github.com/austiecodes/solax/internal/server/model"
 
 	"github.com/austiecodes/solax/internal/errs"
 )
@@ -10,10 +13,10 @@ import (
 // InitOwner creates the owner of a new installation. v1 has one owner, so a
 // second call fails with ErrConflict. "solax server init" calls it on the
 // server host; it needs no actor.
-func (e *Engine) InitOwner(ctx context.Context) (Owner, error) {
-	var o Owner
-	err := e.store.Atomic(ctx, func(tx Tx) error {
-		owners, err := tx.Owners(ctx)
+func (e *Engine) InitOwner(ctx context.Context) (model.Owner, error) {
+	var o model.Owner
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
+		owners, err := model.ListOwners(ctx, tx)
 		if err != nil {
 			return err
 		}
@@ -21,8 +24,8 @@ func (e *Engine) InitOwner(ctx context.Context) (Owner, error) {
 			return fmt.Errorf("%w: already initialised", errs.ErrConflict)
 		}
 		now := e.clock()
-		o = Owner{ID: NewIDAt(PrefixOwner, now), CreatedAt: now}
-		return tx.SaveOwner(ctx, o)
+		o = model.Owner{ID: model.NewIDAt(model.PrefixOwner, now), CreatedAt: now}
+		return model.SaveOwner(ctx, tx, o)
 	})
 	return o, err
 }

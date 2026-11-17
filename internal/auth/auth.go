@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 )
 
 // Kind is the kind of a token.
@@ -76,61 +76,37 @@ func KindOf(token string) (Kind, bool) {
 // Claims are the verified contents of a token.
 type Claims struct {
 	Kind      Kind
-	Subject   core.ID // client token ID, machine ID or agent ID
-	OwnerID   core.ID
-	Super     bool    // agent token of the Super Agent
-	Job       core.ID // agent tokens of a job session only
-	SessionID core.ID // agent tokens only
+	Subject   model.ID // client token ID, machine ID or agent ID
+	OwnerID   model.ID
+	Super     bool     // agent token of the Super Agent
+	Job       model.ID // agent tokens of a job session only
+	SessionID model.ID // agent tokens only
 	Expires   time.Time
 }
 
 // Actor converts the claims to the identity that the Engine uses.
-func (c Claims) Actor() core.Actor {
-	a := core.Actor{ID: c.Subject, OwnerID: c.OwnerID}
+func (c Claims) Actor() model.Actor {
+	a := model.Actor{ID: c.Subject, OwnerID: c.OwnerID}
 	switch {
 	case c.Kind == KindClient:
-		a.Kind = core.AuthorHuman
+		a.Kind = model.AuthorHuman
 	case c.Super:
-		a.Kind = core.AuthorSuper
+		a.Kind = model.AuthorSuper
 	default:
-		a.Kind = core.AuthorAgent
+		a.Kind = model.AuthorAgent
 	}
 	return a
-}
-
-// ClientToken is the stored record of a client token.
-type ClientToken struct {
-	ID        core.ID
-	OwnerID   core.ID
-	Name      string // for example "macbook-cli", "desktop"
-	Hash      string
-	CreatedAt time.Time
-	LastUsed  time.Time
-	Revoked   bool
-}
-
-// Store is what auth needs from storage. internal/store/sqlite implements it.
-// Machine token hashes live on the machine record (core.Machine.TokenHash).
-type Store interface {
-	// DefaultOwner returns the owner of a single-owner installation, or
-	// errs.ErrNotFound before "solax server init".
-	DefaultOwner(ctx context.Context) (core.ID, error)
-	ClientByHash(ctx context.Context, hash string) (ClientToken, error)
-	ClientByID(ctx context.Context, id core.ID) (ClientToken, error)
-	SaveClient(ctx context.Context, t ClientToken) error
-	Clients(ctx context.Context, ownerID core.ID) ([]ClientToken, error)
-	MachineByTokenHash(ctx context.Context, hash string) (core.Machine, error)
 }
 
 // Tokens verifies the tokens of Solax and creates client and agent tokens:
 // hash lookups for client and machine tokens, HMAC-signed agent tokens.
 type Tokens struct {
-	store  Store
 	secret []byte // signs agent tokens
 }
 
-// NewTokens returns a Tokens.
-func NewTokens(store Store, secret []byte) *Tokens { return &Tokens{store: store, secret: secret} }
+// NewTokens returns a Tokens. Client and machine tokens are looked up in
+// the model database.
+func NewTokens(secret []byte) *Tokens { return &Tokens{secret: secret} }
 
 // Verify returns the claims of a token. A machine that is not approved
 // gives errs.ErrForbidden.
@@ -152,37 +128,37 @@ func (t *Tokens) Verify(ctx context.Context, token string) (Claims, error) {
 // CreateClient creates a client token. It returns the token once; the
 // server keeps only its hash. "solax server token create" calls it.
 // An empty ownerID means the default owner.
-func (t *Tokens) CreateClient(ctx context.Context, ownerID core.ID, name string) (string, ClientToken, error) {
+func (t *Tokens) CreateClient(ctx context.Context, ownerID model.ID, name string) (string, model.ClientToken, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", ClientToken{}, fmt.Errorf("%w: a token needs a name", errs.ErrInvalid)
+		return "", model.ClientToken{}, fmt.Errorf("%w: a token needs a name", errs.ErrInvalid)
 	}
 	if ownerID == "" {
 		var err error
-		if ownerID, err = t.store.DefaultOwner(ctx); err != nil {
-			return "", ClientToken{}, fmt.Errorf("no owner (run solax server init): %w", err)
+		if ownerID, err = model.GetDefaultOwner(ctx, model.ReadDB); err != nil {
+			return "", model.ClientToken{}, fmt.Errorf("no owner (run solax server init): %w", err)
 		}
 	}
 	token, err := NewToken(PrefixClient)
 	if err != nil {
-		return "", ClientToken{}, err
+		return "", model.ClientToken{}, err
 	}
-	ct := ClientToken{
-		ID:        core.NewID(core.PrefixClient),
+	ct := model.ClientToken{
+		ID:        model.NewID(model.PrefixClient),
 		OwnerID:   ownerID,
 		Name:      name,
 		Hash:      Hash(token),
 		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 	}
-	if err := t.store.SaveClient(ctx, ct); err != nil {
-		return "", ClientToken{}, err
+	if err := model.SaveClient(ctx, model.WriteDB, ct); err != nil {
+		return "", model.ClientToken{}, err
 	}
 	return token, ct, nil
 }
 
 // RevokeClient makes a client token invalid.
-func (t *Tokens) RevokeClient(ctx context.Context, id core.ID) error {
-	ct, err := t.store.ClientByID(ctx, id)
+func (t *Tokens) RevokeClient(ctx context.Context, id model.ID) error {
+	ct, err := model.GetClient(ctx, model.ReadDB, id)
 	if err != nil {
 		return err
 	}
@@ -190,19 +166,19 @@ func (t *Tokens) RevokeClient(ctx context.Context, id core.ID) error {
 		return nil
 	}
 	ct.Revoked = true
-	return t.store.SaveClient(ctx, ct)
+	return model.SaveClient(ctx, model.WriteDB, ct)
 }
 
 // Clients lists the client tokens of an owner. An empty ownerID means the
 // default owner.
-func (t *Tokens) Clients(ctx context.Context, ownerID core.ID) ([]ClientToken, error) {
+func (t *Tokens) Clients(ctx context.Context, ownerID model.ID) ([]model.ClientToken, error) {
 	if ownerID == "" {
 		var err error
-		if ownerID, err = t.store.DefaultOwner(ctx); err != nil {
+		if ownerID, err = model.GetDefaultOwner(ctx, model.ReadDB); err != nil {
 			return nil, err
 		}
 	}
-	return t.store.Clients(ctx, ownerID)
+	return model.ListClients(ctx, model.ReadDB, ownerID)
 }
 
 // sessionTTL is the default lifetime of an agent token. A session that
@@ -210,8 +186,8 @@ func (t *Tokens) Clients(ctx context.Context, ownerID core.ID) ([]ClientToken, e
 const sessionTTL = 6 * time.Hour
 
 // IssueToken issues the agent token of one session. The engine reaches it
-// through core.TokenIssuer.
-func (t *Tokens) IssueToken(ctx context.Context, r core.TokenRequest) (string, error) {
+// through engine.TokenIssuer.
+func (t *Tokens) IssueToken(ctx context.Context, r model.TokenRequest) (string, error) {
 	ttl := r.TTL
 	if ttl <= 0 {
 		ttl = sessionTTL
@@ -230,11 +206,11 @@ func (t *Tokens) IssueToken(ctx context.Context, r core.TokenRequest) (string, e
 // agentClaims is the wire form of an agent token. The JSON is compact, so
 // a token stays short on the command line.
 type agentClaims struct {
-	AgentID   core.ID   `json:"a"`
-	OwnerID   core.ID   `json:"o"`
+	AgentID   model.ID  `json:"a"`
+	OwnerID   model.ID  `json:"o"`
 	Super     bool      `json:"s,omitempty"`
-	Job       core.ID   `json:"j,omitempty"`
-	SessionID core.ID   `json:"e,omitempty"`
+	Job       model.ID  `json:"j,omitempty"`
+	SessionID model.ID  `json:"e,omitempty"`
 	Expires   time.Time `json:"x"`
 }
 
@@ -267,7 +243,7 @@ const lastUsedEvery = time.Minute
 
 // verifyClient looks up the hash and rejects revoked tokens.
 func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error) {
-	ct, err := t.store.ClientByHash(ctx, Hash(token))
+	ct, err := model.GetClientByHash(ctx, model.ReadDB, Hash(token))
 	if errors.Is(err, errs.ErrNotFound) || (err == nil && ct.Revoked) {
 		return Claims{}, errs.ErrUnauthorized
 	}
@@ -276,7 +252,7 @@ func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error)
 	}
 	if now := time.Now().UTC(); now.Sub(ct.LastUsed) > lastUsedEvery {
 		ct.LastUsed = now.Truncate(time.Millisecond)
-		_ = t.store.SaveClient(ctx, ct) // best effort; never fails a request
+		_ = model.SaveClient(ctx, model.WriteDB, ct) // best effort; never fails a request
 	}
 	return Claims{Kind: KindClient, Subject: ct.ID, OwnerID: ct.OwnerID}, nil
 }
@@ -284,7 +260,7 @@ func (t *Tokens) verifyClient(ctx context.Context, token string) (Claims, error)
 // verifyMachine looks up the hash on the machine record. Pending and
 // revoked machines give errs.ErrForbidden.
 func (t *Tokens) verifyMachine(ctx context.Context, token string) (Claims, error) {
-	m, err := t.store.MachineByTokenHash(ctx, Hash(token))
+	m, err := model.GetMachineByTokenHash(ctx, model.ReadDB, Hash(token))
 	if errors.Is(err, errs.ErrNotFound) {
 		return Claims{}, errs.ErrUnauthorized
 	}
@@ -292,9 +268,9 @@ func (t *Tokens) verifyMachine(ctx context.Context, token string) (Claims, error
 		return Claims{}, err
 	}
 	switch m.State {
-	case core.MachineApproved:
+	case model.MachineApproved:
 		return Claims{Kind: KindMachine, Subject: m.ID, OwnerID: m.OwnerID}, nil
-	case core.MachinePending:
+	case model.MachinePending:
 		return Claims{}, fmt.Errorf("%w: pending approval", errs.ErrForbidden)
 	default:
 		return Claims{}, fmt.Errorf("%w: machine revoked", errs.ErrForbidden)

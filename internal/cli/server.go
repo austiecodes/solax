@@ -15,9 +15,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/core"
 	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/internal/server"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/internal/svc"
 	"github.com/austiecodes/solax/pkg/client"
 )
@@ -320,7 +320,7 @@ func serverTokenCmd(f *serverFlags) *cobra.Command {
 				return err
 			}
 			defer closeDB()
-			return admin.RevokeClient(cmd.Context(), core.ID(args[0]))
+			return admin.RevokeClient(cmd.Context(), model.ID(args[0]))
 		},
 	}
 
