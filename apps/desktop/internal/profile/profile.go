@@ -187,6 +187,7 @@ type Keychain struct {
 	Service string // for example "dev.austiecodes.solax"
 }
 
+// Get returns the token of a profile.
 func (k Keychain) Get(profile string) (string, error) {
 	out, err := exec.Command("/usr/bin/security", "find-generic-password", "-s", k.Service, "-a", profile, "-w").Output()
 	if err != nil {
@@ -195,6 +196,7 @@ func (k Keychain) Get(profile string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// Set stores the token of a profile.
 func (k Keychain) Set(profile, token string) error {
 	// -U updates an existing item. The token is passed as an argument,
 	// which other local users could see in the process list for a moment;
@@ -206,9 +208,8 @@ func (k Keychain) Set(profile, token string) error {
 	return nil
 }
 
+// Delete removes the token of a profile. A missing token is not an error.
 func (k Keychain) Delete(profile string) error {
 	_ = exec.Command("/usr/bin/security", "delete-generic-password", "-s", k.Service, "-a", profile).Run()
 	return nil
 }
-
-var _ Secrets = Keychain{}
