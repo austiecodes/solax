@@ -111,10 +111,6 @@ type desktop struct {
 	machineSel string // the machine the Machines page shows, by ID
 	form       agentForm
 	pairCode   string
-	// The agents found on the machines (agents.go): the folder of the
-	// ones added, and an add in flight.
-	discoverDir string
-	adding      bool
 
 	// Settings.
 	setName, setServer, setToken string

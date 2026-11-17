@@ -31,14 +31,21 @@ func TestHelpInChinese(t *testing.T) {
 	if strings.Contains(out, "Usage:") || strings.Contains(out, "Help about any command") {
 		t.Errorf("help has English left:\n%s", out)
 	}
-	out, err = run(t, "agent", "discover", "--help")
+	out, err = run(t, "agent", "add", "--help")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"示例：", "全局选项：", "--no-super", "不把其中任何一个设为超级 Agent", "（默认 \"~\"）", "discover 的帮助"} {
+	for _, want := range []string{"示例：", "全局选项：", "--super", "把这个 Agent 设为超级 Agent（负责分配任务）", "add 的帮助"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("discover help has no %q:\n%s", want, out)
+			t.Errorf("agent add help has no %q:\n%s", want, out)
 		}
+	}
+	out, err = run(t, "server", "init", "--help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `（默认 "admin"）`; !strings.Contains(out, want) {
+		t.Errorf("server init help has no %q:\n%s", want, out)
 	}
 }
 

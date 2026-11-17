@@ -15,9 +15,7 @@ Pages:
   prompt, the steps of the agent, its replies and live text. It looks the
   same for Claude Code, Codex and pi. Send a follow-up or cancel.
 - **Agents**: set up agents (name, machine, driver, folder, model,
-  description) and choose the agent that is Solax. "Found on your
-  machines" lists the agent CLIs that the daemons found and that no agent
-  uses yet; Add sets one up (package `pkg/discover`).
+  description) and choose the agent that is Solax.
 - **Machines**: machines, the agent CLIs their daemons found, and pairing.
 - **Settings**: server URL and client token; theme, appearance and
   language (English or Simplified Chinese, the system's by default). The token is kept in the

@@ -9,15 +9,13 @@ import (
 
 	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/client"
-	"github.com/austiecodes/solax/pkg/discover"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// agentsPage lists the agents, as Alma lists its crew: a roster, the
-// agent CLIs found on the machines that no agent uses yet, and under them
-// the chosen agent, or the form for a new one. Solax routes by the
-// description, so the roster shows it.
+// agentsPage lists the agents, as Alma lists its crew: a roster, and
+// under it the chosen agent, or the form for a new one. Solax routes by
+// the description, so the roster shows it.
 func (d *desktop) agentsPage(c *ui.Context) {
 	pal := paletteFor(c)
 	d.showPage(c, pageSpec{icon: agentIcon, title: locales.NavAgents(), sub: locales.AgentsSubtitle()}, func() {
@@ -36,7 +34,6 @@ func (d *desktop) agentsPage(c *ui.Context) {
 				d.agentItem(c, pal, a)
 			}
 		})
-		d.discoverView(c, pal)
 		if a, ok := d.chosenAgent(); ok && !d.form.open {
 			d.agentDetail(c, a)
 		} else {
@@ -134,67 +131,6 @@ func (d *desktop) agentDetail(c *ui.Context, a protocol.Agent) {
 			row(c, "role", locales.FieldRole(), locales.AgentRoleHelp(), func() { chip(c, locales.NavChat(), markAccent) })
 		}
 	})
-}
-
-// discoverView offers an agent for each agent CLI that the daemons found
-// and that no agent uses yet (package discover). A click sets it up in
-// the folder of the field, "~" when it is empty. It shows nothing when
-// there is nothing to add.
-func (d *desktop) discoverView(c *ui.Context, pal *palette) {
-	found := discover.Suggest(d.machines, d.agents)
-	if len(found) == 0 {
-		return
-	}
-	section(c, "discover", sectionSpec{
-		title: locales.DiscoverTitle(), count: countText(len(found)), desc: locales.DiscoverDetail(),
-		actions: func() {
-			if len(found) > 1 && button(c, "add-all", locales.DiscoverAddAll(), primaryButton, d.adding) {
-				d.addFound(found)
-			}
-		},
-	}, func() {
-		row(c, "discover-dir", locales.DiscoverDir(), "", func() {
-			ui.Row(c).Width(fieldW).Children(func() { textField(c, "discover-dir", &d.discoverDir, discover.DefaultDir) })
-		})
-		for _, s := range found {
-			ui.Row(c.Key(s.MachineID+"/"+string(s.Driver))).MinHeight(itemH).Padding(0, sectionPad).Gap(10).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, s.Name).FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine().Shrink(0)
-				chip(c, string(s.Driver), markQuiet)
-				if s.Super {
-					chip(c, locales.DiscoverBecomesSolax(), markAccent)
-				}
-				ui.Text(c, s.Version+" · "+s.Machine).FontSize(12).TextColor(pal.textFaint).Font("monospace").
-					SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
-				if button(c, "add", locales.DiscoverAdd(), plainButton, d.adding) {
-					d.addFound([]discover.Suggestion{s})
-				}
-			})
-		}
-	})
-}
-
-// addFound sets up suggested agents, in order, then reads the agents
-// again, also after an error: the ones before it are set up.
-func (d *desktop) addFound(found []discover.Suggestion) {
-	dir := strings.TrimSpace(d.discoverDir)
-	d.adding = true
-	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
-		var err error
-		for _, s := range found {
-			if _, err = c.CreateAgent(ctx, s.Request(dir, "")); err != nil {
-				err = fmt.Errorf("%s: %w", s.Name, err)
-				break
-			}
-		}
-		done := func() { d.adding = false; d.reloadAgents() }
-		if err != nil {
-			d.update(done)
-		}
-		return done, err
-	})
-	if _, err := d.api(); err != nil {
-		d.adding = false
-	}
 }
 
 // agentFormView is the form for a new agent.

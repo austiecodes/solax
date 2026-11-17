@@ -50,17 +50,11 @@ solax setup local
 
 You can run this command again at any time. It changes only what is missing.
 
-Add an agent for each agent CLI that the daemon found:
+The daemon finds the agent CLIs (claude, codex, pi) on its machine by
+itself, and looks again every 30 seconds for CLIs that were installed,
+updated or removed. `solax machine list` shows them.
 
-```sh
-solax agent discover          # list them
-solax agent discover --add    # add them; pi becomes the Super Agent
-```
-
-The daemon looks for newly installed CLIs every 30 seconds. The desktop
-app shows the same list on its Agents page, with an Add button each.
-
-Or set up a Super Agent and one worker agent yourself:
+Set up a Super Agent and one worker agent:
 
 ```sh
 solax agent add router --driver pi --dir ~ --super

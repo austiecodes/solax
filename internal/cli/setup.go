@@ -133,13 +133,8 @@ func setupLocal(cmd *cobra.Command, g *globals, addr string) error {
 	}
 
 	fmt.Fprint(out, T(`
-Solax runs on this machine. Add agents next. To add one for each agent
-CLI that the daemon found (claude, codex, pi):
-
-  solax agent discover          # list them
-  solax agent discover --add    # add them
-
-Or set one up yourself, for example:
+Solax runs on this machine. Add agents next. "solax machine list" shows
+the agent CLIs that the daemon found. For example:
 
   solax agent add reviewer --driver claude --dir ~/src/app --desc "Reviews code"
 

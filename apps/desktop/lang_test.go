@@ -2,22 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/austiecodes/solax/apps/desktop/locales"
-	"github.com/austiecodes/solax/pkg/client"
-	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -129,107 +123,6 @@ func TestLanguageChoice(t *testing.T) {
 	}
 	if appearanceLabel("dark") != "深色" || appearanceLabel("") != "跟随系统" {
 		t.Fatal("appearance labels are not in Chinese")
-	}
-}
-
-// waitFor runs the updates of background work until done.
-func waitFor(t *testing.T, d *desktop, done func() bool) {
-	t.Helper()
-	deadline := time.After(5 * time.Second)
-	for !done() {
-		select {
-		case fn := <-d.queue:
-			fn()
-		case <-deadline:
-			t.Fatalf("timed out; status %q", d.status)
-		}
-	}
-}
-
-// fakeServer answers the requests of the Agents page: it lists machines
-// and agents, and creates agents.
-type fakeServer struct {
-	mu       sync.Mutex
-	machines []protocol.Machine
-	agents   []protocol.Agent
-	created  []protocol.CreateAgentRequest
-}
-
-func (f *fakeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/v1/machines":
-		_ = json.NewEncoder(w).Encode(f.machines)
-	case r.Method == http.MethodGet && r.URL.Path == "/v1/agents":
-		_ = json.NewEncoder(w).Encode(f.agents)
-	case r.Method == http.MethodPost && r.URL.Path == "/v1/agents":
-		var req protocol.CreateAgentRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
-		f.created = append(f.created, req)
-		role := ""
-		if req.Super {
-			role = "super"
-		}
-		a := protocol.Agent{ID: "agt_" + req.Name, Name: req.Name, MachineID: req.Machine, Driver: req.Driver, Dir: req.Dir, Role: role}
-		f.agents = append(f.agents, a)
-		_ = json.NewEncoder(w).Encode(a)
-	default:
-		http.NotFound(w, r)
-	}
-}
-
-// The Agents page offers the CLIs that the daemon found and no agent
-// uses; "Add" sets one up in the folder given, and it is offered no more.
-func TestDiscoverAdds(t *testing.T) {
-	srv := &fakeServer{machines: []protocol.Machine{{
-		ID: "mch_1", Name: "Ada-MacBook.local", State: protocol.MachineApproved, Online: true,
-		Drivers: []protocol.DriverProbe{
-			{Kind: ir.KindClaude, Version: "2.1.0", OK: true},
-			{Kind: ir.KindPi, Version: "0.8.0", OK: true},
-			{Kind: ir.KindCodex, OK: false, Problem: "not found"},
-		},
-	}}}
-	hs := httptest.NewServer(srv)
-	defer hs.Close()
-
-	d := testDesktop(t)
-	d.queue = make(chan func(), 64)
-	d.client = client.New(hs.URL, "sxc_test")
-	d.page = pageAgents
-	d.machines = srv.machines
-	tt := ui.NewTester(d.view, 1240, 820)
-	for _, want := range []string{"Found on your machines", "claude", "pi", "becomes Solax", "Add all"} {
-		if !tt.HasText(want) {
-			t.Fatalf("no %q in %q", want, tt.Texts())
-		}
-	}
-	d.discoverDir = "~/src/app"
-	if err := tt.Click("Add"); err != nil { // the first: claude
-		t.Fatal(err)
-	}
-	waitFor(t, d, func() bool { return !d.adding && len(d.agents) == 1 })
-	if d.status != "" {
-		t.Fatalf("status = %q", d.status)
-	}
-	got := srv.created[0]
-	if got.Name != "claude" || got.Driver != ir.KindClaude || got.Machine != "mch_1" || got.Dir != "~/src/app" || got.Super || got.Description == "" {
-		t.Fatalf("created %+v", got)
-	}
-	tt.Frame()
-	if tt.HasText("Add all") || !tt.HasText("becomes Solax") {
-		t.Fatalf("after the add: %q", tt.Texts())
-	}
-	if err := tt.Click("Add"); err != nil { // pi, as Solax
-		t.Fatal(err)
-	}
-	waitFor(t, d, func() bool { return !d.adding && len(d.agents) == 2 })
-	if !srv.created[1].Super || srv.created[1].Driver != ir.KindPi {
-		t.Fatalf("created %+v", srv.created[1])
-	}
-	tt.Frame()
-	if tt.HasText("Found on your machines") {
-		t.Fatalf("still offered: %q", tt.Texts())
 	}
 }
 

@@ -182,15 +182,6 @@
   "fieldRole": "Role",
   "fieldRoleSolax": "This is Solax (the agent you talk to)",
   "agentAdd": "Add agent",
-  "discoverTitle": "Found on your machines",
-  "discoverDetail": "Agent CLIs that no agent uses yet. Add one with a click; you can remove it at any time.",
-  "discoverDir": "Work folder of new agents",
-  "discoverAdd": "Add",
-  "discoverAddAll": "Add all",
-  "discoverBecomesSolax": "becomes Solax",
-  "@discoverBecomesSolax": {
-    "description": "A badge: added, this agent is the one you talk to."
-  },
   "machinesSubtitle": "Where your agents run",
   "machinesEmpty": "No machines yet. On this Mac, run \"solax setup local\". On another machine, run \"solax daemon start\".",
   "driverMissing": "not available: {problem}",
