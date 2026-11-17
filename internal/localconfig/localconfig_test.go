@@ -39,14 +39,12 @@ func TestWithDefaultsExpandsHome(t *testing.T) {
 func TestSaveConcurrent(t *testing.T) {
 	p := Paths{Dir: t.TempDir()}
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 8 {
+		wg.Go(func() {
 			if err := p.Save(Config{Backend: Backend{URL: "https://example.com"}}); err != nil {
 				t.Errorf("Save: %v", err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

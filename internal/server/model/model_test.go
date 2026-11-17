@@ -153,15 +153,13 @@ func TestMessageSeqs(t *testing.T) {
 	const n = 40
 	var wg sync.WaitGroup
 	for range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			m := Message{ID: NewID(PrefixMessage), OwnerID: o.ID,
 				Author: Author{Kind: AuthorHuman, ID: o.ID}, Kind: MessageChat, Text: "hi", CreatedAt: t0}
 			if err := Atomic(ctx, func(tx *sql.Tx) error { _, err := AppendMessage(ctx, tx, m); return err }); err != nil {
 				t.Error(err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 

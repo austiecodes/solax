@@ -161,8 +161,7 @@ func mapErr(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return errs.ErrNotFound
 	}
-	var se *sqlite.Error
-	if errors.As(err, &se) {
+	if se, ok := errors.AsType[*sqlite.Error](err); ok {
 		switch se.Code() & 0xff {
 		case sqlite3.SQLITE_CONSTRAINT:
 			return fmt.Errorf("%w: %v", errs.ErrConflict, err)

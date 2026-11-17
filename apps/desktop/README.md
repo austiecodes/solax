@@ -38,13 +38,21 @@ Code map:
 - `internal/actions`: the action list. The menu bar, shortcuts and
   tooltips read it. Add an action here, then handle it in `run`
   (`actions.go`).
-- `theme.go`: Kero's palettes and themes. Views use `paletteFor(c)`,
-  not raw theme colors. Settings › Look chooses the theme.
-- `view.go`: the window shell (card, header, empty state). A new page is
+- `theme.go`: the palettes and themes: graphite (the default, flat and
+  neutral as the Codex app) and Kero's. Views use `paletteFor(c)`, not raw
+  theme colors. Settings › Look chooses the theme.
+- `view.go`: the window shell (sidebar, card, empty state). A new page is
   one `navPages` entry (`state.go`), one action and one case in `pageView`.
+- `layout.go`: the page kit, after the Codex app's settings: `showPage` (a header
+  over a column of sections), `section`, `row` (a label and help at the
+  left, a control at the right), `listItem`, `chip` and `dot`. Pages use
+  it, so the spacing is the same everywhere.
 - `sidebar.go`: the pages, the recent jobs with their state, and the
   footer counts (queued or running, failed, done and unread).
-- `controls.go`: the app's buttons, text field and job status icon. Pages
+- `jobgroups.go`: how the sidebar groups the jobs: by project (the work
+  folder of the job's agent), by agent, or not at all. The menu next to
+  "Recent jobs" and Settings › Sidebar choose it.
+- `controls.go`: the app's buttons, text field, text area, select and job status icon. Pages
   use these, not the stock `ui.Button`/`ui.TextInput`.
 - `transcript.go`: turns IR events (and, for the chat, the messages) into
   blocks: user messages, replies, groups of steps, notes. No UI, so the
@@ -71,6 +79,7 @@ go run github.com/egoist/mygo/cmd/mygo dev      # run with hot reload
 go run github.com/egoist/mygo/cmd/mygo build    # build/darwin-arm64/Solax.app
 go run github.com/egoist/mygo/cmd/mygo generate # locales/catalog_gen.go
 go test ./...
+SOLAX_SHOTS=../../tmp/shots go test -run TestShots .  # draw each page to a PNG in the repo tmp/
 ```
 
 `go.mod` has no `tool` directive on purpose: some Go version switchers
@@ -79,14 +88,15 @@ cannot parse it. Use `go run github.com/egoist/mygo/cmd/mygo` instead of
 
 ## Credits
 
-The design follows [Kero](https://github.com/egoist/kero) by EGOIST, the
-author of MyGo (MIT). Solax takes from Kero:
+The look follows the Codex app: flat panes, neutral grays, the
+composer, the jobs grouped by project, and the settings pages.
 
-- the window layout: a sidebar on the backdrop, the page on a card, the
-  traffic lights over the sidebar;
+The code started from [Kero](https://github.com/egoist/kero) by EGOIST,
+the author of MyGo (MIT). Solax takes from Kero:
+
 - the color palettes and the themes (paper, mist, meadow, dusk, tide,
   apricot, aurora, dune, petal, plain), with their elevation (`theme.go`);
-- the controls, the job status icons and the sidebar rows;
+- the job status icons;
 - the action list, the ⌘K palette and the confirm dialog;
 - the rules for unread jobs and notifications;
 - the icon sets (`icons/README.md`).

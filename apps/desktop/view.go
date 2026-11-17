@@ -140,20 +140,6 @@ func iconButton(c *ui.Context, key string, svg *ui.SVG, label string, pal *palet
 	return b
 }
 
-// stateBadge is a colored pill for a job state.
-func stateBadge(c *ui.Context, state string) {
-	pal := paletteFor(c)
-	b := ui.Badge(c, stateWord(state))
-	switch state {
-	case "done":
-		b.Background(pal.success).TextColor(pal.onAccent)
-	case "failed":
-		b.Background(pal.danger).TextColor(pal.onAccent)
-	case "running":
-		b.Background(pal.accent).TextColor(pal.onAccent)
-	}
-}
-
 func b2f(b bool) float32 {
 	if b {
 		return 1

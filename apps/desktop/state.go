@@ -494,18 +494,6 @@ func (d *desktop) loadSession(id string) {
 	})
 }
 
-// toolSummary is one line for a tool call: its name and its main input.
-func toolSummary(t *ir.ToolCall) string {
-	var in map[string]any
-	_ = json.Unmarshal(t.Input, &in)
-	for _, k := range []string{"command", "cmd", "file_path", "path", "pattern", "query", "url", "description"} {
-		if v, ok := in[k].(string); ok && v != "" {
-			return t.Name + ": " + clip(v, 120)
-		}
-	}
-	return t.Name
-}
-
 func clip(s string, n int) string {
 	s = strings.Join(strings.Fields(s), " ")
 	if r := []rune(s); len(r) > n {

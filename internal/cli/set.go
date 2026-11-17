@@ -14,7 +14,7 @@ import (
 	"github.com/austiecodes/solax/internal/locale"
 )
 
-func setCmd(g *globals) *cobra.Command {
+func setCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "set", Short: T("Change the local configuration")}
 	cmd.AddCommand(setBackendCmd(), setMachineCmd(), setLangCmd())
 	return cmd
@@ -49,10 +49,9 @@ $LC_MESSAGES, $LANG). $SOLAX_LANG wins over this setting.`),
 				return err
 			}
 			locale.Set(locale.Detect(cfg.Lang))
-			switch {
-			case cfg.Lang == "":
+			if cfg.Lang == "" {
 				fmt.Fprintf(cmd.OutOrStdout(), T("language: auto (now %s)\n"), locale.Lang())
-			default:
+			} else {
 				fmt.Fprintf(cmd.OutOrStdout(), T("language: %s\n"), cfg.Lang)
 			}
 			return nil

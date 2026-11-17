@@ -30,7 +30,7 @@ func (t *tableWriter) Flush() error {
 	}
 	var rows [][]string
 	var widths []int
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		cells := strings.Split(line, "\t")
 		for i, c := range cells[:len(cells)-1] {
 			if i == len(widths) {

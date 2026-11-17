@@ -89,7 +89,7 @@ func TestAcquire(t *testing.T) {
 // A pid file that no process locks is stale, whatever pid it holds.
 func TestStalePIDFile(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "x.pid")
-	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0o600); err != nil {
+	if err := os.WriteFile(pidFile, fmt.Appendf(nil, "%d\n", os.Getpid()), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok, err := Running(pidFile); err != nil || ok {

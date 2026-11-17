@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -197,7 +198,7 @@ func (d *desktop) agentFormView(c *ui.Context) {
 		f.Machine = machines[0]
 	}
 	runtimes := d.runtimesOf(f.Machine)
-	if !contains(runtimes, f.Runtime) && len(runtimes) > 0 {
+	if !slices.Contains(runtimes, f.Runtime) && len(runtimes) > 0 {
 		f.Runtime = runtimes[0]
 	}
 	ready := !f.busy && strings.TrimSpace(f.Name) != "" && f.Machine != "" && f.Runtime != "" && strings.TrimSpace(f.Dir) != ""
@@ -310,13 +311,4 @@ func (d *desktop) runtimesOf(machine string) []string {
 		out[i] = string(k)
 	}
 	return out
-}
-
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }

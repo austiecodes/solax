@@ -302,6 +302,9 @@ func chatCmd(g *globals) *cobra.Command {
 				for sc.Scan() {
 					lines <- sc.Text()
 				}
+				if err := sc.Err(); err != nil {
+					fmt.Fprintln(cmd.ErrOrStderr(), err)
+				}
 				close(lines)
 			}()
 			for {
