@@ -65,11 +65,12 @@ func agentListCmd(g *globals) *cobra.Command {
 func agentAddCmd(g *globals) *cobra.Command {
 	var r protocol.CreateAgentRequest
 	var driver string
+	var instr instructionsFlags
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: T("Set up an agent on a machine"),
 		Example: `  solax agent add reviewer --machine mac --driver claude --dir ~/src/app \
-      --desc "Reviews Go code and finds bugs"
+      --desc "Reviews Go code and finds bugs" --instructions-file review.md
   solax agent add router --machine mac --driver pi --dir ~ --super`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -78,6 +79,9 @@ func agentAddCmd(g *globals) *cobra.Command {
 				return err
 			}
 			r.Name, r.Driver, r.Dir = args[0], ir.Kind(driver), expandDir(r.Dir)
+			if r.Instructions, _, err = instr.read(cmd); err != nil {
+				return err
+			}
 			if r.Machine == "" {
 				r.Machine = localMachine()
 			}
@@ -100,6 +104,7 @@ func agentAddCmd(g *globals) *cobra.Command {
 	f.StringVar(&r.Dir, "dir", "", T("work folder on the machine"))
 	f.StringVar(&r.Model, "model", "", T("model (default: the CLI default)"))
 	f.BoolVar(&r.Super, "super", false, T("make this agent the Super Agent (the router)"))
+	instr.add(cmd)
 	_ = cmd.MarkFlagRequired("driver")
 	_ = cmd.MarkFlagRequired("dir")
 	return cmd
@@ -108,10 +113,13 @@ func agentAddCmd(g *globals) *cobra.Command {
 func agentEditCmd(g *globals) *cobra.Command {
 	var desc, dir, model string
 	var super bool
+	var instr instructionsFlags
 	cmd := &cobra.Command{
 		Use:   "edit <agent>",
-		Short: T("Change the description, folder, model or role of an agent"),
-		Args:  cobra.ExactArgs(1),
+		Short: T("Change the description, instructions, folder, model or role of an agent"),
+		Example: `  solax agent edit reviewer --instructions-file review.md
+  solax agent edit reviewer --instructions ""   # remove the instructions`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
 			if err != nil {
@@ -121,6 +129,11 @@ func agentEditCmd(g *globals) *cobra.Command {
 			f := cmd.Flags()
 			if f.Changed("desc") {
 				r.Description = &desc
+			}
+			if text, ok, err := instr.read(cmd); err != nil {
+				return err
+			} else if ok {
+				r.Instructions = &text
 			}
 			if f.Changed("dir") {
 				r.Dir = &dir
@@ -143,7 +156,44 @@ func agentEditCmd(g *globals) *cobra.Command {
 	f.StringVar(&dir, "dir", "", T("new work folder"))
 	f.StringVar(&model, "model", "", T("new model"))
 	f.BoolVar(&super, "super", false, T("make it the Super Agent (--super=false to undo)"))
+	instr.add(cmd)
 	return cmd
+}
+
+// instructionsFlags are --instructions and --instructions-file: the system
+// prompt of an agent, which its sessions get after the Solax role prompt.
+type instructionsFlags struct{ text, file string }
+
+func (fl *instructionsFlags) add(cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.StringVar(&fl.text, "instructions", "", T("instructions of the agent: its system prompt, after the Solax role prompt"))
+	f.StringVar(&fl.file, "instructions-file", "", T(`read the instructions from a file ("-": stdin)`))
+	cmd.MarkFlagsMutuallyExclusive("instructions", "instructions-file")
+}
+
+// read returns the instructions that the flags give, and false when the
+// command line has neither flag.
+func (fl *instructionsFlags) read(cmd *cobra.Command) (string, bool, error) {
+	f := cmd.Flags()
+	switch {
+	case f.Changed("instructions"):
+		return fl.text, true, nil
+	case !f.Changed("instructions-file"):
+		return "", false, nil
+	}
+	var (
+		b   []byte
+		err error
+	)
+	if fl.file == "-" {
+		b, err = io.ReadAll(cmd.InOrStdin())
+	} else {
+		b, err = os.ReadFile(fl.file)
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return string(b), true, nil
 }
 
 // localMachine returns the machine ID of this machine, if it is set up.

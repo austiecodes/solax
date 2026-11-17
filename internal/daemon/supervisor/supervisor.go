@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"strings"
 	"sync"
 	"time"
 
@@ -215,7 +216,7 @@ func (s *Supervisor) ensure(ctx context.Context, payload json.RawMessage) error 
 	}
 	spec := agent.SessionSpec{
 		SessionID: e.SessionID, Resume: e.Resume, Dir: s.cfg.Dir(e.Dir), Model: e.Model,
-		Instructions: prompt, Options: e.Options,
+		Instructions: systemPrompt(prompt, e.Instructions), Options: e.Options,
 	}
 	if s.cfg.Env != nil {
 		spec.Env = s.cfg.Env(e)
@@ -411,4 +412,18 @@ func (s *Supervisor) report(r protocol.SessionStateReport) {
 func envelope(t protocol.MessageType, v any) protocol.Envelope {
 	b, _ := json.Marshal(v)
 	return protocol.Envelope{Type: t, Payload: b}
+}
+
+// systemPrompt is the role prompt of Solax, then the instructions of the
+// agent under their own heading. The role prompt comes first: it has the
+// rules of Solax that each agent must keep.
+func systemPrompt(role, instructions string) string {
+	role, instructions = strings.TrimSpace(role), strings.TrimSpace(instructions)
+	switch {
+	case instructions == "":
+		return role
+	case role == "":
+		return instructions
+	}
+	return role + "\n\n# Instructions\n\n" + instructions
 }

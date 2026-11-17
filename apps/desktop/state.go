@@ -110,6 +110,7 @@ type desktop struct {
 	agentSel   string // the agent the Agents page shows, by name
 	machineSel string // the machine the Machines page shows, by ID
 	form       agentForm
+	instr      instrDraft
 	pairCode   string
 
 	// Settings.
@@ -128,10 +129,19 @@ type desktop struct {
 
 // agentForm is the "new agent" form.
 type agentForm struct {
-	Name, Machine, Driver, Dir, Model, Desc string
-	Super                                   bool
-	open                                    bool // it shows in place of the chosen agent
-	busy                                    bool
+	Name, Machine, Driver, Dir, Model, Desc, Instructions string
+	Super                                                 bool
+	open                                                  bool // it shows in place of the chosen agent
+	busy                                                  bool
+}
+
+// instrDraft edits the instructions of the agent that the Agents page
+// shows. base is the text of the agent when the edit started: the draft
+// is changed when text is not base.
+type instrDraft struct {
+	agent      string // agent ID
+	base, text string
+	busy       bool
 }
 
 // newDesktop makes the state. prefsPath is where the window prefs live;

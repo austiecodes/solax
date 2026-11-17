@@ -14,23 +14,25 @@ import (
 
 // AgentSpec is what a person sets up for an agent.
 type AgentSpec struct {
-	Machine     string // machine ID or name
-	Name        string
-	Description string
-	Driver      ir.Kind
-	Dir         string
-	Model       string
-	Options     map[string]any
-	Super       bool // the Super Agent: the router that talks to the user
+	Machine      string // machine ID or name
+	Name         string
+	Description  string
+	Instructions string // system prompt after the Solax role prompt
+	Driver       ir.Kind
+	Dir          string
+	Model        string
+	Options      map[string]any
+	Super        bool // the Super Agent: the router that talks to the user
 }
 
 // AgentPatch changes some fields of an agent. Nil fields stay as they are.
 type AgentPatch struct {
-	Description *string
-	Dir         *string
-	Model       *string
-	Options     map[string]any
-	Super       *bool
+	Description  *string
+	Instructions *string
+	Dir          *string
+	Model        *string
+	Options      map[string]any
+	Super        *bool
 }
 
 // agentName is a name that a prompt and a shell can carry without quotes.
@@ -73,7 +75,7 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 		now := e.clock()
 		ag = Agent{
 			ID: NewIDAt(PrefixAgent, now), MachineID: m.ID, Name: spec.Name, Description: strings.TrimSpace(spec.Description),
-			Driver: spec.Driver, Dir: spec.Dir, Model: spec.Model, Options: spec.Options, CreatedAt: now,
+			Instructions: strings.TrimSpace(spec.Instructions), Driver: spec.Driver, Dir: spec.Dir, Model: spec.Model, Options: spec.Options, CreatedAt: now,
 		}
 		if spec.Super {
 			if err := clearSuper(ctx, tx); err != nil {
@@ -103,6 +105,9 @@ func (e *Engine) UpdateAgent(ctx context.Context, a Actor, ref string, p AgentPa
 		}
 		if p.Description != nil {
 			ag.Description = strings.TrimSpace(*p.Description)
+		}
+		if p.Instructions != nil {
+			ag.Instructions = strings.TrimSpace(*p.Instructions)
 		}
 		if p.Dir != nil {
 			if strings.TrimSpace(*p.Dir) == "" {

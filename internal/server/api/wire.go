@@ -23,7 +23,7 @@ func wireEnrolled(m core.Machine) protocol.MachineEnrolled {
 
 func wireAgent(v core.AgentView) protocol.Agent {
 	return protocol.Agent{
-		ID: string(v.ID), Name: v.Name, Description: v.Description, MachineID: string(v.MachineID), Machine: v.MachineName,
+		ID: string(v.ID), Name: v.Name, Description: v.Description, Instructions: v.Instructions, MachineID: string(v.MachineID), Machine: v.MachineName,
 		Online: v.Online, Driver: v.Driver, Role: string(v.Role), Dir: v.Dir, Model: v.Model, Options: v.Options,
 		SessionID: string(v.SessionID),
 	}

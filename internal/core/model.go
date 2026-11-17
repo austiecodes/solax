@@ -72,13 +72,16 @@ type Agent struct {
 	MachineID   ID
 	Name        string
 	Description string
-	Driver      ir.Kind
-	Role        AgentRole
-	Dir         string
-	Model       string
-	Options     map[string]any // driver-specific, for example pi "thinking"
-	Deleted     bool
-	CreatedAt   time.Time
+	// Instructions are the system prompt of the sessions of the agent,
+	// after the Solax role prompt. Empty: the role prompt only.
+	Instructions string
+	Driver       ir.Kind
+	Role         AgentRole
+	Dir          string
+	Model        string
+	Options      map[string]any // driver-specific, for example pi "thinking"
+	Deleted      bool
+	CreatedAt    time.Time
 }
 
 // AgentRole is the system role of an agent.

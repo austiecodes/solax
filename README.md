@@ -59,11 +59,16 @@ Set up a Super Agent and one worker agent:
 ```sh
 solax agent add router --driver pi --dir ~ --super
 solax agent add reviewer --driver claude --dir ~/src/app \
-    --desc "Reviews Go code and finds bugs"
+    --desc "Reviews Go code and finds bugs" \
+    --instructions-file review.md
 ```
 
 The Super Agent uses `--desc` to choose an agent for a job, so write it
-clearly.
+clearly. The instructions (`--instructions` or `--instructions-file`)
+are the system prompt of the agent: its sessions get them after the
+Solax role prompt. They are optional. Change them with
+`solax agent edit reviewer --instructions-file review.md`; a session that
+starts after the change gets the new text.
 
 Talk to the Super Agent:
 

@@ -52,17 +52,20 @@ type ApproveMachineRequest struct {
 
 // Agent is a coding agent that a person set up on a machine.
 type Agent struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	MachineID   string         `json:"machine_id"`
-	Machine     string         `json:"machine"` // machine name
-	Online      bool           `json:"online"`  // the machine is connected and has the driver
-	Driver      ir.Kind        `json:"driver"`
-	Role        string         `json:"role,omitempty"` // "" or "super"
-	Dir         string         `json:"dir"`
-	Model       string         `json:"model,omitempty"`
-	Options     map[string]any `json:"options,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// Instructions are the system prompt of its sessions, after the Solax
+	// role prompt.
+	Instructions string         `json:"instructions,omitempty"`
+	MachineID    string         `json:"machine_id"`
+	Machine      string         `json:"machine"` // machine name
+	Online       bool           `json:"online"`  // the machine is connected and has the driver
+	Driver       ir.Kind        `json:"driver"`
+	Role         string         `json:"role,omitempty"` // "" or "super"
+	Dir          string         `json:"dir"`
+	Model        string         `json:"model,omitempty"`
+	Options      map[string]any `json:"options,omitempty"`
 	// SessionID is the conversation session of the Super Agent, to read
 	// its events (reasoning, tool calls). Empty for other agents.
 	SessionID string `json:"session_id,omitempty"`
@@ -70,24 +73,26 @@ type Agent struct {
 
 // CreateAgentRequest is the body of POST /v1/agents.
 type CreateAgentRequest struct {
-	Machine     string         `json:"machine"` // machine ID or name
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Driver      ir.Kind        `json:"driver"`
-	Dir         string         `json:"dir"`
-	Model       string         `json:"model,omitempty"`
-	Options     map[string]any `json:"options,omitempty"`
-	Super       bool           `json:"super,omitempty"`
+	Machine      string         `json:"machine"` // machine ID or name
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Instructions string         `json:"instructions,omitempty"`
+	Driver       ir.Kind        `json:"driver"`
+	Dir          string         `json:"dir"`
+	Model        string         `json:"model,omitempty"`
+	Options      map[string]any `json:"options,omitempty"`
+	Super        bool           `json:"super,omitempty"`
 }
 
 // UpdateAgentRequest is the body of PATCH /v1/agents/{agent}. Absent
 // fields stay as they are.
 type UpdateAgentRequest struct {
-	Description *string        `json:"description,omitempty"`
-	Dir         *string        `json:"dir,omitempty"`
-	Model       *string        `json:"model,omitempty"`
-	Options     map[string]any `json:"options,omitempty"`
-	Super       *bool          `json:"super,omitempty"`
+	Description  *string        `json:"description,omitempty"`
+	Instructions *string        `json:"instructions,omitempty"`
+	Dir          *string        `json:"dir,omitempty"`
+	Model        *string        `json:"model,omitempty"`
+	Options      map[string]any `json:"options,omitempty"`
+	Super        *bool          `json:"super,omitempty"`
 }
 
 // Job is one piece of work for one agent.

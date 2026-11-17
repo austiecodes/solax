@@ -90,6 +90,9 @@ type SessionEnsure struct {
 	Dir        string         `json:"dir"`
 	Model      string         `json:"model,omitempty"`
 	Options    map[string]any `json:"options,omitempty"`
+	// Instructions are the system prompt of the agent. The daemon puts
+	// them after the Solax role prompt.
+	Instructions string `json:"instructions,omitempty"`
 	// LastSeq is the highest event seq that the server holds for the
 	// session. The daemon numbers new events after it, so a session that
 	// resumes in a new daemon process does not reuse a stored seq.

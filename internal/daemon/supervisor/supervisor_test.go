@@ -202,3 +202,18 @@ func TestEventSeqContinues(t *testing.T) {
 	run(s, sk, 50, "two")
 	increasing(seqs(sk), 50)
 }
+
+// The role prompt comes first, then the instructions of the agent under
+// their own heading. Either one can be empty.
+func TestSystemPrompt(t *testing.T) {
+	for _, tc := range []struct{ role, instr, want string }{
+		{"# Role: Solax agent\n\nDo the job.\n", "  Review Go code.\n", "# Role: Solax agent\n\nDo the job.\n\n# Instructions\n\nReview Go code."},
+		{"# Role\n", "", "# Role"},
+		{"", "Review Go code.", "Review Go code."},
+		{"", "", ""},
+	} {
+		if got := systemPrompt(tc.role, tc.instr); got != tc.want {
+			t.Errorf("systemPrompt(%q, %q) = %q, want %q", tc.role, tc.instr, got, tc.want)
+		}
+	}
+}

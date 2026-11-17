@@ -95,7 +95,7 @@ func (h *Handlers) createAgent(c *gin.Context) {
 		return
 	}
 	ag, err := h.eng.CreateAgent(c.Request.Context(), actor(c), core.AgentSpec{
-		Machine: r.Machine, Name: r.Name, Description: r.Description, Driver: r.Driver,
+		Machine: r.Machine, Name: r.Name, Description: r.Description, Instructions: r.Instructions, Driver: r.Driver,
 		Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
 	})
 	h.replyAgent(c, http.StatusCreated, ag, err)
@@ -107,7 +107,7 @@ func (h *Handlers) updateAgent(c *gin.Context) {
 		return
 	}
 	ag, err := h.eng.UpdateAgent(c.Request.Context(), actor(c), c.Param("agent"), core.AgentPatch{
-		Description: r.Description, Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
+		Description: r.Description, Instructions: r.Instructions, Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
 	})
 	h.replyAgent(c, http.StatusOK, ag, err)
 }

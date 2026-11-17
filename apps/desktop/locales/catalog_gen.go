@@ -1866,6 +1866,56 @@ func (msgs Messages) FieldDescHelp() string {
 	return Catalog.Format(msgs.locale, "fieldDescHelp", nil)
 }
 
+// FieldInstructions says "Instructions"
+// in the language the app shows.
+func FieldInstructions() string { return In(i18n.Locale()).FieldInstructions() }
+
+// FieldInstructions says "Instructions"
+// in the language of msgs.
+func (msgs Messages) FieldInstructions() string {
+	return Catalog.Format(msgs.locale, "fieldInstructions", nil)
+}
+
+// FieldInstructionsHelp says "Optional. The system prompt of the agent. Its sessions get it after the Solax role prompt."
+// in the language the app shows.
+func FieldInstructionsHelp() string { return In(i18n.Locale()).FieldInstructionsHelp() }
+
+// FieldInstructionsHelp says "Optional. The system prompt of the agent. Its sessions get it after the Solax role prompt."
+// in the language of msgs.
+func (msgs Messages) FieldInstructionsHelp() string {
+	return Catalog.Format(msgs.locale, "fieldInstructionsHelp", nil)
+}
+
+// FieldInstructionsPlaceholder says "Review Go code. Report bugs with a failing test; do not change the style."
+// in the language the app shows.
+func FieldInstructionsPlaceholder() string { return In(i18n.Locale()).FieldInstructionsPlaceholder() }
+
+// FieldInstructionsPlaceholder says "Review Go code. Report bugs with a failing test; do not change the style."
+// in the language of msgs.
+func (msgs Messages) FieldInstructionsPlaceholder() string {
+	return Catalog.Format(msgs.locale, "fieldInstructionsPlaceholder", nil)
+}
+
+// AgentInstructionsHelp says "The system prompt of the agent. A change applies to the sessions that start after it."
+// in the language the app shows.
+func AgentInstructionsHelp() string { return In(i18n.Locale()).AgentInstructionsHelp() }
+
+// AgentInstructionsHelp says "The system prompt of the agent. A change applies to the sessions that start after it."
+// in the language of msgs.
+func (msgs Messages) AgentInstructionsHelp() string {
+	return Catalog.Format(msgs.locale, "agentInstructionsHelp", nil)
+}
+
+// Save says "Save"
+// in the language the app shows.
+func Save() string { return In(i18n.Locale()).Save() }
+
+// Save says "Save"
+// in the language of msgs.
+func (msgs Messages) Save() string {
+	return Catalog.Format(msgs.locale, "save", nil)
+}
+
 // FieldDirHelp says "The agent works in this folder on its machine."
 // in the language the app shows.
 func FieldDirHelp() string { return In(i18n.Locale()).FieldDirHelp() }

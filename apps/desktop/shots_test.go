@@ -98,7 +98,8 @@ func sampleDesktop(t *testing.T) *desktop {
 			Description: "General coder: implements features, refactors and fixes code"},
 		{ID: "a2", Name: "solax", Role: "super", Driver: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local", Dir: "~/codes"},
 		{ID: "a3", Name: "reviewer", Driver: "claude", Machine: "build-box", Dir: "~/src/app", Model: "haiku",
-			Description: "Reads diffs and points out bugs before merge"},
+			Description:  "Reads diffs and points out bugs before merge",
+			Instructions: "Review only the diff. Report each bug with a failing test; do not change the style."},
 	}
 	d.jobs = []protocol.Job{
 		{ID: "job_1", Agent: "coder", State: "running", Title: "Add a README to the repo", CreatedAt: now.Add(-2 * time.Minute)},

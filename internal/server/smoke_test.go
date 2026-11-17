@@ -233,3 +233,41 @@ func TestSuperAgentRoutesAsync(t *testing.T) {
 		t.Fatalf("jobs = %+v", jobs)
 	}
 }
+
+// The instructions of an agent reach the system prompt of its sessions.
+// An edit applies to the next session that starts.
+func TestAgentInstructionsReachSession(t *testing.T) {
+	r := newRig(t, func(_ *rig, _ agent.SessionSpec, text string) string { return "ok" })
+	ctx := context.Background()
+	a, err := r.client.CreateAgent(ctx, protocol.CreateAgentRequest{
+		Machine: "mac", Name: "reviewer", Driver: ir.KindClaude, Dir: "/src",
+		Instructions: "  Review Go code. Report bugs only.\n",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Instructions != "Review Go code. Report bugs only." {
+		t.Fatalf("created instructions = %q, want them trimmed", a.Instructions)
+	}
+	edited := "Review Go code and its tests."
+	if a, err = r.client.UpdateAgent(ctx, "reviewer", protocol.UpdateAgentRequest{Instructions: &edited}); err != nil || a.Instructions != edited {
+		t.Fatalf("updated = %+v, %v", a, err)
+	}
+	as, err := r.client.Agents(ctx)
+	if err != nil || len(as) != 1 || as[0].Instructions != edited {
+		t.Fatalf("agents = %+v, %v", as, err)
+	}
+
+	j, err := r.client.Dispatch(ctx, "reviewer", "review the auth package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "job done", func() bool {
+		got, _ := r.client.Job(ctx, j.ID)
+		return got.State == "done"
+	})
+	// The rig has no role prompt, so the system prompt is the instructions.
+	if starts := r.fake.Starts(); len(starts) != 1 || starts[0].Instructions != edited {
+		t.Fatalf("session spec = %+v", starts)
+	}
+}
