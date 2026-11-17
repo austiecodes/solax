@@ -2,7 +2,7 @@ package model
 
 import "github.com/austiecodes/solax/pkg/protocol"
 
-// Wire forms of model values. The engine pushes them on the client stream,
+// Wire forms of model values. The service pushes them on the client stream,
 // and the API returns them.
 
 // WireJob converts a job to its wire form.

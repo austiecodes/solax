@@ -1,6 +1,6 @@
-// Package hub keeps the WebSocket connections of the daemons. It
-// implements engine.Dispatcher for commands to daemons, and reports what
-// daemons say to the Engine.
+// Package hub keeps the WebSocket connections of the daemons. Its Send,
+// Online and Disconnect are the service functions of the same names, and
+// it reports what daemons say to the service.
 package hub
 
 import (
@@ -23,6 +23,7 @@ import (
 	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -39,21 +40,9 @@ const (
 // origin check does not apply; the machine token authenticates them.
 var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 
-// Engine is the part of *engine.Engine that receives what daemons report.
-// It is an interface because the Engine and the Hub need each other: the
-// server builds the Hub first and sets the Engine with SetEngine.
-type Engine interface {
-	MachineConnected(ctx context.Context, machineID model.ID, h protocol.Hello) error
-	MachineDisconnected(ctx context.Context, machineID model.ID) error
-	Heartbeat(ctx context.Context, machineID model.ID, hb protocol.Heartbeat) error
-	SessionStateChanged(ctx context.Context, machineID model.ID, r protocol.SessionStateReport) error
-	SessionEvent(ctx context.Context, machineID model.ID, e protocol.SessionEvent) error
-}
-
 // Hub holds one connection for each online machine.
 type Hub struct {
 	tokens *auth.Tokens
-	eng    Engine
 	log    *slog.Logger
 
 	mu     sync.RWMutex
@@ -79,17 +68,13 @@ type conn struct {
 	pending map[string]chan protocol.Ack
 }
 
-// New returns a Hub. Call SetEngine before serving, because the Engine and
-// the Hub depend on each other.
+// New returns a Hub. It reports what daemons say to the service.
 func New(tokens *auth.Tokens, log *slog.Logger) *Hub {
 	if log == nil {
 		log = slog.Default()
 	}
 	return &Hub{tokens: tokens, log: log, conns: map[model.ID]*conn{}, live: map[*conn]struct{}{}}
 }
-
-// SetEngine sets the receiver of what daemons report.
-func (h *Hub) SetEngine(e Engine) { h.eng = e }
 
 // ServeHTTP verifies the machine token (the daemon generated it; the server
 // has its hash), upgrades to WebSocket, waits for Hello, then reads records
@@ -130,7 +115,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = h.readLoop(ctx, c)
 	h.log.Info("daemon disconnected", "machine", c.machineID, "err", err)
 	if h.drop(c) {
-		_ = h.eng.MachineDisconnected(context.WithoutCancel(ctx), c.machineID)
+		_ = service.MachineDisconnected(context.WithoutCancel(ctx), c.machineID)
 	}
 	ws.Close()
 }
@@ -193,7 +178,7 @@ func (h *Hub) handshake(ctx context.Context, c *conn) error {
 	if old != nil {
 		old.close(websocket.CloseGoingAway, "replaced by a new connection")
 	}
-	if err := h.eng.MachineConnected(ctx, c.machineID, hello); err != nil {
+	if err := service.MachineConnected(ctx, c.machineID, hello); err != nil {
 		h.drop(c)
 		return err
 	}
@@ -244,25 +229,25 @@ func (h *Hub) report(ctx context.Context, c *conn, env protocol.Envelope) error 
 		if err := json.Unmarshal(env.Payload, &v); err != nil {
 			return err
 		}
-		return h.eng.MachineConnected(ctx, c.machineID, v)
+		return service.MachineConnected(ctx, c.machineID, v)
 	case protocol.TypeHeartbeat:
 		var v protocol.Heartbeat
 		if err := json.Unmarshal(env.Payload, &v); err != nil {
 			return err
 		}
-		return h.eng.Heartbeat(ctx, c.machineID, v)
+		return service.Heartbeat(ctx, c.machineID, v)
 	case protocol.TypeSessionEvent:
 		var v protocol.SessionEvent
 		if err := json.Unmarshal(env.Payload, &v); err != nil {
 			return err
 		}
-		return h.eng.SessionEvent(ctx, c.machineID, v)
+		return service.SessionEvent(ctx, c.machineID, v)
 	case protocol.TypeSessionState:
 		var v protocol.SessionStateReport
 		if err := json.Unmarshal(env.Payload, &v); err != nil {
 			return err
 		}
-		return h.eng.SessionStateChanged(ctx, c.machineID, v)
+		return service.SessionStateChanged(ctx, c.machineID, v)
 	}
 	return fmt.Errorf("%w: unknown record %q", errs.ErrInvalid, env.Type)
 }

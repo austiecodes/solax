@@ -1,4 +1,4 @@
-package engine
+package service
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 
 // SendToSuper appends a user message to the Super Agent conversation and
 // puts it into the Super Agent inbox.
-func (e *Engine) SendToSuper(ctx context.Context, a model.Actor, text string) (model.Message, error) {
+func SendToSuper(ctx context.Context, a model.Actor, text string) (model.Message, error) {
 	if err := requireHuman(a); err != nil {
 		return model.Message{}, err
 	}
@@ -36,11 +36,11 @@ func (e *Engine) SendToSuper(ctx context.Context, a model.Actor, text string) (m
 	}
 	var m model.Message
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
-		ses, err := e.superSession(ctx, tx)
+		ses, err := superSession(ctx, tx)
 		if err != nil {
 			return err
 		}
-		now := e.clock()
+		now := clock()
 		m, err = model.AppendMessage(ctx, tx, model.Message{
 			ID: model.NewIDAt(model.PrefixMessage, now), OwnerID: a.OwnerID, Author: a.Author(), Kind: model.MessageChat, Text: text, CreatedAt: now,
 		})
@@ -52,32 +52,32 @@ func (e *Engine) SendToSuper(ctx context.Context, a model.Actor, text string) (m
 	if err != nil {
 		return model.Message{}, err
 	}
-	e.publish(ctx, a.OwnerID, PushMessage, model.WireMessage(m))
-	e.wake()
+	Publish(ctx, a.OwnerID, PushMessage, model.WireMessage(m))
+	Wake()
 	return m, nil
 }
 
 // SuperReply appends a reply of the Super Agent. Plain agent messages of
 // its session become replies too; this is for an explicit reply command.
-func (e *Engine) SuperReply(ctx context.Context, a model.Actor, text string) (model.Message, error) {
+func SuperReply(ctx context.Context, a model.Actor, text string) (model.Message, error) {
 	if a.Kind != model.AuthorSuper {
 		return model.Message{}, errs.ErrForbidden
 	}
 	var m model.Message
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		var err error
-		m, err = e.appendSuper(ctx, tx, a.OwnerID, model.Author{Kind: model.AuthorSuper, ID: a.ID}, model.MessageChat, text)
+		m, err = appendSuper(ctx, tx, a.OwnerID, model.Author{Kind: model.AuthorSuper, ID: a.ID}, model.MessageChat, text)
 		return err
 	})
 	if err == nil {
-		e.publish(ctx, a.OwnerID, PushMessage, model.WireMessage(m))
+		Publish(ctx, a.OwnerID, PushMessage, model.WireMessage(m))
 	}
 	return m, err
 }
 
 // superSession returns the session of the Super Agent, and creates it on
 // first use. It has no job.
-func (e *Engine) superSession(ctx context.Context, tx *sql.Tx) (model.Session, error) {
+func superSession(ctx context.Context, tx *sql.Tx) (model.Session, error) {
 	ag, err := superAgent(ctx, tx)
 	if err != nil {
 		return model.Session{}, err
@@ -89,20 +89,20 @@ func (e *Engine) superSession(ctx context.Context, tx *sql.Tx) (model.Session, e
 	if !errors.Is(err, errs.ErrNotFound) {
 		return model.Session{}, err
 	}
-	now := e.clock()
+	now := clock()
 	ses = model.Session{ID: model.NewIDAt(model.PrefixSession, now), AgentID: ag.ID, State: model.SessionStopped, UpdatedAt: now}
 	return ses, model.SaveSession(ctx, tx, ses)
 }
 
-func (e *Engine) appendSuper(ctx context.Context, tx *sql.Tx, owner model.ID, author model.Author, kind model.MessageKind, text string) (model.Message, error) {
-	now := e.clock()
+func appendSuper(ctx context.Context, tx *sql.Tx, owner model.ID, author model.Author, kind model.MessageKind, text string) (model.Message, error) {
+	now := clock()
 	return model.AppendMessage(ctx, tx, model.Message{
 		ID: model.NewIDAt(model.PrefixMessage, now), OwnerID: owner, Author: author, Kind: kind, Text: text, CreatedAt: now,
 	})
 }
 
 // superEvent turns agent messages of the Super Agent session into replies.
-func (e *Engine) superEvent(ctx context.Context, tx *sql.Tx, ses model.Session, ev ir.Event, post *afterCommit) error {
+func superEvent(ctx context.Context, tx *sql.Tx, ses model.Session, ev ir.Event, post *afterCommit) error {
 	if ev.Type != ir.ItemCompleted || ev.Item == nil || ev.Item.Kind != ir.ItemAgentMessage {
 		return nil
 	}
@@ -118,21 +118,21 @@ func (e *Engine) superEvent(ctx context.Context, tx *sql.Tx, ses model.Session, 
 	if err != nil {
 		return err
 	}
-	msg, err := e.appendSuper(ctx, tx, m.OwnerID, model.Author{Kind: model.AuthorSuper, ID: ag.ID}, model.MessageChat, text)
+	msg, err := appendSuper(ctx, tx, m.OwnerID, model.Author{Kind: model.AuthorSuper, ID: ag.ID}, model.MessageChat, text)
 	if err != nil {
 		return err
 	}
-	post.add(func() { e.publish(context.WithoutCancel(ctx), m.OwnerID, PushMessage, model.WireMessage(msg)) })
+	post.add(func() { Publish(context.WithoutCancel(ctx), m.OwnerID, PushMessage, model.WireMessage(msg)) })
 	return nil
 }
 
 // jobFinished reports a finished job of the Super Agent back to it: a
 // system note in the conversation, and an input in its inbox.
-func (e *Engine) jobFinished(ctx context.Context, tx *sql.Tx, j model.Job, ag model.Agent, post *afterCommit) error {
+func jobFinished(ctx context.Context, tx *sql.Tx, j model.Job, ag model.Agent, post *afterCommit) error {
 	if j.RequestedBy != model.AuthorSuper {
 		return nil
 	}
-	ses, err := e.superSession(ctx, tx)
+	ses, err := superSession(ctx, tx)
 	if errors.Is(err, errs.ErrNotFound) {
 		return nil // the Super Agent was removed; the job result stays on the job
 	}
@@ -150,12 +150,12 @@ func (e *Engine) jobFinished(ctx context.Context, tx *sql.Tx, j model.Job, ag mo
 		b.WriteString("\nresult:\n")
 		b.WriteString(j.Result)
 	}
-	note, err := e.appendSuper(ctx, tx, j.OwnerID, model.Author{Kind: model.AuthorSystem}, model.MessageSystem, head)
+	note, err := appendSuper(ctx, tx, j.OwnerID, model.Author{Kind: model.AuthorSystem}, model.MessageSystem, head)
 	if err != nil {
 		return err
 	}
-	post.add(func() { e.publish(context.WithoutCancel(ctx), j.OwnerID, PushMessage, model.WireMessage(note)) })
-	now := e.clock()
+	post.add(func() { Publish(context.WithoutCancel(ctx), j.OwnerID, PushMessage, model.WireMessage(note)) })
+	now := clock()
 	return model.AddInput(ctx, tx, model.Input{ID: model.NewIDAt(model.PrefixInput, now), SessionID: ses.ID, Text: b.String(), CreatedAt: now})
 }
 

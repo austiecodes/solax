@@ -1,4 +1,4 @@
-package engine
+package service
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 // that its daemon detected. Sessions that the daemon still runs stay live;
 // all other sessions of the machine are stopped, and the delivery loop
 // starts them again when they have input.
-func (e *Engine) MachineConnected(ctx context.Context, machineID model.ID, h protocol.Hello) error {
+func MachineConnected(ctx context.Context, machineID model.ID, h protocol.Hello) error {
 	var owner model.ID
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		m, err := model.GetMachine(ctx, tx, machineID)
@@ -30,7 +30,7 @@ func (e *Engine) MachineConnected(ctx context.Context, machineID model.ID, h pro
 		if m.State != model.MachineApproved {
 			return errs.ErrForbidden
 		}
-		m.Online, m.LastSeen, m.Slots, m.Runtimes = true, e.clock(), h.FreeSlots, h.Runtimes
+		m.Online, m.LastSeen, m.Slots, m.Runtimes = true, clock(), h.FreeSlots, h.Runtimes
 		owner = m.OwnerID
 		if err := model.SaveMachine(ctx, tx, m); err != nil {
 			return err
@@ -44,7 +44,7 @@ func (e *Engine) MachineConnected(ctx context.Context, machineID model.ID, h pro
 			if live == ses.Live && (!live || state == ses.State) {
 				continue
 			}
-			ses.Live, ses.UpdatedAt = live, e.clock()
+			ses.Live, ses.UpdatedAt = live, clock()
 			if live {
 				ses.State = state
 			} else {
@@ -57,14 +57,14 @@ func (e *Engine) MachineConnected(ctx context.Context, machineID model.ID, h pro
 		return nil
 	})
 	if err == nil {
-		e.publish(ctx, owner, PushMachines, nil)
-		e.wake()
+		Publish(ctx, owner, PushMachines, nil)
+		Wake()
 	}
 	return err
 }
 
 // MachineDisconnected records that the machine is offline.
-func (e *Engine) MachineDisconnected(ctx context.Context, machineID model.ID) error {
+func MachineDisconnected(ctx context.Context, machineID model.ID) error {
 	var owner model.ID
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		m, err := model.GetMachine(ctx, tx, machineID)
@@ -72,37 +72,37 @@ func (e *Engine) MachineDisconnected(ctx context.Context, machineID model.ID) er
 			return err
 		}
 		owner = m.OwnerID
-		m.Online, m.LastSeen = false, e.clock()
+		m.Online, m.LastSeen = false, clock()
 		return model.SaveMachine(ctx, tx, m)
 	})
 	if err == nil {
-		e.publish(ctx, owner, PushMachines, nil)
+		Publish(ctx, owner, PushMachines, nil)
 	}
 	return err
 }
 
 // Heartbeat records the free slots of a machine. Session states in the
-// heartbeat are reconciled by the delivery engine.
-func (e *Engine) Heartbeat(ctx context.Context, machineID model.ID, hb protocol.Heartbeat) error {
+// heartbeat are reconciled by the delivery loop.
+func Heartbeat(ctx context.Context, machineID model.ID, hb protocol.Heartbeat) error {
 	return model.Atomic(ctx, func(tx *sql.Tx) error {
 		m, err := model.GetMachine(ctx, tx, machineID)
 		if err != nil {
 			return err
 		}
-		m.Online, m.LastSeen, m.Slots = true, e.clock(), hb.FreeSlots
+		m.Online, m.LastSeen, m.Slots = true, clock(), hb.FreeSlots
 		return model.SaveMachine(ctx, tx, m)
 	})
 }
 
 // SessionStateChanged records what the daemon says about a session
 // process: running (with its native ref) or gone.
-func (e *Engine) SessionStateChanged(ctx context.Context, machineID model.ID, r protocol.SessionStateReport) error {
+func SessionStateChanged(ctx context.Context, machineID model.ID, r protocol.SessionStateReport) error {
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		ses, err := sessionOn(ctx, tx, machineID, model.ID(r.SessionID))
 		if err != nil {
 			return err
 		}
-		ses.State, ses.UpdatedAt = r.State, e.clock()
+		ses.State, ses.UpdatedAt = r.State, clock()
 		ses.Live = r.State != ir.SessionExited && r.State != model.SessionStopped
 		if !ses.Live {
 			ses.State = model.SessionStopped
@@ -113,14 +113,14 @@ func (e *Engine) SessionStateChanged(ctx context.Context, machineID model.ID, r 
 		return model.SaveSession(ctx, tx, ses)
 	})
 	if err == nil {
-		e.wake()
+		Wake()
 	}
 	return err
 }
 
 // SessionEvent stores a reliable IR event, moves the session and its job,
 // and pushes the event to the clients. Deltas are only pushed.
-func (e *Engine) SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEvent) error {
+func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEvent) error {
 	ev := se.Event
 	var (
 		owner   model.ID
@@ -152,7 +152,7 @@ func (e *Engine) SessionEvent(ctx context.Context, machineID model.ID, se protoc
 		if fresh, err = model.AddSessionEvent(ctx, tx, ses.ID, ev); err != nil || !fresh {
 			return err
 		}
-		now := e.clock()
+		now := clock()
 		ses.LastSeq = max(ses.LastSeq, int64(ev.Seq))
 		switch ev.Type {
 		case ir.SessionStarted:
@@ -173,7 +173,7 @@ func (e *Engine) SessionEvent(ctx context.Context, machineID model.ID, se protoc
 			return err
 		}
 		if ses.JobID == "" {
-			return e.superEvent(ctx, tx, ses, ev, &post)
+			return superEvent(ctx, tx, ses, ev, &post)
 		}
 		j, err := model.GetJob(ctx, tx, ses.JobID)
 		if err != nil {
@@ -188,7 +188,7 @@ func (e *Engine) SessionEvent(ctx context.Context, machineID model.ID, se protoc
 		}
 		job = &j
 		if j.State.Terminal() {
-			return e.jobFinished(ctx, tx, j, ag, &post)
+			return jobFinished(ctx, tx, j, ag, &post)
 		}
 		return nil
 	})
@@ -197,12 +197,12 @@ func (e *Engine) SessionEvent(ctx context.Context, machineID model.ID, se protoc
 	}
 	post.run()
 	if fresh {
-		e.publish(ctx, owner, PushSession, note)
+		Publish(ctx, owner, PushSession, note)
 	}
 	if job != nil {
-		e.publish(ctx, owner, PushJob, model.WireJob(*job, agentNm))
+		Publish(ctx, owner, PushJob, model.WireJob(*job, agentNm))
 		if job.State.Terminal() {
-			e.wake()
+			Wake()
 		}
 	}
 	return nil
@@ -254,12 +254,12 @@ func applyJobEvent(j *model.Job, ev ir.Event) bool {
 
 // sessionOn returns a session that runs on the machine. A daemon cannot
 // report events for sessions of another machine.
-func sessionOn(ctx context.Context, tx *sql.Tx, machineID, sessionID model.ID) (model.Session, error) {
-	ses, err := model.GetSession(ctx, tx, sessionID)
+func sessionOn(ctx context.Context, db model.Querier, machineID, sessionID model.ID) (model.Session, error) {
+	ses, err := model.GetSession(ctx, db, sessionID)
 	if err != nil {
 		return model.Session{}, fmt.Errorf("session %s: %w", sessionID, err)
 	}
-	ag, err := model.GetAgent(ctx, tx, ses.AgentID)
+	ag, err := model.GetAgent(ctx, db, ses.AgentID)
 	if err != nil {
 		return model.Session{}, err
 	}

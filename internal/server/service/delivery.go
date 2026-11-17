@@ -1,4 +1,4 @@
-package engine
+package service
 
 import (
 	"context"
@@ -25,7 +25,7 @@ type Delivery struct {
 
 // PendingDeliveries returns one delivery for each session that has unsent
 // inputs and whose machine is online.
-func (e *Engine) PendingDeliveries(ctx context.Context) ([]Delivery, error) {
+func PendingDeliveries(ctx context.Context) ([]Delivery, error) {
 	var out []Delivery
 	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
 		ids, err := model.ListPendingSessions(ctx, tx)
@@ -33,7 +33,7 @@ func (e *Engine) PendingDeliveries(ctx context.Context) ([]Delivery, error) {
 			return err
 		}
 		for _, sid := range ids {
-			d, ok, err := e.planDelivery(ctx, tx, sid)
+			d, ok, err := planDelivery(ctx, tx, sid)
 			if err != nil {
 				return err
 			}
@@ -46,23 +46,23 @@ func (e *Engine) PendingDeliveries(ctx context.Context) ([]Delivery, error) {
 	return out, err
 }
 
-func (e *Engine) planDelivery(ctx context.Context, tx *sql.Tx, sid model.ID) (Delivery, bool, error) {
-	ses, err := model.GetSession(ctx, tx, sid)
+func planDelivery(ctx context.Context, db model.Querier, sid model.ID) (Delivery, bool, error) {
+	ses, err := model.GetSession(ctx, db, sid)
 	if err != nil {
 		return Delivery{}, false, err
 	}
-	ag, err := model.GetAgent(ctx, tx, ses.AgentID)
+	ag, err := model.GetAgent(ctx, db, ses.AgentID)
 	if err != nil {
 		return Delivery{}, false, err
 	}
-	m, err := model.GetMachine(ctx, tx, ag.MachineID)
+	m, err := model.GetMachine(ctx, db, ag.MachineID)
 	if err != nil {
 		return Delivery{}, false, err
 	}
-	if ag.Deleted || !m.Online || m.State != model.MachineApproved || (e.dispatch != nil && !e.dispatch.Online(m.ID)) {
+	if ag.Deleted || !m.Online || m.State != model.MachineApproved || !Online(m.ID) {
 		return Delivery{}, false, nil
 	}
-	pending, err := model.ListPendingInputs(ctx, tx, sid)
+	pending, err := model.ListPendingInputs(ctx, db, sid)
 	if err != nil || len(pending) == 0 {
 		return Delivery{}, false, err
 	}
@@ -76,7 +76,7 @@ func (e *Engine) planDelivery(ctx context.Context, tx *sql.Tx, sid model.ID) (De
 	// has the same first input, so the daemon drops it.
 	d.Input = ir.Input{Mode: ir.ModeFollowUp, Text: strings.Join(texts, "\n\n---\n\n"), Ref: string(pending[0].ID)}
 	if !ses.Live {
-		ens, err := e.ensureFor(ctx, ses, ag, m)
+		ens, err := ensureFor(ctx, ses, ag, m)
 		if err != nil {
 			return Delivery{}, false, err
 		}
@@ -85,7 +85,7 @@ func (e *Engine) planDelivery(ctx context.Context, tx *sql.Tx, sid model.ID) (De
 	return d, true, nil
 }
 
-func (e *Engine) ensureFor(ctx context.Context, ses model.Session, ag model.Agent, m model.Machine) (protocol.SessionEnsure, error) {
+func ensureFor(ctx context.Context, ses model.Session, ag model.Agent, m model.Machine) (protocol.SessionEnsure, error) {
 	role := protocol.RoleWorker
 	if ag.Role == model.RoleSuper {
 		role = protocol.RoleSuper
@@ -96,18 +96,16 @@ func (e *Engine) ensureFor(ctx context.Context, ses model.Session, ag model.Agen
 		Instructions: ag.Instructions,
 		LastSeq:      uint64(ses.LastSeq),
 	}
-	if e.tokens != nil {
-		tok, err := e.tokens.IssueToken(ctx, model.TokenRequest{OwnerID: m.OwnerID, AgentID: ag.ID, SessionID: ses.ID, Job: ses.JobID, Super: ag.Role == model.RoleSuper})
-		if err != nil {
-			return ens, err
-		}
-		ens.AgentToken = tok
+	tok, err := IssueToken(ctx, model.TokenRequest{OwnerID: m.OwnerID, AgentID: ag.ID, SessionID: ses.ID, Job: ses.JobID, Super: ag.Role == model.RoleSuper})
+	if err != nil {
+		return ens, err
 	}
+	ens.AgentToken = tok
 	return ens, nil
 }
 
 // Delivered records that the daemon accepted a batch.
-func (e *Engine) Delivered(ctx context.Context, sessionID model.ID, inputIDs []model.ID) error {
+func Delivered(ctx context.Context, sessionID model.ID, inputIDs []model.ID) error {
 	return model.Atomic(ctx, func(tx *sql.Tx) error {
 		if err := model.MarkInputsSent(ctx, tx, inputIDs); err != nil {
 			return err
@@ -116,27 +114,27 @@ func (e *Engine) Delivered(ctx context.Context, sessionID model.ID, inputIDs []m
 		if err != nil {
 			return err
 		}
-		ses.Live, ses.UpdatedAt = true, e.clock()
+		ses.Live, ses.UpdatedAt = true, clock()
 		return model.SaveSession(ctx, tx, ses)
 	})
 }
 
 // SessionLost records that the daemon does not run a session that the
 // server thought was live. The next delivery pass starts it again.
-func (e *Engine) SessionLost(ctx context.Context, sessionID model.ID) error {
+func SessionLost(ctx context.Context, sessionID model.ID) error {
 	return model.Atomic(ctx, func(tx *sql.Tx) error {
 		ses, err := model.GetSession(ctx, tx, sessionID)
 		if err != nil {
 			return err
 		}
-		ses.Live, ses.State, ses.UpdatedAt = false, model.SessionStopped, e.clock()
+		ses.Live, ses.State, ses.UpdatedAt = false, model.SessionStopped, clock()
 		return model.SaveSession(ctx, tx, ses)
 	})
 }
 
 // DeliveryFailed records that a session could not start. Its job fails;
 // the inputs stay pending for the Super Agent session, which retries.
-func (e *Engine) DeliveryFailed(ctx context.Context, sessionID model.ID, reason string) error {
+func DeliveryFailed(ctx context.Context, sessionID model.ID, reason string) error {
 	var job *model.Job
 	var name string
 	var post afterCommit
@@ -168,17 +166,17 @@ func (e *Engine) DeliveryFailed(ctx context.Context, sessionID model.ID, reason 
 		if err != nil {
 			return err
 		}
-		j.State, j.Error, j.UpdatedAt = model.JobFailed, reason, e.clock()
+		j.State, j.Error, j.UpdatedAt = model.JobFailed, reason, clock()
 		job, name = &j, ag.Name
 		if err := model.SaveJob(ctx, tx, j); err != nil {
 			return err
 		}
-		return e.jobFinished(ctx, tx, j, ag, &post)
+		return jobFinished(ctx, tx, j, ag, &post)
 	})
 	post.run()
 	if job != nil {
-		e.publish(ctx, job.OwnerID, PushJob, model.WireJob(*job, name))
-		e.wake()
+		Publish(ctx, job.OwnerID, PushJob, model.WireJob(*job, name))
+		Wake()
 	}
 	return err
 }

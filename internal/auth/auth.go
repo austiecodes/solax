@@ -84,7 +84,7 @@ type Claims struct {
 	Expires   time.Time
 }
 
-// Actor converts the claims to the identity that the Engine uses.
+// Actor converts the claims to the identity that the service uses.
 func (c Claims) Actor() model.Actor {
 	a := model.Actor{ID: c.Subject, OwnerID: c.OwnerID}
 	switch {
@@ -185,8 +185,8 @@ func (t *Tokens) Clients(ctx context.Context, ownerID model.ID) ([]model.ClientT
 // lives longer gets a fresh token with its next ensure.
 const sessionTTL = 6 * time.Hour
 
-// IssueToken issues the agent token of one session. The engine reaches it
-// through engine.TokenIssuer.
+// IssueToken issues the agent token of one session. The service reaches it
+// through service.IssueToken.
 func (t *Tokens) IssueToken(ctx context.Context, r model.TokenRequest) (string, error) {
 	ttl := r.TTL
 	if ttl <= 0 {

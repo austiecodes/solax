@@ -1,4 +1,4 @@
-package engine
+package service
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 // look absent.
 
 // Machines returns the machines of the owner.
-func (e *Engine) Machines(ctx context.Context, a model.Actor) ([]model.Machine, error) {
+func Machines(ctx context.Context, a model.Actor) ([]model.Machine, error) {
 	if err := requireManager(a); err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ type AgentView struct {
 
 // Agents lists the live agents of the owner. The Super Agent uses it to
 // choose where a job goes.
-func (e *Engine) Agents(ctx context.Context, a model.Actor) ([]AgentView, error) {
+func Agents(ctx context.Context, a model.Actor) ([]AgentView, error) {
 	var out []AgentView
 	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
 		machines, err := model.ListMachines(ctx, tx, a.OwnerID)
@@ -69,22 +69,16 @@ func (e *Engine) Agents(ctx context.Context, a model.Actor) ([]AgentView, error)
 
 // SuperMessages returns the conversation of the user with the Super
 // Agent, with seq > since.
-func (e *Engine) SuperMessages(ctx context.Context, a model.Actor, since int64, limit int) ([]model.Message, error) {
+func SuperMessages(ctx context.Context, a model.Actor, since int64, limit int) ([]model.Message, error) {
 	if err := requireManager(a); err != nil {
 		return nil, err
 	}
-	var out []model.Message
-	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
-		var err error
-		out, err = model.ListMessages(ctx, tx, a.OwnerID, since, limit)
-		return err
-	})
-	return out, err
+	return model.ListMessages(ctx, model.ReadDB, a.OwnerID, since, limit)
 }
 
 // Recall returns any object by ID with the IDs of related objects. The
 // summary is short on purpose: the caller follows links for more.
-func (e *Engine) Recall(ctx context.Context, a model.Actor, id model.ID) (protocol.Object, error) {
+func Recall(ctx context.Context, a model.Actor, id model.ID) (protocol.Object, error) {
 	var obj protocol.Object
 	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
 		var err error
@@ -94,11 +88,11 @@ func (e *Engine) Recall(ctx context.Context, a model.Actor, id model.ID) (protoc
 	return obj, err
 }
 
-func recall(ctx context.Context, tx *sql.Tx, a model.Actor, id model.ID) (protocol.Object, error) {
+func recall(ctx context.Context, db model.Querier, a model.Actor, id model.ID) (protocol.Object, error) {
 	obj := protocol.Object{ID: string(id), Links: map[string]string{}}
 	switch id.Prefix() {
 	case model.PrefixMessage:
-		m, err := model.GetMessage(ctx, tx, id)
+		m, err := model.GetMessage(ctx, db, id)
 		if err != nil {
 			return obj, err
 		}
@@ -114,11 +108,11 @@ func recall(ctx context.Context, tx *sql.Tx, a model.Actor, id model.ID) (protoc
 			obj.Links["author"] = string(m.Author.ID)
 		}
 	case model.PrefixAgent:
-		ag, err := model.GetAgent(ctx, tx, id)
+		ag, err := model.GetAgent(ctx, db, id)
 		if err != nil {
 			return obj, err
 		}
-		m, err := model.GetMachine(ctx, tx, ag.MachineID)
+		m, err := model.GetMachine(ctx, db, ag.MachineID)
 		if err != nil {
 			return obj, err
 		}
@@ -129,7 +123,7 @@ func recall(ctx context.Context, tx *sql.Tx, a model.Actor, id model.ID) (protoc
 		obj.Summary = fmt.Sprintf("Agent %s@%s (%s, %s).", ag.Name, m.Name, ag.Runtime, onlineWord(m.Online))
 		obj.Links["machine"] = string(m.ID)
 	case model.PrefixMachine:
-		m, err := model.GetMachine(ctx, tx, id)
+		m, err := model.GetMachine(ctx, db, id)
 		if err != nil {
 			return obj, err
 		}

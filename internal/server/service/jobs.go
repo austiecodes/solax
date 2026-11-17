@@ -1,4 +1,4 @@
-package engine
+package service
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 
 // Dispatch gives a job to an agent and returns at once. The job runs in a
 // new session of the agent. A person or the Super Agent may dispatch.
-func (e *Engine) Dispatch(ctx context.Context, a model.Actor, agentRef, prompt string) (model.Job, error) {
+func Dispatch(ctx context.Context, a model.Actor, agentRef, prompt string) (model.Job, error) {
 	if err := requireManager(a); err != nil {
 		return model.Job{}, err
 	}
@@ -32,7 +32,7 @@ func (e *Engine) Dispatch(ctx context.Context, a model.Actor, agentRef, prompt s
 		if ag.Role == model.RoleSuper {
 			return fmt.Errorf("%w: %q is the Super Agent; send it a message instead", errs.ErrInvalid, ag.Name)
 		}
-		now := e.clock()
+		now := clock()
 		j = model.Job{
 			ID: model.NewIDAt(model.PrefixJob, now), OwnerID: a.OwnerID, AgentID: ag.ID, SessionID: model.NewIDAt(model.PrefixSession, now),
 			RequestedBy: a.Kind, Title: clip(firstLine(prompt), 80), Prompt: prompt, State: model.JobQueued,
@@ -49,14 +49,14 @@ func (e *Engine) Dispatch(ctx context.Context, a model.Actor, agentRef, prompt s
 	if err != nil {
 		return model.Job{}, err
 	}
-	e.publishJob(ctx, j)
-	e.wake()
+	publishJob(ctx, j)
+	Wake()
 	return j, nil
 }
 
 // FollowUp sends more input to the session of a job. A finished job runs
 // again; its next turn gives the new result.
-func (e *Engine) FollowUp(ctx context.Context, a model.Actor, jobID model.ID, text string) (model.Job, error) {
+func FollowUp(ctx context.Context, a model.Actor, jobID model.ID, text string) (model.Job, error) {
 	if err := requireManager(a); err != nil {
 		return model.Job{}, err
 	}
@@ -73,7 +73,7 @@ func (e *Engine) FollowUp(ctx context.Context, a model.Actor, jobID model.ID, te
 		if j.State == model.JobCancelled {
 			return fmt.Errorf("%w: job %s is cancelled", errs.ErrConflict, j.ID)
 		}
-		now := e.clock()
+		now := clock()
 		if j.State.Terminal() {
 			j.State, j.Error = model.JobQueued, ""
 		}
@@ -86,14 +86,14 @@ func (e *Engine) FollowUp(ctx context.Context, a model.Actor, jobID model.ID, te
 	if err != nil {
 		return model.Job{}, err
 	}
-	e.publishJob(ctx, j)
-	e.wake()
+	publishJob(ctx, j)
+	Wake()
 	return j, nil
 }
 
 // CancelJob stops a job. Pending inputs are dropped and the session is
 // stopped if it runs.
-func (e *Engine) CancelJob(ctx context.Context, a model.Actor, jobID model.ID) (model.Job, error) {
+func CancelJob(ctx context.Context, a model.Actor, jobID model.ID) (model.Job, error) {
 	if err := requireManager(a); err != nil {
 		return model.Job{}, err
 	}
@@ -121,7 +121,7 @@ func (e *Engine) CancelJob(ctx context.Context, a model.Actor, jobID model.ID) (
 		if err := model.MarkInputsSent(ctx, tx, ids); err != nil {
 			return err
 		}
-		j.State, j.UpdatedAt = model.JobCancelled, e.clock()
+		j.State, j.UpdatedAt = model.JobCancelled, clock()
 		if err := model.SaveJob(ctx, tx, j); err != nil {
 			return err
 		}
@@ -139,44 +139,32 @@ func (e *Engine) CancelJob(ctx context.Context, a model.Actor, jobID model.ID) (
 	if err != nil {
 		return model.Job{}, err
 	}
-	if live && e.dispatch != nil && e.dispatch.Online(machine) {
+	if live && Online(machine) {
 		env := protocol.Envelope{Type: protocol.TypeSessionStop, Payload: mustJSON(protocol.SessionStop{SessionID: string(j.SessionID), Reason: "job cancelled"})}
-		_, _ = e.dispatch.Send(ctx, machine, env)
+		_, _ = Send(ctx, machine, env)
 	}
-	e.publishJob(ctx, j)
+	publishJob(ctx, j)
 	return j, nil
 }
 
 // Jobs returns the newest jobs first.
-func (e *Engine) Jobs(ctx context.Context, a model.Actor, limit int) ([]model.Job, error) {
+func Jobs(ctx context.Context, a model.Actor, limit int) ([]model.Job, error) {
 	if err := requireManager(a); err != nil {
 		return nil, err
 	}
-	var out []model.Job
-	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
-		var err error
-		out, err = model.ListJobs(ctx, tx, a.OwnerID, limit)
-		return err
-	})
-	return out, err
+	return model.ListJobs(ctx, model.ReadDB, a.OwnerID, limit)
 }
 
 // Job returns one job.
-func (e *Engine) Job(ctx context.Context, a model.Actor, id model.ID) (model.Job, error) {
+func Job(ctx context.Context, a model.Actor, id model.ID) (model.Job, error) {
 	if err := requireManager(a); err != nil {
 		return model.Job{}, err
 	}
-	var j model.Job
-	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
-		var err error
-		j, err = ownedJob(ctx, tx, a, id)
-		return err
-	})
-	return j, err
+	return ownedJob(ctx, model.ReadDB, a, id)
 }
 
 // SessionEvents returns the stored IR events of a session (no deltas).
-func (e *Engine) SessionEvents(ctx context.Context, a model.Actor, sessionID model.ID, after int64, limit int) ([]ir.Event, error) {
+func SessionEvents(ctx context.Context, a model.Actor, sessionID model.ID, after int64, limit int) ([]ir.Event, error) {
 	if err := requireManager(a); err != nil {
 		return nil, err
 	}
@@ -203,8 +191,8 @@ func (e *Engine) SessionEvents(ctx context.Context, a model.Actor, sessionID mod
 	return out, err
 }
 
-func ownedJob(ctx context.Context, tx *sql.Tx, a model.Actor, id model.ID) (model.Job, error) {
-	j, err := model.GetJob(ctx, tx, id)
+func ownedJob(ctx context.Context, db model.Querier, a model.Actor, id model.ID) (model.Job, error) {
+	j, err := model.GetJob(ctx, db, id)
 	if err != nil {
 		return model.Job{}, fmt.Errorf("job %s: %w", id, err)
 	}
@@ -214,14 +202,9 @@ func ownedJob(ctx context.Context, tx *sql.Tx, a model.Actor, id model.ID) (mode
 	return j, nil
 }
 
-func (e *Engine) publishJob(ctx context.Context, j model.Job) {
-	var name string
-	_ = model.Snapshot(ctx, func(tx *sql.Tx) error {
-		ag, err := model.GetAgent(ctx, tx, j.AgentID)
-		name = ag.Name
-		return err
-	})
-	e.publish(ctx, j.OwnerID, PushJob, model.WireJob(j, name))
+func publishJob(ctx context.Context, j model.Job) {
+	ag, _ := model.GetAgent(ctx, model.ReadDB, j.AgentID)
+	Publish(ctx, j.OwnerID, PushJob, model.WireJob(j, ag.Name))
 }
 
 func firstLine(s string) string {

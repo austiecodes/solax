@@ -1,5 +1,5 @@
 // Package server builds the server process ("solax server run"): database,
-// engine, hub, delivery loop, client stream and the gin router.
+// service functions, hub, delivery loop, client stream and the gin router.
 package server
 
 import (
@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/server/api"
 	"github.com/austiecodes/solax/internal/server/delivery"
 	"github.com/austiecodes/solax/internal/server/hub"
 	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/internal/server/stream"
 )
 
@@ -36,7 +36,7 @@ func Init(ctx context.Context, cfg Config, clientName string) (token string, err
 		return "", err
 	}
 	defer model.Close()
-	owner, err := engine.New(engine.Config{}).InitOwner(ctx)
+	owner, err := service.InitOwner(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -57,24 +57,26 @@ func Admin(ctx context.Context, cfg Config) (*auth.Tokens, func() error, error) 
 // Serve serves it; tests serve its Handler with httptest.
 type App struct {
 	Handler http.Handler
-	Engine  *engine.Engine
 	Tokens  *auth.Tokens
 	hub     *hub.Hub
 	loop    *delivery.Loop
 }
 
-// New assembles the server. The model database must be open.
+// New assembles the server and sets the service functions. The model
+// database must be open.
 func New(secret []byte, log *slog.Logger) *App {
 	tokens := auth.NewTokens(secret)
 	h := hub.New(tokens, log)
 	st := stream.New()
-	eng := engine.New(engine.Config{Dispatcher: h, Notifier: st, Tokens: tokens})
-	h.SetEngine(eng)
-	loop := delivery.New(eng, h, log)
-	eng.OnWork(loop.Kick)
+	loop := delivery.New(h, log)
+
+	service.Send, service.Online, service.Disconnect = h.Send, h.Online, h.Disconnect
+	service.Publish = st.Publish
+	service.IssueToken = tokens.IssueToken
+	service.Wake = loop.Kick
+
 	return &App{
-		Handler: api.NewRouter(api.Config{Engine: eng, Tokens: tokens, Daemon: h, Stream: st}),
-		Engine:  eng,
+		Handler: api.NewRouter(api.Config{Tokens: tokens, Daemon: h, Stream: st}),
 		Tokens:  tokens,
 		hub:     h,
 		loop:    loop,

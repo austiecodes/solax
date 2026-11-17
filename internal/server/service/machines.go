@@ -1,4 +1,4 @@
-package engine
+package service
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 // RegisterMachine adds an approved machine with the hash of the token that
 // the machine generated. A client calls it from the machine itself. A retry
 // with the same hash returns the same machine.
-func (e *Engine) RegisterMachine(ctx context.Context, a model.Actor, name, tokenHash string) (model.Machine, error) {
+func RegisterMachine(ctx context.Context, a model.Actor, name, tokenHash string) (model.Machine, error) {
 	if err := requireHuman(a); err != nil {
 		return model.Machine{}, err
 	}
@@ -36,7 +36,7 @@ func (e *Engine) RegisterMachine(ctx context.Context, a model.Actor, name, token
 			existing.Name = name
 			m = existing
 		case errors.Is(err, errs.ErrNotFound):
-			m = model.Machine{ID: model.NewIDAt(model.PrefixMachine, e.clock()), OwnerID: a.OwnerID, Name: name,
+			m = model.Machine{ID: model.NewIDAt(model.PrefixMachine, clock()), OwnerID: a.OwnerID, Name: name,
 				State: model.MachineApproved, TokenHash: tokenHash}
 		default:
 			return err
@@ -49,7 +49,7 @@ func (e *Engine) RegisterMachine(ctx context.Context, a model.Actor, name, token
 // EnrollMachine creates a pending machine with a pairing code that is
 // valid for PairTTL. The same token hash enrolls once; a retry returns the
 // same machine and code.
-func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (model.Machine, error) {
+func EnrollMachine(ctx context.Context, name, tokenHash string) (model.Machine, error) {
 	if err := validMachine(name, tokenHash); err != nil {
 		return model.Machine{}, err
 	}
@@ -69,15 +69,15 @@ func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (mod
 				m = existing // approved: nothing to do; revoked: stays revoked
 				return nil
 			}
-			if e.clock().Before(existing.PairUntil) {
+			if clock().Before(existing.PairUntil) {
 				m = existing
 				return nil
 			}
-			existing.PairCode, existing.PairUntil = newPairCode(), e.clock().Add(model.PairTTL)
+			existing.PairCode, existing.PairUntil = newPairCode(), clock().Add(model.PairTTL)
 			m = existing
 		case errors.Is(err, errs.ErrNotFound):
-			m = model.Machine{ID: model.NewIDAt(model.PrefixMachine, e.clock()), OwnerID: owners[0].ID, Name: name,
-				State: model.MachinePending, TokenHash: tokenHash, PairCode: newPairCode(), PairUntil: e.clock().Add(model.PairTTL)}
+			m = model.Machine{ID: model.NewIDAt(model.PrefixMachine, clock()), OwnerID: owners[0].ID, Name: name,
+				State: model.MachinePending, TokenHash: tokenHash, PairCode: newPairCode(), PairUntil: clock().Add(model.PairTTL)}
 		default:
 			return err
 		}
@@ -87,7 +87,7 @@ func (e *Engine) EnrollMachine(ctx context.Context, name, tokenHash string) (mod
 }
 
 // ApproveMachine approves a pending machine by its pairing code.
-func (e *Engine) ApproveMachine(ctx context.Context, a model.Actor, code string) (model.Machine, error) {
+func ApproveMachine(ctx context.Context, a model.Actor, code string) (model.Machine, error) {
 	if err := requireHuman(a); err != nil {
 		return model.Machine{}, err
 	}
@@ -105,7 +105,7 @@ func (e *Engine) ApproveMachine(ctx context.Context, a model.Actor, code string)
 		if err := owned(a, m.OwnerID); err != nil {
 			return err
 		}
-		if m.State != model.MachinePending || !e.clock().Before(m.PairUntil) {
+		if m.State != model.MachinePending || !clock().Before(m.PairUntil) {
 			return fmt.Errorf("%w: pairing code expired", errs.ErrNotFound)
 		}
 		m.State, m.PairCode, m.PairUntil = model.MachineApproved, "", zeroTime
@@ -116,7 +116,7 @@ func (e *Engine) ApproveMachine(ctx context.Context, a model.Actor, code string)
 
 // RevokeMachine makes the token of a machine invalid and closes its
 // connection. Its sessions end with the connection.
-func (e *Engine) RevokeMachine(ctx context.Context, a model.Actor, machineID model.ID) error {
+func RevokeMachine(ctx context.Context, a model.Actor, machineID model.ID) error {
 	if err := requireHuman(a); err != nil {
 		return err
 	}
@@ -134,9 +134,7 @@ func (e *Engine) RevokeMachine(ctx context.Context, a model.Actor, machineID mod
 	if err != nil {
 		return err
 	}
-	if e.dispatch != nil {
-		e.dispatch.Disconnect(machineID)
-	}
+	Disconnect(machineID)
 	return nil
 }
 

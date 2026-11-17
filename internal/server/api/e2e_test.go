@@ -12,23 +12,15 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/server/api"
 	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/internal/server/stream"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
-
-type nopDispatcher struct{}
-
-func (nopDispatcher) Send(context.Context, model.ID, protocol.Envelope) (protocol.Ack, error) {
-	return protocol.Ack{}, errs.ErrUnavailable
-}
-func (nopDispatcher) Online(model.ID) bool { return false }
-func (nopDispatcher) Disconnect(model.ID)  {}
 
 func status(t *testing.T, err error) int {
 	t.Helper()
@@ -49,15 +41,15 @@ func TestTopologyOverHTTP(t *testing.T) {
 	}
 	defer model.Close()
 	tokens := auth.NewTokens([]byte("secret"))
-	eng := engine.New(engine.Config{Dispatcher: nopDispatcher{}, Tokens: tokens})
+	// The service functions keep their defaults: no daemon is connected.
 	srv := httptest.NewServer(api.NewRouter(api.Config{
-		Engine: eng, Tokens: tokens,
+		Tokens: tokens,
 		Daemon: http.NotFoundHandler(), Stream: stream.New(),
 	}))
 	defer srv.Close()
 
 	// Bootstrap, as "solax server init" does.
-	owner, err := eng.InitOwner(ctx)
+	owner, err := service.InitOwner(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +94,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 
 	// The daemon of "mac" connects and reports its agent CLIs; a person
 	// sets up the agents.
-	if err := eng.MachineConnected(ctx, model.ID(reg.MachineID), protocol.Hello{Runtimes: []protocol.RuntimeProbe{
+	if err := service.MachineConnected(ctx, model.ID(reg.MachineID), protocol.Hello{Runtimes: []protocol.RuntimeProbe{
 		{Kind: ir.KindClaude, OK: true}, {Kind: ir.KindCodex, OK: true}}}); err != nil {
 		t.Fatal(err)
 	}

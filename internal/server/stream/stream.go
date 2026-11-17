@@ -1,5 +1,5 @@
 // Package stream pushes live events to connected clients over WebSocket
-// (/v1/stream). It implements engine.Notifier.
+// (/v1/stream). Its Publish is service.Publish.
 //
 // The stream is best-effort: a client that reads too slowly loses pushes,
 // and a client that connects late reads the state from the REST API. Every
@@ -94,18 +94,18 @@ func (s *Stream) Serve(w http.ResponseWriter, r *http.Request, owner model.ID) {
 
 // Publish sends an event to all clients of an owner. It drops the event
 // for clients that read too slowly.
-func (s *Stream) Publish(ctx context.Context, ownerID model.ID, event string, payload any) error {
+func (s *Stream) Publish(ctx context.Context, ownerID model.ID, event string, payload any) {
 	push := protocol.Push{Event: event}
 	if payload != nil {
 		p, err := json.Marshal(payload)
 		if err != nil {
-			return err
+			return
 		}
 		push.Payload = p
 	}
 	b, err := json.Marshal(push)
 	if err != nil {
-		return err
+		return
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -115,7 +115,6 @@ func (s *Stream) Publish(ctx context.Context, ownerID model.ID, event string, pa
 		default:
 		}
 	}
-	return nil
 }
 
 func (s *Stream) add(owner model.ID, sb *sub) {

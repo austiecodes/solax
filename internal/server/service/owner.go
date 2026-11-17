@@ -1,4 +1,4 @@
-package engine
+package service
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 // InitOwner creates the owner of a new installation. v1 has one owner, so a
 // second call fails with ErrConflict. "solax server init" calls it on the
 // server host; it needs no actor.
-func (e *Engine) InitOwner(ctx context.Context) (model.Owner, error) {
+func InitOwner(ctx context.Context) (model.Owner, error) {
 	var o model.Owner
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		owners, err := model.ListOwners(ctx, tx)
@@ -23,7 +23,7 @@ func (e *Engine) InitOwner(ctx context.Context) (model.Owner, error) {
 		if len(owners) > 0 {
 			return fmt.Errorf("%w: already initialised", errs.ErrConflict)
 		}
-		now := e.clock()
+		now := clock()
 		o = model.Owner{ID: model.NewIDAt(model.PrefixOwner, now), CreatedAt: now}
 		return model.SaveOwner(ctx, tx, o)
 	})

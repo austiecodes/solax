@@ -1,5 +1,5 @@
 // Package api holds the gin handlers of the REST API under /v1. Handlers
-// translate HTTP into Engine calls. They contain no domain rules.
+// translate HTTP into service calls. They contain no domain rules.
 package api
 
 import (
@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/austiecodes/solax/internal/auth"
-	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/errs"
 	"github.com/austiecodes/solax/internal/server/stream"
 	"github.com/austiecodes/solax/pkg/protocol"
@@ -17,21 +16,13 @@ import (
 
 // Config holds what the router needs.
 type Config struct {
-	Engine *engine.Engine
 	Tokens *auth.Tokens
 	Daemon http.Handler   // the hub, mounted at protocol.DaemonPath
 	Stream *stream.Stream // the client stream, mounted at /v1/stream
 }
 
-// Handlers implements the REST endpoints.
-type Handlers struct {
-	eng *engine.Engine
-}
-
 // NewRouter returns the gin engine with all routes.
 func NewRouter(cfg Config) *gin.Engine {
-	h := &Handlers{eng: cfg.Engine}
-
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.GET("/healthz", func(c *gin.Context) { c.Status(http.StatusNoContent) })
@@ -41,7 +32,7 @@ func NewRouter(cfg Config) *gin.Engine {
 
 	// The only unauthenticated endpoint: a machine enrolls the hash of the
 	// token it generated, and waits for approval. Rate-limited per address.
-	r.POST("/v1/machines/enroll", RateLimit(), h.enrollMachine)
+	r.POST("/v1/machines/enroll", RateLimit(), enrollMachine)
 
 	v1 := r.Group("/v1", Authenticate(cfg.Tokens))
 	v1.GET("/stream", RequireKind(auth.KindClient), func(c *gin.Context) {
@@ -51,36 +42,36 @@ func NewRouter(cfg Config) *gin.Engine {
 	// The Super Agent lists machines to know what is available. Only a
 	// person changes them.
 	machines := v1.Group("/machines", RequireClientOrSuper())
-	machines.GET("", h.listMachines)
-	machines.POST("", RequireKind(auth.KindClient), h.registerMachine)
-	machines.POST("/approve", RequireKind(auth.KindClient), h.approveMachine)
-	machines.DELETE("/:machine", RequireKind(auth.KindClient), h.revokeMachine)
+	machines.GET("", listMachines)
+	machines.POST("", RequireKind(auth.KindClient), registerMachine)
+	machines.POST("/approve", RequireKind(auth.KindClient), approveMachine)
+	machines.DELETE("/:machine", RequireKind(auth.KindClient), revokeMachine)
 	// Agents are set up by a person; the Super Agent reads them to route.
-	v1.GET("/agents", h.listAgents)
+	v1.GET("/agents", listAgents)
 	agents := v1.Group("/agents", RequireKind(auth.KindClient))
-	agents.POST("", h.createAgent)
-	agents.PATCH("/:agent", h.updateAgent)
-	agents.DELETE("/:agent", h.deleteAgent)
+	agents.POST("", createAgent)
+	agents.PATCH("/:agent", updateAgent)
+	agents.DELETE("/:agent", deleteAgent)
 
 	// Jobs: a person or the Super Agent dispatches work to an agent. The
 	// call returns at once; the result arrives on the stream (and in the
 	// Super Agent inbox).
 	jobs := v1.Group("/jobs", RequireClientOrSuper())
-	jobs.POST("", h.dispatch)
-	jobs.GET("", h.listJobs)
-	jobs.GET("/:job", h.getJob)
-	jobs.POST("/:job/messages", h.followUpJob)
-	jobs.POST("/:job/cancel", h.cancelJob)
-	v1.GET("/sessions/:session/events", RequireClientOrSuper(), h.sessionEvents)
+	jobs.POST("", dispatch)
+	jobs.GET("", listJobs)
+	jobs.GET("/:job", getJob)
+	jobs.POST("/:job/messages", followUpJob)
+	jobs.POST("/:job/cancel", cancelJob)
+	v1.GET("/sessions/:session/events", RequireClientOrSuper(), sessionEvents)
 
 	// The conversation of the user with the Super Agent.
 	super := v1.Group("/super")
-	super.GET("/messages", RequireKind(auth.KindClient), h.superMessages)
-	super.POST("/messages", RequireKind(auth.KindClient), h.sendToSuper)
-	super.POST("/replies", RequireSuper(), h.superReply)
+	super.GET("/messages", RequireKind(auth.KindClient), superMessages)
+	super.POST("/messages", RequireKind(auth.KindClient), sendToSuper)
+	super.POST("/replies", RequireSuper(), superReply)
 
 	// Any object by ID, with the IDs of related objects.
-	v1.GET("/objects/:id", h.recall)
+	v1.GET("/objects/:id", recall)
 
 	return r
 }

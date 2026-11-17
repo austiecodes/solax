@@ -20,6 +20,7 @@ import (
 	"github.com/austiecodes/solax/internal/daemon/supervisor"
 	"github.com/austiecodes/solax/internal/server"
 	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
@@ -57,7 +58,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 	})
 	app.Start(ctx, make(chan error, 4))
 
-	owner, err := app.Engine.InitOwner(ctx)
+	owner, err := service.InitOwner(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

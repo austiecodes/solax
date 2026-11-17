@@ -1,8 +1,8 @@
 package api
 
 import (
-	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -22,7 +22,7 @@ func wireEnrolled(m model.Machine) protocol.MachineEnrolled {
 		PairCode: m.PairCode, PairUntil: m.PairUntil}
 }
 
-func wireAgent(v engine.AgentView) protocol.Agent {
+func wireAgent(v service.AgentView) protocol.Agent {
 	return protocol.Agent{
 		ID: string(v.ID), Name: v.Name, Description: v.Description, Instructions: v.Instructions, MachineID: string(v.MachineID), Machine: v.MachineName,
 		Online: v.Online, Runtime: v.Runtime, Role: string(v.Role), Dir: v.Dir, Model: v.Model, Options: v.Options,

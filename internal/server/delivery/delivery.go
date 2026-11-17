@@ -1,9 +1,9 @@
 // Package delivery runs the delivery loop of the server: it takes the
-// pending inputs of each session from the engine, starts the session on
+// pending inputs of each session from the service, starts the session on
 // its machine when needed, and sends the inputs. It is the only caller of
 // session.ensure and session.deliver.
 //
-// The loop is level-triggered: each pass asks the engine for all due work,
+// The loop is level-triggered: each pass asks the service for all due work,
 // so a lost wake-up or a failed send is repaired by the next pass.
 package delivery
 
@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/austiecodes/solax/internal/engine"
 	"github.com/austiecodes/solax/internal/server/hub"
 	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -38,7 +38,6 @@ const unknownSession = "unknown session"
 
 // Loop delivers inputs.
 type Loop struct {
-	eng  *engine.Engine
 	hub  *hub.Hub
 	log  *slog.Logger
 	wake chan struct{}
@@ -48,8 +47,8 @@ type Loop struct {
 }
 
 // New returns a Loop.
-func New(eng *engine.Engine, h *hub.Hub, log *slog.Logger) *Loop {
-	return &Loop{eng: eng, hub: h, log: log, wake: make(chan struct{}, 1), inFlight: map[model.ID]bool{}}
+func New(h *hub.Hub, log *slog.Logger) *Loop {
+	return &Loop{hub: h, log: log, wake: make(chan struct{}, 1), inFlight: map[model.ID]bool{}}
 }
 
 // Kick asks for a pass soon. It never blocks.
@@ -79,7 +78,7 @@ func (l *Loop) Run(ctx context.Context) error {
 // delivery under way. Sessions do not wait for each other: one slow
 // session start must not hold up the inbox of the Super Agent.
 func (l *Loop) pass(ctx context.Context) {
-	ds, err := l.eng.PendingDeliveries(ctx)
+	ds, err := service.PendingDeliveries(ctx)
 	if err != nil {
 		l.log.Warn("delivery: plan failed", "err", err)
 		return
@@ -103,7 +102,7 @@ func (l *Loop) pass(ctx context.Context) {
 	}
 }
 
-func (l *Loop) deliver(ctx context.Context, d engine.Delivery) {
+func (l *Loop) deliver(ctx context.Context, d service.Delivery) {
 	log := l.log.With("session", d.SessionID, "machine", d.MachineID)
 	if d.Ensure != nil {
 		ectx, cancel := context.WithTimeout(ctx, ensureTimeout)
@@ -115,7 +114,7 @@ func (l *Loop) deliver(ctx context.Context, d engine.Delivery) {
 		}
 		if !ack.OK {
 			log.Warn("delivery: session did not start", "err", ack.Error)
-			_ = l.eng.DeliveryFailed(ctx, d.SessionID, "session did not start: "+ack.Error)
+			_ = service.DeliveryFailed(ctx, d.SessionID, "session did not start: "+ack.Error)
 			return
 		}
 	}
@@ -130,15 +129,15 @@ func (l *Loop) deliver(ctx context.Context, d engine.Delivery) {
 	}
 	if !ack.OK && strings.Contains(ack.Error, unknownSession) {
 		log.Info("delivery: session is gone on the machine; starting it again")
-		_ = l.eng.SessionLost(ctx, d.SessionID)
+		_ = service.SessionLost(ctx, d.SessionID)
 		return
 	}
 	if !ack.OK {
 		log.Warn("delivery: input rejected", "err", ack.Error)
-		_ = l.eng.DeliveryFailed(ctx, d.SessionID, "input rejected: "+ack.Error)
+		_ = service.DeliveryFailed(ctx, d.SessionID, "input rejected: "+ack.Error)
 		return
 	}
-	if err := l.eng.Delivered(ctx, d.SessionID, d.InputIDs); err != nil {
+	if err := service.Delivered(ctx, d.SessionID, d.InputIDs); err != nil {
 		log.Warn("delivery: record failed", "err", err)
 	}
 }
