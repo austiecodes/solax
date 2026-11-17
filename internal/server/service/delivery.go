@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/austiecodes/solax/internal/server/model"
-
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )

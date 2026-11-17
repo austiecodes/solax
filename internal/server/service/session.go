@@ -4,95 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
-
-	"github.com/austiecodes/solax/internal/server/model"
 
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// What daemons report through the hub: machines that connect, heartbeats,
-// and session states and events. The names are in the past tense.
-
-// MachineConnected records that the machine is online with the runtimes
-// that its daemon detected. Sessions that the daemon still runs stay live;
-// all other sessions of the machine are stopped, and the delivery loop
-// starts them again when they have input.
-func MachineConnected(ctx context.Context, machineID model.ID, h protocol.Hello) error {
-	var owner model.ID
-	err := model.Atomic(ctx, func(tx *sql.Tx) error {
-		m, err := model.GetMachine(ctx, tx, machineID)
-		if err != nil {
-			return err
-		}
-		if m.State != model.MachineApproved {
-			return errs.ErrForbidden
-		}
-		m.Online, m.LastSeen, m.Slots, m.Runtimes = true, clock(), h.FreeSlots, h.Runtimes
-		owner = m.OwnerID
-		if err := model.SaveMachine(ctx, tx, m); err != nil {
-			return err
-		}
-		sessions, err := model.ListSessionsOnMachine(ctx, tx, machineID)
-		if err != nil {
-			return err
-		}
-		for _, ses := range sessions {
-			state, live := h.Sessions[string(ses.ID)]
-			if live == ses.Live && (!live || state == ses.State) {
-				continue
-			}
-			ses.Live, ses.UpdatedAt = live, clock()
-			if live {
-				ses.State = state
-			} else {
-				ses.State = model.SessionStopped
-			}
-			if err := model.SaveSession(ctx, tx, ses); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err == nil {
-		Publish(ctx, owner, PushMachines, nil)
-		Wake()
-	}
-	return err
-}
-
-// MachineDisconnected records that the machine is offline.
-func MachineDisconnected(ctx context.Context, machineID model.ID) error {
-	var owner model.ID
-	err := model.Atomic(ctx, func(tx *sql.Tx) error {
-		m, err := model.GetMachine(ctx, tx, machineID)
-		if err != nil {
-			return err
-		}
-		owner = m.OwnerID
-		m.Online, m.LastSeen = false, clock()
-		return model.SaveMachine(ctx, tx, m)
-	})
-	if err == nil {
-		Publish(ctx, owner, PushMachines, nil)
-	}
-	return err
-}
-
-// Heartbeat records the free slots of a machine. Session states in the
-// heartbeat are reconciled by the delivery loop.
-func Heartbeat(ctx context.Context, machineID model.ID, hb protocol.Heartbeat) error {
-	return model.Atomic(ctx, func(tx *sql.Tx) error {
-		m, err := model.GetMachine(ctx, tx, machineID)
-		if err != nil {
-			return err
-		}
-		m.Online, m.LastSeen, m.Slots = true, clock(), hb.FreeSlots
-		return model.SaveMachine(ctx, tx, m)
-	})
-}
+// Session states and events, as daemons report them through the hub, and
+// the stored events that clients read.
 
 // SessionStateChanged records what the daemon says about a session
 // process: running (with its native ref) or gone.
@@ -208,50 +128,6 @@ func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEv
 	return nil
 }
 
-// applyJobEvent moves a job with one event of its session. It reports
-// whether the job changed. The result is the last agent message of the
-// last turn; a cancelled job stays cancelled.
-func applyJobEvent(j *model.Job, ev ir.Event) bool {
-	if j.State == model.JobCancelled {
-		return false
-	}
-	switch ev.Type {
-	case ir.TurnStarted:
-		j.State, j.Result, j.Error = model.JobRunning, "", ""
-		return true
-	case ir.ItemCompleted:
-		if ev.Item != nil && ev.Item.Kind == ir.ItemAgentMessage && strings.TrimSpace(ev.Item.Text) != "" {
-			j.Result = ev.Item.Text
-			return true
-		}
-	case ir.TurnCompleted:
-		if ev.Turn == nil {
-			return false
-		}
-		switch ev.Turn.Status {
-		case ir.TurnOK:
-			j.State = model.JobDone
-		case ir.TurnInterrupted:
-			j.State, j.Error = model.JobFailed, "interrupted"
-		default:
-			j.State, j.Error = model.JobFailed, "turn failed"
-			if ev.Turn.Error != nil && ev.Turn.Error.Message != "" {
-				j.Error = ev.Turn.Error.Message
-			}
-		}
-		return true
-	case ir.SessionExitedEvent:
-		if !j.State.Terminal() {
-			j.State, j.Error = model.JobFailed, "agent process exited"
-			if ev.Session != nil && ev.Session.Reason != "" {
-				j.Error += ": " + ev.Session.Reason
-			}
-			return true
-		}
-	}
-	return false
-}
-
 // sessionOn returns a session that runs on the machine. A daemon cannot
 // report events for sessions of another machine.
 func sessionOn(ctx context.Context, db model.Querier, machineID, sessionID model.ID) (model.Session, error) {
@@ -267,4 +143,32 @@ func sessionOn(ctx context.Context, db model.Querier, machineID, sessionID model
 		return model.Session{}, fmt.Errorf("session %s: %w", sessionID, errs.ErrForbidden)
 	}
 	return ses, nil
+}
+
+// SessionEvents returns the stored IR events of a session (no deltas).
+func SessionEvents(ctx context.Context, a model.Actor, sessionID model.ID, after int64, limit int) ([]ir.Event, error) {
+	if err := requireManager(a); err != nil {
+		return nil, err
+	}
+	var out []ir.Event
+	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
+		ses, err := model.GetSession(ctx, tx, sessionID)
+		if err != nil {
+			return err
+		}
+		ag, err := model.GetAgent(ctx, tx, ses.AgentID)
+		if err != nil {
+			return err
+		}
+		m, err := model.GetMachine(ctx, tx, ag.MachineID)
+		if err != nil {
+			return err
+		}
+		if err := owned(a, m.OwnerID); err != nil {
+			return err
+		}
+		out, err = model.ListSessionEvents(ctx, tx, sessionID, after, limit)
+		return err
+	})
+	return out, err
 }

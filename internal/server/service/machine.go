@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/austiecodes/solax/internal/server/model"
-
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
+	"github.com/austiecodes/solax/pkg/protocol"
 )
 
 // RegisterMachine adds an approved machine with the hash of the token that
@@ -172,4 +172,93 @@ func normPairCode(code string) string {
 		return ""
 	}
 	return c[:4] + "-" + c[4:]
+}
+
+// What the daemon of a machine reports through the hub. The names are in
+// the past tense.
+
+// MachineConnected records that the machine is online with the runtimes
+// that its daemon detected. Sessions that the daemon still runs stay live;
+// all other sessions of the machine are stopped, and the delivery loop
+// starts them again when they have input.
+func MachineConnected(ctx context.Context, machineID model.ID, h protocol.Hello) error {
+	var owner model.ID
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
+		m, err := model.GetMachine(ctx, tx, machineID)
+		if err != nil {
+			return err
+		}
+		if m.State != model.MachineApproved {
+			return errs.ErrForbidden
+		}
+		m.Online, m.LastSeen, m.Slots, m.Runtimes = true, clock(), h.FreeSlots, h.Runtimes
+		owner = m.OwnerID
+		if err := model.SaveMachine(ctx, tx, m); err != nil {
+			return err
+		}
+		sessions, err := model.ListSessionsOnMachine(ctx, tx, machineID)
+		if err != nil {
+			return err
+		}
+		for _, ses := range sessions {
+			state, live := h.Sessions[string(ses.ID)]
+			if live == ses.Live && (!live || state == ses.State) {
+				continue
+			}
+			ses.Live, ses.UpdatedAt = live, clock()
+			if live {
+				ses.State = state
+			} else {
+				ses.State = model.SessionStopped
+			}
+			if err := model.SaveSession(ctx, tx, ses); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err == nil {
+		Publish(ctx, owner, PushMachines, nil)
+		Wake()
+	}
+	return err
+}
+
+// MachineDisconnected records that the machine is offline.
+func MachineDisconnected(ctx context.Context, machineID model.ID) error {
+	var owner model.ID
+	err := model.Atomic(ctx, func(tx *sql.Tx) error {
+		m, err := model.GetMachine(ctx, tx, machineID)
+		if err != nil {
+			return err
+		}
+		owner = m.OwnerID
+		m.Online, m.LastSeen = false, clock()
+		return model.SaveMachine(ctx, tx, m)
+	})
+	if err == nil {
+		Publish(ctx, owner, PushMachines, nil)
+	}
+	return err
+}
+
+// Heartbeat records the free slots of a machine. Session states in the
+// heartbeat are reconciled by the delivery loop.
+func Heartbeat(ctx context.Context, machineID model.ID, hb protocol.Heartbeat) error {
+	return model.Atomic(ctx, func(tx *sql.Tx) error {
+		m, err := model.GetMachine(ctx, tx, machineID)
+		if err != nil {
+			return err
+		}
+		m.Online, m.LastSeen, m.Slots = true, clock(), hb.FreeSlots
+		return model.SaveMachine(ctx, tx, m)
+	})
+}
+
+// Machines returns the machines of the owner.
+func Machines(ctx context.Context, a model.Actor) ([]model.Machine, error) {
+	if err := requireManager(a); err != nil {
+		return nil, err
+	}
+	return model.ListMachines(ctx, model.ReadDB, a.OwnerID)
 }

@@ -5,9 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/austiecodes/solax/internal/server/model"
-
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 )
 
 // InitOwner creates the owner of a new installation. v1 has one owner, so a

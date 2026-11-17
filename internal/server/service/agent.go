@@ -9,9 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/austiecodes/solax/internal/server/model"
-
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
@@ -258,4 +257,48 @@ func superAgent(ctx context.Context, db model.Querier) (model.Agent, error) {
 		}
 	}
 	return model.Agent{}, fmt.Errorf("no Super Agent is set up: %w", errs.ErrNotFound)
+}
+
+// AgentView is an agent with the state of its machine.
+type AgentView struct {
+	model.Agent
+	MachineName string
+	// Online is true when the machine is connected and its daemon detected
+	// a working runtime for the agent.
+	Online bool
+	// SessionID is the conversation session of the Super Agent, once it
+	// has one. It is empty for other agents: their sessions are per job.
+	SessionID model.ID
+}
+
+// Agents lists the live agents of the owner. The Super Agent uses it to
+// choose where a job goes.
+func Agents(ctx context.Context, a model.Actor) ([]AgentView, error) {
+	var out []AgentView
+	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
+		machines, err := model.ListMachines(ctx, tx, a.OwnerID)
+		if err != nil {
+			return err
+		}
+		byID := map[model.ID]model.Machine{}
+		for _, m := range machines {
+			byID[m.ID] = m
+		}
+		all, err := model.ListAgents(ctx, tx)
+		for _, ag := range all {
+			m, ok := byID[ag.MachineID]
+			if !ok {
+				continue
+			}
+			v := AgentView{Agent: ag, MachineName: m.Name, Online: m.Online && m.HasRuntime(ag.Runtime)}
+			if ag.Role == model.RoleSuper {
+				if ses, err := model.GetSessionFor(ctx, tx, ag.ID, ""); err == nil {
+					v.SessionID = ses.ID
+				}
+			}
+			out = append(out, v)
+		}
+		return err
+	})
+	return out, err
 }

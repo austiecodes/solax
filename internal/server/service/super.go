@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/austiecodes/solax/internal/server/model"
-
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
@@ -170,4 +169,13 @@ func (p *afterCommit) run() {
 	for _, fn := range *p {
 		fn()
 	}
+}
+
+// SuperMessages returns the conversation of the user with the Super
+// Agent, with seq > since.
+func SuperMessages(ctx context.Context, a model.Actor, since int64, limit int) ([]model.Message, error) {
+	if err := requireManager(a); err != nil {
+		return nil, err
+	}
+	return model.ListMessages(ctx, model.ReadDB, a.OwnerID, since, limit)
 }

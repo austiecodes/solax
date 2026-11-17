@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/austiecodes/solax/internal/server/model"
-
 	"github.com/austiecodes/solax/internal/errs"
+	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -163,34 +162,6 @@ func Job(ctx context.Context, a model.Actor, id model.ID) (model.Job, error) {
 	return ownedJob(ctx, model.ReadDB, a, id)
 }
 
-// SessionEvents returns the stored IR events of a session (no deltas).
-func SessionEvents(ctx context.Context, a model.Actor, sessionID model.ID, after int64, limit int) ([]ir.Event, error) {
-	if err := requireManager(a); err != nil {
-		return nil, err
-	}
-	var out []ir.Event
-	err := model.Snapshot(ctx, func(tx *sql.Tx) error {
-		ses, err := model.GetSession(ctx, tx, sessionID)
-		if err != nil {
-			return err
-		}
-		ag, err := model.GetAgent(ctx, tx, ses.AgentID)
-		if err != nil {
-			return err
-		}
-		m, err := model.GetMachine(ctx, tx, ag.MachineID)
-		if err != nil {
-			return err
-		}
-		if err := owned(a, m.OwnerID); err != nil {
-			return err
-		}
-		out, err = model.ListSessionEvents(ctx, tx, sessionID, after, limit)
-		return err
-	})
-	return out, err
-}
-
 func ownedJob(ctx context.Context, db model.Querier, a model.Actor, id model.ID) (model.Job, error) {
 	j, err := model.GetJob(ctx, db, id)
 	if err != nil {
@@ -207,7 +178,46 @@ func publishJob(ctx context.Context, j model.Job) {
 	Publish(ctx, j.OwnerID, PushJob, model.WireJob(j, ag.Name))
 }
 
-func firstLine(s string) string {
-	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
-	return line
+// applyJobEvent moves a job with one event of its session. It reports
+// whether the job changed. The result is the last agent message of the
+// last turn; a cancelled job stays cancelled.
+func applyJobEvent(j *model.Job, ev ir.Event) bool {
+	if j.State == model.JobCancelled {
+		return false
+	}
+	switch ev.Type {
+	case ir.TurnStarted:
+		j.State, j.Result, j.Error = model.JobRunning, "", ""
+		return true
+	case ir.ItemCompleted:
+		if ev.Item != nil && ev.Item.Kind == ir.ItemAgentMessage && strings.TrimSpace(ev.Item.Text) != "" {
+			j.Result = ev.Item.Text
+			return true
+		}
+	case ir.TurnCompleted:
+		if ev.Turn == nil {
+			return false
+		}
+		switch ev.Turn.Status {
+		case ir.TurnOK:
+			j.State = model.JobDone
+		case ir.TurnInterrupted:
+			j.State, j.Error = model.JobFailed, "interrupted"
+		default:
+			j.State, j.Error = model.JobFailed, "turn failed"
+			if ev.Turn.Error != nil && ev.Turn.Error.Message != "" {
+				j.Error = ev.Turn.Error.Message
+			}
+		}
+		return true
+	case ir.SessionExitedEvent:
+		if !j.State.Terminal() {
+			j.State, j.Error = model.JobFailed, "agent process exited"
+			if ev.Session != nil && ev.Session.Reason != "" {
+				j.Error += ": " + ev.Session.Reason
+			}
+			return true
+		}
+	}
+	return false
 }

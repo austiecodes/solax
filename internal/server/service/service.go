@@ -7,6 +7,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/austiecodes/solax/internal/errs"
@@ -41,7 +42,7 @@ var (
 	Wake = func() {}
 )
 
-// Helpers shared by the command files.
+// Helpers shared by the domain files.
 
 // requireManager rejects a plain worker agent. Only a person and the Super
 // Agent dispatch, follow up and cancel jobs.
@@ -92,3 +93,18 @@ const (
 	PushSession  = "session.event"    // protocol.SessionEventNote
 	PushMessage  = "super.message"    // protocol.Message of the Super Agent conversation
 )
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
+	return line
+}
+
+// clip shortens s to n runes with an ellipsis.
+func clip(s string, n int) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
+}
