@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -20,7 +19,7 @@ func (d *desktop) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 	// No app title: the first page is Solax, as in Alma.
 	ui.Row(c).Height(topBar).Shrink(0).AlignItems(ui.Center).Gap(6).Padding(0, 10, 0, max(bar.Left, 16)).DragWindow().Children(func() {
 		ui.Spacer(c)
-		iconButton(c, "hide-sidebar", sidebarIcon, tip("Hide Sidebar", "sidebar.toggle"), pal, func() { d.run("sidebar.toggle") })
+		iconButton(c, "hide-sidebar", sidebarIcon, tip(locales.HideSidebar(), "sidebar.toggle"), pal, func() { d.run("sidebar.toggle") })
 	})
 	ui.Column(c.Key("nav")).Shrink(0).Padding(0, 8).Gap(1).Children(func() {
 		for _, p := range navPages {
@@ -75,16 +74,16 @@ func (d *desktop) navRow(c *ui.Context, pal *palette, p navPage) {
 // how to group them, as the Codex app's "Organize" menu.
 func (d *desktop) jobsHead(c *ui.Context, pal *palette) {
 	ui.Row(c.Key("jobs-head")).Height(28).Margin(14, 0, 2, 0).Padding(0, 2, 0, 8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "Recent jobs").FontSize(12).FontWeight(500).TextColor(pal.textFaint).Grow(1)
+		ui.Text(c, locales.RecentJobs()).FontSize(12).FontWeight(500).TextColor(pal.textFaint).Grow(1)
 		b := ui.ButtonBase(c.Key("organize")).Size(24, 22).Radius(6).Center().TextColor(pal.textFaint).
-			Label("Group jobs").Tooltip("Group jobs")
+			Label(locales.GroupJobs()).Tooltip(locales.GroupJobs())
 		if b.Hovered() {
 			b.Background(pal.rowHover).TextColor(pal.text)
 		}
 		b.Children(func() { ui.Icon(c, organizeIcon).Size(14, 14) })
 		b.Menu(func(m *ui.Menu) {
 			for _, g := range groupings {
-				if m.Item("By " + strings.ToLower(g.label)).Radio(d.prefs.JobGroups == g.id).Chosen() {
+				if m.Item(g.menu()).Radio(d.prefs.JobGroups == g.id).Chosen() {
 					d.prefs.JobGroups = g.id
 					d.savePrefs()
 				}
@@ -196,33 +195,33 @@ func sideRow(c *ui.Context, pal *palette, key string, selected bool) ui.Element 
 // next of them. Without a connection it says so instead.
 func (d *desktop) sidebarFooter(c *ui.Context, pal *palette) {
 	ui.Row(c).Height(44).Shrink(0).Padding(0, 8, 4, 8).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
-		gear := iconButton(c, "settings", gearIcon, tip("Settings", "settings.open"), pal, func() { d.run("settings.open") })
+		gear := iconButton(c, "settings", gearIcon, tip(locales.Settings(), "settings.open"), pal, func() { d.run("settings.open") })
 		if d.page == pageSettings {
 			gear.Background(pal.rowSelected).TextColor(pal.text)
 		}
-		iconButton(c, "palette", searchIcon, tip("Go to", "palette.open"), pal, func() { d.run("palette.open") })
-		iconButton(c, "reload", reloadIcon, tip("Reload", "data.reload"), pal, func() { d.run("data.reload") })
+		iconButton(c, "palette", searchIcon, tip(locales.GoTo(), "palette.open"), pal, func() { d.run("palette.open") })
+		iconButton(c, "reload", reloadIcon, tip(locales.ActionReload(), "data.reload"), pal, func() { d.run("data.reload") })
 		ui.Spacer(c)
 		if d.conn.State != "connected" {
 			d.connNote(c, pal)
 			return
 		}
-		d.footerChip(c, pal, "running", false, "%d queued or running", func(j protocol.Job) bool { return jobLive(j.State) })
-		d.footerChip(c, pal, "failed", true, "%d failed", func(j protocol.Job) bool { return j.State == "failed" && d.unread[j.ID] })
-		d.footerChip(c, pal, "done", true, "%d done, unread", func(j protocol.Job) bool { return j.State == "done" && d.unread[j.ID] })
+		d.footerChip(c, pal, "running", false, locales.FooterLive, func(j protocol.Job) bool { return jobLive(j.State) })
+		d.footerChip(c, pal, "failed", true, locales.FooterFailed, func(j protocol.Job) bool { return j.State == "failed" && d.unread[j.ID] })
+		d.footerChip(c, pal, "done", true, locales.FooterDone, func(j protocol.Job) bool { return j.State == "done" && d.unread[j.ID] })
 	})
 }
 
 // footerChip counts the jobs that match, with their state icon. A click
 // opens the next of them. It shows nothing while none match.
-func (d *desktop) footerChip(c *ui.Context, pal *palette, state string, unread bool, say string, is func(protocol.Job) bool) {
+func (d *desktop) footerChip(c *ui.Context, pal *palette, state string, unread bool, say func(int) string, is func(protocol.Job) bool) {
 	n := d.countJobs(is)
 	if n == 0 {
 		return
 	}
-	words := fmt.Sprintf(say, n)
+	words := say(n)
 	b := ui.ButtonBase(c.Key("chip-"+state)).Height(24).Padding(0, 8, 0, 6).Gap(5).Radius(12).AlignItems(ui.Center).
-		Label(words).Tooltip(words + " · open the next")
+		Label(words).Tooltip(locales.FooterOpenNext(words))
 	if b.Hovered() {
 		b.Background(pal.rowHover)
 	}
@@ -252,7 +251,7 @@ func (d *desktop) connNote(c *ui.Context, pal *palette) {
 	}
 	note.Children(func() {
 		ui.Box(c).Size(7, 7).Radius(3.5).Background(dot).Shrink(0)
-		ui.Text(c, d.conn.State).FontSize(12).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
+		ui.Text(c, stateWord(d.conn.State)).FontSize(12).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
 	})
 }
 

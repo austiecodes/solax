@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/austiecodes/solax/internal/localconfig"
+	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/pkg/client"
 )
 
@@ -36,25 +37,26 @@ type globals struct {
 	json   bool
 }
 
-// NewRoot returns the root command.
+// NewRoot returns the root command, in the language in use (package
+// locale): Execute chooses it before it builds the commands.
 func NewRoot() *cobra.Command {
 	g := &globals{}
 	root := &cobra.Command{
 		Use:           "solax",
-		Short:         "Solax: one Super Agent over coding agents on many machines",
+		Short:         T("Solax: one Super Agent over coding agents on many machines"),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	pf := root.PersistentFlags()
-	pf.StringVar(&g.server, "server", "", "server URL (default $"+EnvServer+", then backend.url)")
-	pf.StringVar(&g.token, "token", "", "token (default $"+EnvToken+", then the client token)")
-	pf.BoolVar(&g.json, "json", false, "print JSON")
+	pf.StringVar(&g.server, "server", "", Tf("server URL (default $%s, then backend.url)", EnvServer))
+	pf.StringVar(&g.token, "token", "", Tf("token (default $%s, then the client token)", EnvToken))
+	pf.BoolVar(&g.json, "json", false, T("print JSON"))
 
 	root.AddGroup(
-		&cobra.Group{ID: "config", Title: "Configuration:"},
-		&cobra.Group{ID: "daemon", Title: "Local daemon:"},
-		&cobra.Group{ID: "server", Title: "Server:"},
-		&cobra.Group{ID: "client", Title: "Server commands:"},
+		&cobra.Group{ID: "config", Title: T("Configuration:")},
+		&cobra.Group{ID: "daemon", Title: T("Local daemon:")},
+		&cobra.Group{ID: "server", Title: T("Server:")},
+		&cobra.Group{ID: "client", Title: T("Server commands:")},
 	)
 	add := func(group string, cmds ...*cobra.Command) {
 		for _, c := range cmds {
@@ -66,18 +68,40 @@ func NewRoot() *cobra.Command {
 	add("daemon", daemonCmd(g), tryCmd(g))
 	add("server", serverCmd(g))
 	add("client", chatCmd(g), agentCmd(g), jobCmd(g), watchCmd(g), machineCmd(g), recallCmd(g))
+	localizeCobra(root)
 	return root
 }
 
 // Execute runs the root command and exits on error.
 func Execute() {
+	locale.Set(locale.Detect(configuredLang()))
 	if err := NewRoot().Execute(); err != nil {
 		if !errors.Is(err, errSilent) {
-			fmt.Fprintln(os.Stderr, "solax:", err)
+			fmt.Fprintln(os.Stderr, "solax:", cobraError(err))
 		}
 		os.Exit(1)
 	}
 }
+
+// configuredLang is lang of config.yaml, or "" when it cannot be read: a
+// broken config must not stop "solax --help".
+func configuredLang() string {
+	p, err := paths()
+	if err != nil {
+		return ""
+	}
+	cfg, err := p.Load()
+	if err != nil {
+		return ""
+	}
+	return cfg.Lang
+}
+
+// T and Tf say a message in the language in use.
+var (
+	T  = locale.T
+	Tf = locale.Tf
+)
 
 // paths returns the local state paths.
 func paths() (localconfig.Paths, error) {
@@ -108,7 +132,7 @@ func (g *globals) client() (*client.Client, error) {
 		token = first(token, creds.ClientToken)
 	}
 	if server == "" || token == "" {
-		return nil, fmt.Errorf(`no backend or token: run "solax set backend --url URL --token-stdin"`)
+		return nil, errors.New(T(`no backend or token: run "solax set backend --url URL --token-stdin"`))
 	}
 	return client.New(server, token), nil
 }

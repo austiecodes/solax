@@ -40,7 +40,9 @@ func main() {
 	// Back in the app, the notifications have done their work: the
 	// sidebar shows the same jobs as unread.
 	mygo.App.OnDidBecomeActive(mygo.ClearNotifications)
+	mygo.App.OnLocaleChanged(func(string) { d.localeChanged() })
 	mygo.App.WhenReady(func() {
+		d.lang = mygo.App.ChosenLocale()
 		d.win = mygo.NewWindow(framed(mygo.WindowOptions{
 			Title: "Solax", Width: 1240, Height: 820, MinWidth: 720, MinHeight: 480,
 			StateKey: "main", Vibrancy: mygo.VibrancySidebar, Content: ui.View(d.view),

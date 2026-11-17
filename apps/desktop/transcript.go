@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -80,7 +80,7 @@ func eventBlocks(evs []ir.Event, live map[string]*liveText, busy bool) []block {
 		case ir.TurnCompleted:
 			t.endTurn(e.Turn)
 			if e.Turn != nil && e.Turn.Error != nil {
-				t.note(block{key: "turn-" + e.TurnID, text: "The turn failed: " + e.Turn.Error.Message, warn: true})
+				t.note(block{key: "turn-" + e.TurnID, text: locales.TurnFailed(e.Turn.Error.Message), warn: true})
 			}
 		case ir.NoticeEmitted:
 			if n := e.Notice; n != nil && n.Level != "info" {
@@ -155,7 +155,7 @@ func (t *transcript) item(it *ir.Item, d time.Duration) {
 			t.addStep(step{id: it.ID, kind: ir.ItemToolCall, tool: it.Tool, status: it.Status, took: d})
 		}
 	case ir.ItemCompaction:
-		t.note(block{key: it.ID, text: "The context was compacted."})
+		t.note(block{key: it.ID, text: locales.Compacted()})
 	}
 }
 
@@ -296,21 +296,21 @@ func withWorking(blocks []block, busy bool) []block {
 func toolVerb(t *ir.ToolCall) string {
 	switch t.Class {
 	case ir.ToolShell:
-		return "Ran"
+		return locales.ToolRan()
 	case ir.ToolFileRead:
-		return "Read"
+		return locales.ToolRead()
 	case ir.ToolFileSearch:
-		return "Searched"
+		return locales.ToolSearched()
 	case ir.ToolFileChange:
-		return "Edited"
+		return locales.ToolEdited()
 	case ir.ToolWeb:
-		return "Fetched"
+		return locales.ToolFetched()
 	case ir.ToolSubagent:
-		return "Delegated"
+		return locales.ToolDelegated()
 	case ir.ToolScript:
-		return "Ran script"
+		return locales.ToolRanScript()
 	}
-	return "Used " + t.Name
+	return locales.ToolUsed(t.Name)
 }
 
 // toolArg is the main input of a tool call, on one line.
@@ -345,9 +345,9 @@ func stepsTitle(b block) string {
 			}
 		}
 		if n := len(b.steps); n > 0 && b.steps[n-1].kind == ir.ItemReasoning && b.steps[n-1].running() {
-			return "Thinking"
+			return locales.Thinking()
 		}
-		return "Working"
+		return locales.Working()
 	}
 	tools, thought := 0, time.Duration(0)
 	for _, s := range b.steps {
@@ -360,46 +360,43 @@ func stepsTitle(b block) string {
 	if tools == 0 {
 		return thoughtFor(thought)
 	}
-	if tools == 1 {
-		return "1 tool used"
-	}
-	return plural(tools, "tool") + " used"
+	return locales.ToolsUsed(tools)
 }
 
 // presentVerb is toolVerb as it happens: "Running".
 func presentVerb(t *ir.ToolCall) string {
 	switch t.Class {
 	case ir.ToolShell, ir.ToolScript:
-		return "Running"
+		return locales.ToolRunning()
 	case ir.ToolFileRead:
-		return "Reading"
+		return locales.ToolReading()
 	case ir.ToolFileSearch:
-		return "Searching"
+		return locales.ToolSearching()
 	case ir.ToolFileChange:
-		return "Editing"
+		return locales.ToolEditing()
 	case ir.ToolWeb:
-		return "Fetching"
+		return locales.ToolFetching()
 	case ir.ToolSubagent:
-		return "Delegating"
+		return locales.ToolDelegating()
 	}
-	return "Using " + t.Name
+	return locales.ToolUsing(t.Name)
 }
 
 func thoughtFor(d time.Duration) string {
 	if d < time.Second {
-		return "Thought"
+		return locales.Thought()
 	}
-	return "Thought for " + seconds(d)
+	return locales.ThoughtFor(seconds(d))
 }
 
 // seconds writes a short duration: "4s", "2m 5s".
 func seconds(d time.Duration) string {
 	s := int(d.Round(time.Second) / time.Second)
 	if s < 60 {
-		return strconv.Itoa(s) + "s"
+		return locales.DurationSeconds(s)
 	}
 	if s%60 == 0 {
-		return strconv.Itoa(s/60) + "m"
+		return locales.DurationMinutes(s / 60)
 	}
-	return strconv.Itoa(s/60) + "m " + strconv.Itoa(s%60) + "s"
+	return locales.DurationMinutesSeconds(s/60, s%60)
 }

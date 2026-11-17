@@ -33,7 +33,8 @@ Daemons connect out to the server, so a machine does not need an open port.
 ## Quick start
 
 You need Go 1.27 or later, and at least one agent CLI
-(`claude`, `codex` or `pi`) on your `PATH`.
+(`claude`, `codex` or `pi`) on your `PATH` or in a usual install
+folder (`~/.local/bin`, Homebrew, nvm, bun).
 
 Install the CLI:
 
@@ -49,7 +50,17 @@ solax setup local
 
 You can run this command again at any time. It changes only what is missing.
 
-Set up a Super Agent and one worker agent:
+Add an agent for each agent CLI that the daemon found:
+
+```sh
+solax agent discover          # list them
+solax agent discover --add    # add them; pi becomes the Super Agent
+```
+
+The daemon looks for newly installed CLIs every 30 seconds. The desktop
+app shows the same list on its Agents page, with an Add button each.
+
+Or set up a Super Agent and one worker agent yourself:
 
 ```sh
 solax agent add router --driver pi --dir ~ --super
@@ -75,6 +86,30 @@ solax job show <job-id>
 ```
 
 To follow everything live, run `solax watch`.
+
+### Forks of Claude Code
+
+A CLI that speaks the stream-json of Claude Code runs on the Claude Code
+driver. Add one, or point the built-in `claude` at another binary, in
+`~/.solax/config.yaml`; the base name of the binary is the driver name.
+Restart the daemon after a change.
+
+```yaml
+drivers:
+  claude_compatible:
+    - mycc                  # on the PATH
+    - /opt/tools/other-cc   # a path: the driver is other-cc
+    - ~/bin/claude          # the claude driver uses this binary
+```
+
+## Language
+
+The CLI and the desktop app speak English or Simplified Chinese.
+
+- CLI: `solax set lang zh-Hans` (or `en`, or `auto`). `auto` follows
+  `$SOLAX_LANG`, then `$LC_ALL`, `$LC_MESSAGES` and `$LANG`.
+  `$SOLAX_LANG` wins over the setting. Agent sessions always get English.
+- Desktop: Settings › Look › Language. It follows the system by default.
 
 ## Add another machine
 

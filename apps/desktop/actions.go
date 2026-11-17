@@ -52,7 +52,6 @@ func (d *desktop) toggleDark() {
 	if mygo.Theme.IsDark() {
 		d.prefs.Appearance = "light"
 	}
-	d.setAppearance = appearanceLabel(d.prefs.Appearance)
 	applyAppearance(d.prefs.Appearance)
 	d.savePrefs()
 }
@@ -70,8 +69,11 @@ func applyAppearance(a string) {
 	}
 }
 
-// title is the title of an action.
+// title is the title of an action, in the language shown.
 func title(id string) string {
+	if t, ok := actionTitles[id]; ok {
+		return t()
+	}
 	a, _ := actions.Find(id)
 	return a.Title
 }
@@ -94,7 +96,7 @@ func tip(label, id string) string {
 func (d *desktop) item(a actions.Action) *mygo.MenuItem {
 	id := a.ID
 	return &mygo.MenuItem{
-		Label: a.Title, Accelerator: a.Keys,
+		Label: title(a.ID), Accelerator: a.Keys,
 		Click: func(*mygo.MenuItem, *mygo.Window) { d.update(func() { d.run(id) }) },
 	}
 }
@@ -118,8 +120,8 @@ func (d *desktop) menu() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu, Submenu: app},
 		{Role: mygo.RoleEditMenu},
-		{Label: actions.MenuGo, Submenu: d.items(actions.MenuGo)},
-		{Label: actions.MenuView, Submenu: view},
+		{Label: menuTitle(actions.MenuGo), Submenu: d.items(actions.MenuGo)},
+		{Label: menuTitle(actions.MenuView), Submenu: view},
 		{Role: mygo.RoleWindowMenu},
 	})
 }

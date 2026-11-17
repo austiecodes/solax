@@ -15,6 +15,7 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 
 	"github.com/austiecodes/solax/apps/desktop/internal/profile"
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
@@ -110,10 +111,17 @@ type desktop struct {
 	machineSel string // the machine the Machines page shows, by ID
 	form       agentForm
 	pairCode   string
+	// The agents found on the machines (agents.go): the folder of the
+	// ones added, and an add in flight.
+	discoverDir string
+	adding      bool
 
 	// Settings.
 	setName, setServer, setToken string
-	setAppearance                string // the Appearance choice, bound to its select
+	lang                         string // the language MyGo keeps, "" for the system's
+
+	// queue takes the updates of background work in tests (update).
+	queue chan func()
 
 	// The server that the solax CLI of this Mac uses ("solax setup
 	// local"). readLocal reads it; nil (in tests) means none.
@@ -140,7 +148,7 @@ func newDesktop(profiles *profile.Store, prefsPath string) *desktop {
 	}
 	return &desktop{
 		profiles: profiles, prefs: p, prefsPath: prefsPath, notes: noNotifier{},
-		page: p.Page, jobSel: p.Job, setAppearance: appearanceLabel(p.Appearance),
+		page: p.Page, jobSel: p.Job,
 		conn: connState{State: "disconnected"}, focused: true, unread: unread,
 		events: map[string][]ir.Event{}, live: map[string]map[string]*liveText{}, folds: map[string]*fold{},
 		localErr: profile.ErrNoLocal, // until checkLocal runs
@@ -157,9 +165,14 @@ func (d *desktop) savePrefs() {
 }
 
 // update runs fn on the UI thread. Without a window (in tests) it runs
-// fn at once.
+// fn at once, or hands it to queue when the test set one, to run it on
+// the test's goroutine.
 func (d *desktop) update(fn func()) {
 	if d.win == nil {
+		if d.queue != nil {
+			d.queue <- fn
+			return
+		}
 		fn()
 		return
 	}
@@ -181,7 +194,7 @@ func (d *desktop) api() (*client.Client, error) {
 func (d *desktop) do(work func(ctx context.Context, c *client.Client) (func(), error)) {
 	c, err := d.api()
 	if err != nil {
-		d.status = err.Error()
+		d.status = errText(err)
 		return
 	}
 	go func() {
@@ -190,7 +203,7 @@ func (d *desktop) do(work func(ctx context.Context, c *client.Client) (func(), e
 		apply, err := work(ctx, c)
 		d.update(func() {
 			if err != nil {
-				d.status = err.Error()
+				d.status = errText(err)
 				return
 			}
 			d.status = ""
@@ -217,7 +230,7 @@ func (d *desktop) connect() {
 	}
 	p, token, err := d.profiles.Current()
 	if err != nil {
-		d.update(func() { d.conn = connState{State: "disconnected", Error: err.Error()}; d.page = pageSettings })
+		d.update(func() { d.conn = connState{State: "disconnected", Error: errText(err)}; d.page = pageSettings })
 		return
 	}
 	c := client.New(p.Server, token)
@@ -258,7 +271,7 @@ func (d *desktop) useLocal() {
 		err = d.profiles.UseLocal(l)
 	}
 	if err != nil {
-		d.update(func() { d.status = "settings: " + err.Error() })
+		d.update(func() { d.status = locales.SettingsError(errText(err)) })
 		return
 	}
 	d.update(func() { d.status = ""; d.page = pageChat })
@@ -288,7 +301,7 @@ func (d *desktop) feed(ctx context.Context, c *client.Client, server string) {
 		if ctx.Err() != nil {
 			return
 		}
-		msg := "stream closed"
+		msg := locales.StreamClosed()
 		if err != nil {
 			msg = err.Error()
 		}

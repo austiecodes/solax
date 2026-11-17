@@ -15,9 +15,12 @@ Pages:
   prompt, the steps of the agent, its replies and live text. It looks the
   same for Claude Code, Codex and pi. Send a follow-up or cancel.
 - **Agents**: set up agents (name, machine, driver, folder, model,
-  description) and choose the agent that is Solax.
+  description) and choose the agent that is Solax. "Found on your
+  machines" lists the agent CLIs that the daemons found and that no agent
+  uses yet; Add sets one up (package `pkg/discover`).
 - **Machines**: machines, the agent CLIs their daemons found, and pairing.
-- **Settings**: server URL and client token. The token is kept in the
+- **Settings**: server URL and client token; theme, appearance and
+  language (English or Simplified Chinese, the system's by default). The token is kept in the
   macOS keychain (service `dev.austiecodes.solax`), the profiles in
   `~/Library/Application Support/solax/desktop/profiles.json`.
 
@@ -54,6 +57,11 @@ Code map:
 - `unread.go`: unread jobs, notifications and the Dock badge, all in one
   place (`jobEnded`, `markRead`, `setJobs`).
 - `confirm.go`: `d.ask(...)` asks before an action that cannot be undone.
+- `locales/`: the messages, `en.json` (with descriptions) and
+  `zh-Hans.json`. A new message goes in both; `mygo generate` writes its
+  function in `locales/catalog_gen.go`, which is committed. `lang.go`
+  holds the titles of actions, the words of states and the language
+  choice.
 - `icons/`: SVG icons, embedded (licenses in `icons/README.md`).
 
 Run from this directory:
@@ -62,6 +70,7 @@ Run from this directory:
 go run .                                        # run it
 go run github.com/egoist/mygo/cmd/mygo dev      # run with hot reload
 go run github.com/egoist/mygo/cmd/mygo build    # build/darwin-arm64/Solax.app
+go run github.com/egoist/mygo/cmd/mygo generate # locales/catalog_gen.go
 go test ./...
 ```
 

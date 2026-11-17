@@ -29,7 +29,7 @@ func tryCmd(g *globals) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "try <pi|codex|claude> <prompt>",
-		Short: "Run one local agent session and print its unified events",
+		Short: T("Run one local agent session and print its unified events"),
 		Example: `  solax try claude "list the files here"
   solax try codex --dir ~/src/app "run the tests" --json
   solax try pi "say hi" --follow-up "now say bye"`,
@@ -37,7 +37,11 @@ func tryCmd(g *globals) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			drv, err := agent.Find(driver.All(""), ir.Kind(args[0]))
+			ds, err := tryDrivers()
+			if err != nil {
+				return err
+			}
+			drv, err := agent.Find(ds, ir.Kind(args[0]))
 			if err != nil {
 				return err
 			}
@@ -64,7 +68,7 @@ func tryCmd(g *globals) *cobra.Command {
 			for {
 				select {
 				case <-ctx.Done():
-					fmt.Fprintln(cmd.ErrOrStderr(), "interrupt: stopping the session")
+					fmt.Fprintln(cmd.ErrOrStderr(), T("interrupt: stopping the session"))
 					return nil
 				case e, ok := <-sess.Events():
 					if !ok {
@@ -86,11 +90,11 @@ func tryCmd(g *globals) *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVar(&dir, "dir", "", "working folder of the agent (default: current folder)")
-	f.StringVar(&model, "model", "", "model of the agent")
-	f.StringVar(&instructions, "instructions", "", "text appended to the system prompt")
-	f.StringArrayVar(&follow, "follow-up", nil, "another prompt, sent after the previous turn ends (repeatable)")
-	f.BoolVar(&raw, "deltas", false, "also print streamed deltas")
+	f.StringVar(&dir, "dir", "", T("working folder of the agent (default: current folder)"))
+	f.StringVar(&model, "model", "", T("model of the agent"))
+	f.StringVar(&instructions, "instructions", "", T("text appended to the system prompt"))
+	f.StringArrayVar(&follow, "follow-up", nil, T("another prompt, sent after the previous turn ends (repeatable)"))
+	f.BoolVar(&raw, "deltas", false, T("also print streamed deltas"))
 	return cmd
 }
 
@@ -147,4 +151,18 @@ func short(s string) string {
 		return string(r[:80]) + "…"
 	}
 	return s
+}
+
+// tryDrivers are the drivers of the daemon of this machine: the built-in
+// ones and the forks of Claude Code in config.yaml.
+func tryDrivers() ([]agent.Driver, error) {
+	p, err := paths()
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := p.Load()
+	if err != nil {
+		return nil, err
+	}
+	return driver.All("", cfg.Drivers.ClaudeCompatible...)
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -16,14 +17,15 @@ import (
 
 // grouping is a way to group the jobs.
 type grouping struct {
-	id    string // the prefs value
-	label string // the menu and Settings label
+	id    string        // the prefs value
+	label func() string // the Settings label, in the language shown
+	menu  func() string // the item of the sidebar menu
 }
 
 var groupings = []grouping{
-	{"project", "Project"},
-	{"agent", "Agent"},
-	{"none", "None"},
+	{"project", locales.GroupProject, locales.GroupByProject},
+	{"agent", locales.GroupAgent, locales.GroupByAgent},
+	{"none", locales.GroupNone, locales.GroupByNone},
 }
 
 // defaultGrouping is the Codex app's default.
@@ -43,20 +45,19 @@ func validGrouping(id string) bool {
 func groupingLabel(id string) string {
 	for _, g := range groupings {
 		if g.id == id {
-			return g.label
+			return g.label()
 		}
 	}
 	return ""
 }
 
-// groupingByLabel is the grouping of a label, from Settings.
-func groupingByLabel(label string) string {
-	for _, g := range groupings {
-		if g.label == label {
-			return g.id
-		}
+// groupingIDs are the prefs values of the groupings, for Settings.
+func groupingIDs() []string {
+	ids := make([]string, len(groupings))
+	for i, g := range groupings {
+		ids[i] = g.id
 	}
-	return defaultGrouping
+	return ids
 }
 
 // jobGroup is a group of jobs in the sidebar. With no grouping there is
@@ -100,7 +101,7 @@ func groupOf(j protocol.Job, agents []protocol.Agent, id string) jobGroup {
 	if id == "agent" {
 		g := jobGroup{key: "agent:" + j.Agent, title: j.Agent, icon: agentIcon}
 		if found {
-			g.tip = a.Dir + " on " + a.Machine
+			g.tip = locales.DirOn(a.Dir, a.Machine)
 			if a.Role == "super" {
 				g.icon = sparklesIcon
 			}
@@ -109,13 +110,13 @@ func groupOf(j protocol.Job, agents []protocol.Agent, id string) jobGroup {
 	}
 	if !found || a.Dir == "" {
 		// The agent was removed: its folder is not known any more.
-		return jobGroup{key: "project:", title: "Other", tip: "Jobs of agents that were removed", icon: folderIcon}
+		return jobGroup{key: "project:", title: locales.GroupOther(), tip: locales.GroupOtherTip(), icon: folderIcon}
 	}
 	dir := strings.TrimRight(a.Dir, "/") // "~/codes/" is "~/codes"
 	return jobGroup{
 		key:   "project:" + a.Machine + ":" + dir,
 		title: folderName(a.Dir),
-		tip:   a.Dir + " on " + a.Machine,
+		tip:   locales.DirOn(a.Dir, a.Machine),
 		icon:  folderIcon,
 	}
 }

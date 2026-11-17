@@ -21,14 +21,14 @@ import (
 // jobCmd gives work to agents. The Super Agent uses these commands from
 // its shell, so the text output is short and says what happens next.
 func jobCmd(g *globals) *cobra.Command {
-	cmd := &cobra.Command{Use: "job", Short: "Give work to an agent; the result comes back later"}
+	cmd := &cobra.Command{Use: "job", Short: T("Give work to an agent; the result comes back later")}
 	cmd.AddCommand(
 		&cobra.Command{
 			Use:   "send <agent> <prompt>",
-			Short: "Give a job to an agent and return at once",
-			Long: `Send gives a job to an agent and returns the job ID at once. It does not
+			Short: T("Give a job to an agent and return at once"),
+			Long: T(`Send gives a job to an agent and returns the job ID at once. It does not
 wait. When the agent finishes, the job is done and has a result. If the
-Super Agent sent the job, the result comes back to it as a new message.`,
+Super Agent sent the job, the result comes back to it as a new message.`),
 			Args: cobra.ExactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				c, err := g.client()
@@ -40,13 +40,13 @@ Super Agent sent the job, the result comes back to it as a new message.`,
 					return err
 				}
 				return g.print(cmd.OutOrStdout(), j, func(w io.Writer) {
-					fmt.Fprintf(w, "job %s queued for agent %s. Do not wait for it: the result comes back when the job is done.\n", j.ID, j.Agent)
+					fmt.Fprintf(w, T("job %s queued for agent %s. Do not wait for it: the result comes back when the job is done.\n"), j.ID, j.Agent)
 				})
 			},
 		},
 		&cobra.Command{
 			Use:   "list",
-			Short: "List recent jobs",
+			Short: T("List recent jobs"),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				c, err := g.client()
 				if err != nil {
@@ -58,9 +58,9 @@ Super Agent sent the job, the result comes back to it as a new message.`,
 				}
 				return g.print(cmd.OutOrStdout(), js, func(w io.Writer) {
 					tw := table(w)
-					fmt.Fprintln(tw, "ID\tAGENT\tSTATE\tAGE\tTITLE")
+					fmt.Fprintln(tw, T("ID\tAGENT\tSTATE\tAGE\tTITLE"))
 					for _, j := range js {
-						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", j.ID, j.Agent, j.State, age(j.CreatedAt), j.Title)
+						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", j.ID, j.Agent, T(j.State), age(j.CreatedAt), j.Title)
 					}
 					tw.Flush()
 				})
@@ -68,7 +68,7 @@ Super Agent sent the job, the result comes back to it as a new message.`,
 		},
 		&cobra.Command{
 			Use:   "show <job>",
-			Short: "Show the state and result of a job",
+			Short: T("Show the state and result of a job"),
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				c, err := g.client()
@@ -84,7 +84,7 @@ Super Agent sent the job, the result comes back to it as a new message.`,
 		},
 		&cobra.Command{
 			Use:   "reply <job> <text>",
-			Short: "Send more input to the agent of a job (the job runs again)",
+			Short: T("Send more input to the agent of a job (the job runs again)"),
 			Args:  cobra.ExactArgs(2),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				c, err := g.client()
@@ -96,13 +96,13 @@ Super Agent sent the job, the result comes back to it as a new message.`,
 					return err
 				}
 				return g.print(cmd.OutOrStdout(), j, func(w io.Writer) {
-					fmt.Fprintf(w, "sent to job %s (%s). The new result comes back when the agent is done.\n", j.ID, j.Agent)
+					fmt.Fprintf(w, T("sent to job %s (%s). The new result comes back when the agent is done.\n"), j.ID, j.Agent)
 				})
 			},
 		},
 		&cobra.Command{
 			Use:   "cancel <job>",
-			Short: "Stop a job",
+			Short: T("Stop a job"),
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				c, err := g.client()
@@ -113,7 +113,7 @@ Super Agent sent the job, the result comes back to it as a new message.`,
 				if err != nil {
 					return err
 				}
-				return g.print(cmd.OutOrStdout(), j, func(w io.Writer) { fmt.Fprintf(w, "job %s: %s\n", j.ID, j.State) })
+				return g.print(cmd.OutOrStdout(), j, func(w io.Writer) { fmt.Fprintf(w, T("job %s: %s\n"), j.ID, T(j.State)) })
 			},
 		},
 		jobEventsCmd(g),
@@ -125,7 +125,7 @@ func jobEventsCmd(g *globals) *cobra.Command {
 	var deltas bool
 	return &cobra.Command{
 		Use:   "events <job>",
-		Short: "Print the stored agent events of a job",
+		Short: T("Print the stored agent events of a job"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
@@ -149,13 +149,13 @@ func jobEventsCmd(g *globals) *cobra.Command {
 }
 
 func printJob(w io.Writer, j protocol.Job) {
-	fmt.Fprintf(w, "job:     %s\nagent:   %s\nstate:   %s\ncreated: %s\n", j.ID, j.Agent, j.State, j.CreatedAt.Local().Format(time.DateTime))
+	fmt.Fprintf(w, T("job:     %s\nagent:   %s\nstate:   %s\ncreated: %s\n"), j.ID, j.Agent, T(j.State), j.CreatedAt.Local().Format(time.DateTime))
 	if j.Error != "" {
-		fmt.Fprintf(w, "error:   %s\n", j.Error)
+		fmt.Fprintf(w, T("error:   %s\n"), j.Error)
 	}
-	fmt.Fprintf(w, "prompt:\n%s\n", indent(j.Prompt))
+	fmt.Fprintf(w, T("prompt:\n%s\n"), indent(j.Prompt))
 	if j.Result != "" {
-		fmt.Fprintf(w, "result:\n%s\n", indent(j.Result))
+		fmt.Fprintf(w, T("result:\n%s\n"), indent(j.Result))
 	}
 }
 
@@ -178,7 +178,7 @@ func watchCmd(g *globals) *cobra.Command {
 	var deltas bool
 	cmd := &cobra.Command{
 		Use:   "watch",
-		Short: "Follow all agent events, jobs and Super Agent messages live",
+		Short: T("Follow all agent events, jobs and Super Agent messages live"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
 			if err != nil {
@@ -190,7 +190,7 @@ func watchCmd(g *globals) *cobra.Command {
 			return follow(ctx, c, func(p protocol.Push) { printPush(out, p, g.json, deltas) })
 		},
 	}
-	cmd.Flags().BoolVar(&deltas, "deltas", false, "also print streamed deltas")
+	cmd.Flags().BoolVar(&deltas, "deltas", false, T("also print streamed deltas"))
 	return cmd
 }
 
@@ -201,7 +201,7 @@ func follow(ctx context.Context, c *client.Client, fn func(protocol.Push)) error
 		if ctx.Err() != nil {
 			return nil
 		}
-		fmt.Fprintf(os.Stderr, "stream: %v; reconnecting\n", err)
+		fmt.Fprintf(os.Stderr, T("stream: %v; reconnecting\n"), err)
 		select {
 		case <-ctx.Done():
 			return nil
@@ -247,7 +247,7 @@ func printPush(w io.Writer, p protocol.Push, asJSON, deltas bool) {
 }
 
 func printMessage(w io.Writer, m protocol.Message) {
-	who := map[string]string{"human": "you", "super": "super", "system": "system"}[m.Author.Kind]
+	who := map[string]string{"human": T("you"), "super": T("super"), "system": T("system")}[m.Author.Kind]
 	if who == "" {
 		who = m.Author.Kind
 	}
@@ -259,7 +259,7 @@ func printMessage(w io.Writer, m protocol.Message) {
 func chatCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "chat [message]",
-		Short: "Talk to the Super Agent (each input line is one message)",
+		Short: T("Talk to the Super Agent (each input line is one message)"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
 			if err != nil {
@@ -279,7 +279,7 @@ func chatCmd(g *globals) *cobra.Command {
 					case "job":
 						var j protocol.Job
 						if json.Unmarshal(p.Payload, &j) == nil {
-							fmt.Fprintf(out, "  · job %s (%s): %s\n", j.ID, j.Agent, j.State)
+							fmt.Fprintf(out, T("  · job %s (%s): %s\n"), j.ID, j.Agent, T(j.State))
 						}
 					}
 				})
@@ -314,7 +314,7 @@ func chatCmd(g *globals) *cobra.Command {
 						return nil
 					}
 					if err := send(l); err != nil {
-						fmt.Fprintln(cmd.ErrOrStderr(), "send:", err)
+						fmt.Fprintln(cmd.ErrOrStderr(), T("send:"), err)
 					}
 				}
 			}

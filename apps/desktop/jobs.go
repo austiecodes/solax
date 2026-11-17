@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/client"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
@@ -30,22 +30,22 @@ func (d *desktop) jobsPage(c *ui.Context) {
 	}
 	pal := paletteFor(c)
 	live := d.countJobs(func(j protocol.Job) bool { return jobLive(j.State) })
-	spec := pageSpec{icon: jobsIcon, title: "Jobs"}
+	spec := pageSpec{icon: jobsIcon, title: locales.NavJobs()}
 	if len(d.jobs) > 0 {
-		spec.sub = plural(len(d.jobs), "job") + fmt.Sprintf(", %d running", live)
+		spec.sub = locales.JobsCount(len(d.jobs), live)
 	}
 	if len(d.jobs) == 0 {
 		d.header(c, spec)
 		emptyState(c, pal, emptySpec{
-			icon: jobsIcon, title: "No jobs yet",
-			detail:  "Ask Solax for work, and it gives jobs to your agents. You can also send a job from a shell:",
+			icon: jobsIcon, title: locales.JobsEmptyTitle(),
+			detail:  locales.JobsEmptyDetail(),
 			command: `solax job send coder "add a README"`,
-			action:  "Message Solax", run: func() { d.goTo(pageChat) },
+			action:  locales.ChatPlaceholder(), run: func() { d.goTo(pageChat) },
 		})
 		return
 	}
 	d.showPage(c, spec, func() {
-		section(c, "jobs", sectionSpec{title: "All jobs", count: countText(len(d.jobs)), rows: listRows}, func() {
+		section(c, "jobs", sectionSpec{title: locales.AllJobs(), count: countText(len(d.jobs)), rows: listRows}, func() {
 			for _, j := range d.jobs {
 				d.jobListRow(c, pal, j)
 			}
@@ -71,23 +71,23 @@ func (d *desktop) jobListRow(c *ui.Context, pal *palette, j protocol.Job) {
 
 func (d *desktop) jobDetail(c *ui.Context, j protocol.Job) {
 	pal := paletteFor(c)
-	d.header(c, pageSpec{title: j.Title, sub: j.Agent + " · " + j.State, actions: func() {
-		if jobLive(j.State) && button(c, "cancel", "Cancel job", plainButton, false) {
+	d.header(c, pageSpec{title: j.Title, sub: j.Agent + " · " + stateWord(j.State), actions: func() {
+		if jobLive(j.State) && button(c, "cancel", locales.JobCancel(), plainButton, false) {
 			id := j.ID
-			d.ask("Cancel this job?", fmt.Sprintf("%s stops work on %q. You cannot resume it.", j.Agent, j.Title), "Cancel job", true, func() {
+			d.ask(locales.JobCancelQuestion(), locales.JobCancelDetail(j.Agent, j.Title), locales.JobCancel(), true, func() {
 				d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 					nj, err := c.CancelJob(ctx, id)
 					return func() { d.upsertJob(nj) }, err
 				})
-			}).keep = "Keep job"
+			}).keep = locales.JobKeep()
 		}
 	}})
 	blocks := withWorking(jobBlocks(j, d.events[j.SessionID], d.live[j.SessionID]), jobLive(j.State))
 	d.transcriptView(c, pal, &d.jobList, blocks, nil)
 	closed := j.State == "cancelled"
-	placeholder := "Send more input to " + j.Agent
+	placeholder := locales.JobFollowUp(j.Agent)
 	if closed {
-		placeholder = "The job was cancelled"
+		placeholder = locales.JobWasCancelled()
 	}
 	composer{
 		key: "follow-up", placeholder: placeholder, draft: &d.followDraft, disabled: closed,
@@ -108,25 +108,19 @@ func (d *desktop) jobDetail(c *ui.Context, j protocol.Job) {
 	}.view(c, pal)
 }
 
-// plural writes a count with its noun: "1 job", "2 jobs".
-func plural(n int, noun string) string {
-	if n == 1 {
-		return "1 " + noun
-	}
-	return fmt.Sprintf("%d %ss", n, noun)
-}
-
+// ago says how long ago at was: "just now", "5 min ago", "2 h ago", then
+// the day and time.
 func ago(at time.Time) string {
 	d := time.Since(at)
 	switch {
 	case d < time.Minute:
-		return "just now"
+		return locales.AgoNow()
 	case d < time.Hour:
-		return fmt.Sprintf("%d min ago", int(d.Minutes()))
+		return locales.AgoMinutes(int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%d h ago", int(d.Hours()))
+		return locales.AgoHours(int(d.Hours()))
 	}
-	return at.Local().Format("Jan 2 15:04")
+	return at.Local().Format(locales.AgoLayout())
 }
 
 // since is ago in short, for a narrow column: "now", "5m", "3h", "2d".
@@ -134,13 +128,13 @@ func since(at time.Time) string {
 	d := time.Since(at)
 	switch {
 	case d < time.Minute:
-		return "now"
+		return locales.SinceNow()
 	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
+		return locales.SinceMinutes(int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh", int(d.Hours()))
+		return locales.SinceHours(int(d.Hours()))
 	case d < 7*24*time.Hour:
-		return fmt.Sprintf("%dd", int(d.Hours()/24))
+		return locales.SinceDays(int(d.Hours() / 24))
 	}
-	return at.Local().Format("Jan 2")
+	return at.Local().Format(locales.SinceLayout())
 }

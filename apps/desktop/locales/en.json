@@ -1,0 +1,398 @@
+{
+  "@@locale": "en",
+  "actionSettings": "Settings…",
+  "@actionSettings": {
+    "description": "Menu item that opens Settings."
+  },
+  "actionGoTo": "Go to…",
+  "@actionGoTo": {
+    "description": "Menu item that opens the ⌘K palette."
+  },
+  "navChat": "Solax",
+  "@navChat": {
+    "description": "The page of the chat with Solax, the Super Agent. A name."
+  },
+  "navJobs": "Jobs",
+  "navAgents": "Agents",
+  "navMachines": "Machines",
+  "actionToggleSidebar": "Toggle Sidebar",
+  "actionToggleDark": "Toggle Dark Mode",
+  "actionReload": "Reload",
+  "menuGo": "Go",
+  "@menuGo": {
+    "description": "A menu of the menu bar."
+  },
+  "menuView": "View",
+  "@menuView": {
+    "description": "A menu of the menu bar."
+  },
+  "dismiss": "Dismiss",
+  "@dismiss": {
+    "description": "Closes the error banner."
+  },
+  "showSidebar": "Show Sidebar",
+  "hideSidebar": "Hide Sidebar",
+  "settings": "Settings",
+  "goTo": "Go to",
+  "recentJobs": "Recent jobs",
+  "footerLive": "{count} queued or running",
+  "@footerLive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "footerFailed": "{count} failed",
+  "@footerFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "footerDone": "{count} done, unread",
+  "@footerDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "footerOpenNext": "{what} · open the next",
+  "connConnecting": "connecting",
+  "connConnected": "connected",
+  "connDisconnected": "disconnected",
+  "streamClosed": "stream closed",
+  "errNoProfile": "no server profile: add one in Settings",
+  "stateQueued": "queued",
+  "@stateQueued": {
+    "description": "A job state."
+  },
+  "stateRunning": "running",
+  "@stateRunning": {
+    "description": "A job state."
+  },
+  "stateDone": "done",
+  "@stateDone": {
+    "description": "A job state."
+  },
+  "stateFailed": "failed",
+  "@stateFailed": {
+    "description": "A job state, and a failed tool call."
+  },
+  "stateCancelled": "cancelled",
+  "@stateCancelled": {
+    "description": "A job state."
+  },
+  "statePending": "pending",
+  "@statePending": {
+    "description": "A machine state."
+  },
+  "stateApproved": "approved",
+  "@stateApproved": {
+    "description": "A machine state."
+  },
+  "stateRevoked": "revoked",
+  "@stateRevoked": {
+    "description": "A machine state."
+  },
+  "online": "online",
+  "offline": "offline",
+  "chatNotSetUp": "Not set up yet",
+  "chatWorking": "Working…",
+  "chatMessages": "{count, plural, one {# message} other {# messages}}",
+  "chatPlaceholder": "Message Solax",
+  "chatAgentOn": "{agent} on {machine}",
+  "chatSuggestionReadme": "Ask coder to add a README to the repo",
+  "@chatSuggestionReadme": {
+    "description": "Sent to Solax as is when clicked."
+  },
+  "chatSuggestionDoing": "What are my agents doing?",
+  "@chatSuggestionDoing": {
+    "description": "Sent to Solax as is when clicked."
+  },
+  "chatSuggestionFailed": "Which jobs failed today?",
+  "@chatSuggestionFailed": {
+    "description": "Sent to Solax as is when clicked."
+  },
+  "chatNoSolaxTitle": "Solax is not set up yet",
+  "chatNoSolaxDetail": "Solax is the agent you talk to. It gives jobs to your other agents. On the Agents page, add the agents found on your machines, or choose the agent that is Solax.",
+  "chatEmptyTitle": "What should your agents do?",
+  "chatEmptyDetail": "Solax gives jobs to your agents and tells you when they are done.",
+  "jobsCount": "{count, plural, one {# job} other {# jobs}}, {running} running",
+  "@jobsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "running": {
+        "type": "int"
+      }
+    }
+  },
+  "jobsEmptyTitle": "No jobs yet",
+  "jobsEmptyDetail": "Ask Solax for work, and it gives jobs to your agents. You can also send a job from a shell:",
+  "jobCancel": "Cancel job",
+  "jobCancelQuestion": "Cancel this job?",
+  "jobCancelDetail": "{agent} stops work on \"{title}\". You cannot resume it.",
+  "jobKeep": "Keep job",
+  "jobFollowUp": "Send more input to {agent}",
+  "jobWasCancelled": "The job was cancelled",
+  "agoNow": "just now",
+  "agoMinutes": "{n} min ago",
+  "@agoMinutes": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "agoHours": "{n} h ago",
+  "@agoHours": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "agoLayout": "Jan 2 15:04",
+  "@agoLayout": {
+    "description": "A Go time layout (package time) for a day before today: Jan is the month, 2 the day, 15:04 the time."
+  },
+  "agentsSubtitle": "Coding agents on your machines",
+  "refresh": "Refresh",
+  "agentsEmpty": "No agents yet. Add one below.",
+  "agentsAddTitle": "Add an agent",
+  "agentMakeSolax": "Make it Solax",
+  "agentRemove": "Remove",
+  "agentRemoveQuestion": "Remove {name}?",
+  "agentRemoveDetail": "Solax can no longer give jobs to {name}. Its past jobs stay.",
+  "agentModel": "model {model}",
+  "fieldName": "Name",
+  "fieldNameHelp": "Lower case, digits and dashes.",
+  "fieldMachine": "Machine",
+  "fieldDriver": "Driver",
+  "fieldDriverHelp": "The agent CLIs that the daemon found on this machine.",
+  "fieldDir": "Work folder",
+  "fieldModel": "Model",
+  "fieldModelPlaceholder": "optional, for example haiku",
+  "fieldDesc": "Description",
+  "fieldDescPlaceholder": "Implements features, refactors and fixes code",
+  "fieldRole": "Role",
+  "fieldRoleSolax": "This is Solax (the agent you talk to)",
+  "agentAdd": "Add agent",
+  "discoverTitle": "Found on your machines",
+  "discoverDetail": "Agent CLIs that no agent uses yet. Add one with a click; you can remove it at any time.",
+  "discoverDir": "Work folder of new agents",
+  "discoverAdd": "Add",
+  "discoverAddAll": "Add all",
+  "discoverBecomesSolax": "becomes Solax",
+  "@discoverBecomesSolax": {
+    "description": "A badge: added, this agent is the one you talk to."
+  },
+  "machinesSubtitle": "Where your agents run",
+  "machinesEmpty": "No machines yet. On this Mac, run \"solax setup local\". On another machine, run \"solax daemon start\".",
+  "driverMissing": "not available: {problem}",
+  "lastSeen": "last seen {ago} · {id}",
+  "machineApproveTitle": "Approve a machine",
+  "pairPlaceholder": "Pairing code, for example K7QM-2XRP",
+  "approve": "Approve",
+  "settingsSubtitle": "How the app looks, and the server it talks to",
+  "settingsServer": "Server",
+  "fieldProfile": "Profile",
+  "fieldServerURL": "Server URL",
+  "fieldToken": "Client token",
+  "tokenPlaceholder": "sxc_… (leave empty to keep the saved one)",
+  "tokenHelp": "Create one on the server host: solax server token create --name desktop. Leave it empty to keep the saved one.",
+  "saveConnect": "Save and connect",
+  "savedProfiles": "Saved profiles",
+  "use": "Use",
+  "connection": "Connection: {state} {error}",
+  "settingsError": "settings: {error}",
+  "thisMac": "This Mac",
+  "localHint": "To run Solax only on this Mac, run \"solax setup local\" in a terminal. It starts the server and the daemon here.",
+  "checkAgain": "Check again",
+  "localRemote": "The solax CLI uses {server}. To use it here, add it under Server with a client token.",
+  "localRuns": "The server and the daemon run on this Mac, on {server}.",
+  "useThisServer": "Use this server",
+  "inUse": "In use",
+  "look": "Look",
+  "theme": "Theme",
+  "themeHelp": "Graphite is the default. The others are Kero's themes.",
+  "appearance": "Appearance",
+  "appearanceSystem": "System",
+  "@appearanceSystem": {
+    "description": "Light or dark as the system is."
+  },
+  "appearanceLight": "Light",
+  "appearanceDark": "Dark",
+  "language": "Language",
+  "languageSystem": "System",
+  "@languageSystem": {
+    "description": "The language of the system."
+  },
+  "languageHelp": "The language of this app. The solax CLI has its own: solax set lang.",
+  "notifyDone": "{agent} finished",
+  "notifyFailed": "{agent} failed",
+  "paletteActions": "Actions",
+  "palettePlaceholder": "Search jobs, agents and actions",
+  "paletteFind": "Find",
+  "paletteNoMatches": "No matches.",
+  "cancel": "Cancel",
+  "turnFailed": "The turn failed: {error}",
+  "compacted": "The context was compacted.",
+  "toolRan": "Ran",
+  "@toolRan": {
+    "description": "A tool call that is done; the command follows."
+  },
+  "toolRead": "Read",
+  "toolSearched": "Searched",
+  "toolEdited": "Edited",
+  "toolFetched": "Fetched",
+  "toolDelegated": "Delegated",
+  "toolRanScript": "Ran script",
+  "toolUsed": "Used {tool}",
+  "toolRunning": "Running",
+  "@toolRunning": {
+    "description": "A tool call that runs; the command follows."
+  },
+  "toolReading": "Reading",
+  "toolSearching": "Searching",
+  "toolEditing": "Editing",
+  "toolFetching": "Fetching",
+  "toolDelegating": "Delegating",
+  "toolUsing": "Using {tool}",
+  "thinking": "Thinking",
+  "thinkingNow": "Thinking…",
+  "working": "Working",
+  "toolsUsed": "{count, plural, one {# tool used} other {# tools used}}",
+  "thought": "Thought",
+  "thoughtFor": "Thought for {duration}",
+  "durationSeconds": "{s}s",
+  "@durationSeconds": {
+    "description": "A short duration.",
+    "placeholders": {
+      "s": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutes": "{m}m",
+  "@durationMinutes": {
+    "description": "A short duration.",
+    "placeholders": {
+      "m": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutesSeconds": "{m}m {s}s",
+  "@durationMinutesSeconds": {
+    "description": "A short duration.",
+    "placeholders": {
+      "m": {
+        "type": "int"
+      },
+      "s": {
+        "type": "int"
+      }
+    }
+  },
+  "openJob": "Open job",
+  "scrollToEnd": "Scroll to the end",
+  "stepDeclined": "declined",
+  "@stepDeclined": {
+    "description": "A tool call that was not allowed."
+  },
+  "stepExit": "exit {code}",
+  "@stepExit": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  },
+  "composerHint": "Return to send, Shift+Return for a new line",
+  "send": "Send",
+  "agentDirHelp": "The agent works in this folder.",
+  "agentNoDesc": "No description. Solax routes by the description, so it does not give jobs to this agent by itself.",
+  "agentRoleHelp": "You talk to this agent. It gives jobs to the others.",
+  "agentStatusHelp": "Online when its machine is connected and has the driver.",
+  "allJobs": "All jobs",
+  "anotherHost": "Another host",
+  "appearanceHelp": "System follows the macOS setting.",
+  "close": "Close",
+  "dirOn": "{dir} on {machine}",
+  "driverNotAvailable": "Not available",
+  "driverReady": "Ready",
+  "driversNotReported": "The daemon has not reported yet.",
+  "fieldAgentCLIs": "Agent CLIs",
+  "fieldDescHelp": "What this agent is good at. Solax routes by it.",
+  "fieldDirHelp": "The agent works in this folder on its machine.",
+  "fieldLastSeen": "Last seen",
+  "fieldMachineHelp": "A machine that you approved.",
+  "fieldMachineID": "Machine ID",
+  "fieldModelHelp": "Optional. Empty uses the driver's default.",
+  "fieldStatus": "Status",
+  "fieldSuperHelp": "You talk to Solax. It gives jobs to the other agents.",
+  "groupJobs": "Group jobs",
+  "groupJobsBy": "Group jobs by",
+  "groupJobsHelp": "How the sidebar lists the recent jobs. A project is the work folder of the job's agent.",
+  "groupProject": "Project",
+  "groupAgent": "Agent",
+  "groupNone": "None",
+  "groupByProject": "By project",
+  "groupByAgent": "By agent",
+  "groupByNone": "By none",
+  "groupOther": "Other",
+  "groupOtherTip": "Jobs of agents that were removed",
+  "localNotSetUp": "Not set up",
+  "localServer": "Local server",
+  "machinesHelp": "Each machine runs \"solax daemon start\". The daemon reports the agent CLIs that it finds.",
+  "modelDefault": "Driver default",
+  "neverSeen": "never seen",
+  "newAgent": "New agent",
+  "newAgentHelp": "Solax reads the description to choose the agent for a job.",
+  "noMachinesYet": "No machines yet",
+  "notConnected": "not connected",
+  "openAgents": "Open Agents",
+  "pairCode": "Pairing code",
+  "pairHelp": "Run \"solax daemon start\" on the new machine. It shows a pairing code. Type the code here.",
+  "paletteMove": "Move",
+  "paletteOpen": "Open",
+  "paletteSearch": "Search",
+  "profileHelp": "A name for this server.",
+  "roster": "Roster",
+  "rosterHelp": "Solax gives each job to the agent whose description fits it best.",
+  "seenOnline": "online",
+  "sendTip": "Send (Return)\nNew line (Shift+Return)",
+  "serverHelp": "The Solax server this app talks to.",
+  "sidebarSection": "Sidebar",
+  "sinceLayout": "Jan 2",
+  "sinceNow": "now",
+  "sinceDays": "{n}d",
+  "@sinceDays": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sinceHours": "{n}h",
+  "@sinceHours": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "sinceMinutes": "{n}m",
+  "@sinceMinutes": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  }
+}

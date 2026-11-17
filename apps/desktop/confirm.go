@@ -1,6 +1,10 @@
 package main
 
-import "github.com/egoist/mygo/ui"
+import (
+	"github.com/egoist/mygo/ui"
+
+	"github.com/austiecodes/solax/apps/desktop/locales"
+)
 
 // confirmation is a question the app asks before an action it cannot
 // undo. Pages call ask; the window shows the dialog over everything.
@@ -35,7 +39,7 @@ func (d *desktop) confirmView(c *ui.Context, pal *palette) {
 		ui.Row(c).Gap(8).Justify(ui.End).Margin(16, 0, 0, 0).Children(func() {
 			keep := cf.keep
 			if keep == "" {
-				keep = "Cancel"
+				keep = locales.Cancel()
 			}
 			if button(c, "cancel", keep, plainButton, false) {
 				cf.open = false

@@ -58,6 +58,9 @@ func New(cfg Config) *Driver {
 
 func (d *Driver) Kind() ir.Kind { return ir.KindPi }
 
+// Fingerprint changes when the binary is installed, updated or removed.
+func (d *Driver) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
+
 // Probe runs "pi --version".
 func (d *Driver) Probe(ctx context.Context) (agent.Probe, error) {
 	v, err := proc.Version(ctx, d.cfg.Binary)

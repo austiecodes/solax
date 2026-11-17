@@ -1,13 +1,13 @@
 package main
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
+	"github.com/austiecodes/solax/apps/desktop/locales"
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
@@ -70,7 +70,7 @@ func (d *desktop) transcriptView(c *ui.Context, pal *palette, list *ui.ListState
 		if len(blocks) > 0 && !list.AtEnd() {
 			// A button to go back to the end floats over the list.
 			ui.Row(c.Key("to-end")).Absolute().Left(0).Right(0).Bottom(10).Justify(ui.Center).Children(func() {
-				b := ui.ButtonBase(c.Key("end")).Size(32, 32).Radius(16).Center().Label("Scroll to the end").TextColor(pal.textMuted)
+				b := ui.ButtonBase(c.Key("end")).Size(32, 32).Radius(16).Center().Label(locales.ScrollToEnd()).TextColor(pal.textMuted)
 				floating(b.Background(pal.popover), pal)
 				if b.Hovered() {
 					b.TextColor(pal.text)
@@ -127,11 +127,11 @@ func (d *desktop) noteView(c *ui.Context, pal *palette, b block) {
 		}
 		ui.Text(c, b.text).FontSize(12.5).TextColor(col).MinWidth(0).Selectable()
 		if b.job != "" {
-			l := ui.ButtonBase(c.Key("open")).Label("Open job").Padding(2, 6).Radius(6).TextColor(pal.textMuted)
+			l := ui.ButtonBase(c.Key("open")).Label(locales.OpenJob()).Padding(2, 6).Radius(6).TextColor(pal.textMuted)
 			if l.Hovered() {
 				l.Background(pal.rowHover).TextColor(pal.text)
 			}
-			l.Children(func() { ui.Text(c, "Open job").FontSize(12.5).FontWeight(500) })
+			l.Children(func() { ui.Text(c, locales.OpenJob()).FontSize(12.5).FontWeight(500) })
 			if l.Clicked() {
 				d.openJob(b.job)
 			}
@@ -232,7 +232,7 @@ func stepIcon(s step) *ui.SVG {
 func workingView(c *ui.Context, pal *palette) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(2, 0).Children(func() {
 		statusIcon(c, pal, "running", false, 12)
-		ui.Text(c, "Working…").FontSize(13).TextColor(pal.textMuted).SingleLine()
+		ui.Text(c, locales.ChatWorking()).FontSize(13).TextColor(pal.textMuted).SingleLine()
 	})
 }
 
@@ -243,7 +243,7 @@ func (d *desktop) stepView(c *ui.Context, pal *palette, s step) {
 		ui.Column(c).Gap(3).Children(func() {
 			head := thoughtFor(s.took)
 			if s.running() {
-				head = "Thinking…"
+				head = locales.ThinkingNow()
 			}
 			ui.Text(c, head).FontSize(13).FontWeight(500).TextColor(pal.text)
 			if s.text != "" {
@@ -302,11 +302,11 @@ func exitFailed(t *ir.ToolCall) bool { return t.ExitCode != nil && *t.ExitCode !
 func failure(s step) string {
 	switch {
 	case s.status == ir.StatusDeclined:
-		return "declined"
+		return locales.StepDeclined()
 	case s.tool.ExitCode != nil && *s.tool.ExitCode != 0:
-		return "exit " + strconv.Itoa(*s.tool.ExitCode)
+		return locales.StepExit(*s.tool.ExitCode)
 	}
-	return "failed"
+	return locales.StateFailed()
 }
 
 // composer is the box to write to an agent, as the Codex app's: a
@@ -369,8 +369,8 @@ func (cm composer) view(c *ui.Context, pal *palette) {
 // the ink when there is text to send, faint when not, a turning ring
 // while the text is on its way.
 func sendButton(c *ui.Context, pal *palette, ready, busy bool, send func()) {
-	b := ui.ButtonBase(c.Key("send")).Size(28, 28).Radius(14).Center().Label("Send").Disabled(!ready).
-		Tooltip("Send (Return)\nNew line (Shift+Return)")
+	b := ui.ButtonBase(c.Key("send")).Size(28, 28).Radius(14).Center().Label(locales.Send()).Disabled(!ready).
+		Tooltip(locales.SendTip())
 	bg, fg := pal.chip, pal.textFaint
 	if ready {
 		bg, fg = pal.text, pal.card
