@@ -119,26 +119,52 @@ func expandHome(p string) string {
 	return filepath.Join(home, strings.TrimPrefix(p[1:], "/"))
 }
 
-// pathWith returns env with dir added at the end of PATH, unless PATH has
-// it. A CLI found outside the PATH, as an npm package of nvm, often runs
-// "#!/usr/bin/env node", and its node is in the same folder. The last
-// PATH in env counts, as os/exec uses the last of duplicate keys.
-func pathWith(env []string, dir string) []string {
-	if dir == "" || dir == "." {
+// childEnv is env for a process of bin: its PATH gets the folder of bin,
+// then the install folders that exist, at the end and only where PATH
+// lacks them. A CLI often runs "#!/usr/bin/env node", and a daemon that
+// launchd started has no node on its PATH: the folder of bin has it for
+// an npm package of nvm, and the newest nvm folder for a CLI installed
+// elsewhere, as ~/.local/bin/pi.
+func childEnv(env []string, bin string) []string {
+	dirs := []string{filepath.Dir(bin)}
+	for _, d := range InstallDirs {
+		if found := globDirs(expandHome(d)); len(found) > 0 && isDir(found[0]) {
+			dirs = append(dirs, found[0]) // of nvm, the newest only
+		}
+	}
+	return pathWith(env, dirs...)
+}
+
+func isDir(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && st.IsDir()
+}
+
+// pathWith returns env with dirs added at the end of PATH, in order,
+// leaving out the ones PATH has. The last PATH in env counts, as os/exec
+// uses the last of duplicate keys.
+func pathWith(env []string, dirs ...string) []string {
+	i := len(env) - 1
+	for ; i >= 0 && !strings.HasPrefix(env[i], "PATH="); i-- {
+	}
+	var have []string
+	if i >= 0 {
+		have = filepath.SplitList(strings.TrimPrefix(env[i], "PATH="))
+	}
+	var add []string
+	for _, d := range dirs {
+		if d != "" && d != "." && !slices.Contains(have, d) && !slices.Contains(add, d) {
+			add = append(add, d)
+		}
+	}
+	if len(add) == 0 {
 		return env
 	}
-	for i := len(env) - 1; i >= 0; i-- {
-		kv := env[i]
-		v, ok := strings.CutPrefix(kv, "PATH=")
-		if !ok {
-			continue
-		}
-		if slices.Contains(filepath.SplitList(v), dir) {
-			return env
-		}
-		out := slices.Clone(env)
-		out[i] = kv + string(os.PathListSeparator) + dir
-		return out
+	path := strings.Join(slices.Concat(have, add), string(os.PathListSeparator))
+	if i < 0 {
+		return append(slices.Clone(env), "PATH="+path)
 	}
-	return append(env, "PATH="+dir)
+	out := slices.Clone(env)
+	out[i] = "PATH=" + path
+	return out
 }

@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -41,7 +40,8 @@ type Proc struct {
 }
 
 // Start starts the process in a new process group. The binary is found
-// as Find finds it, and its folder is added to the PATH.
+// as Find finds it, and the PATH of the process gets what it may need
+// (childEnv).
 func Start(cfg Config) (*Proc, error) {
 	bin, err := Find(cfg.Binary)
 	if err != nil {
@@ -54,7 +54,7 @@ func Start(cfg Config) (*Proc, error) {
 	for k, v := range cfg.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
-	cmd.Env = pathWith(cmd.Env, filepath.Dir(bin))
+	cmd.Env = childEnv(cmd.Env, bin)
 	tail := &tailBuffer{max: 8 << 10}
 	if cfg.Stderr != nil {
 		cmd.Stderr = io.MultiWriter(cfg.Stderr, tail)
@@ -153,7 +153,7 @@ func Output(ctx context.Context, binary string, args ...string) ([]byte, error) 
 		return nil, err
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
-	cmd.Env = pathWith(os.Environ(), filepath.Dir(bin))
+	cmd.Env = childEnv(os.Environ(), bin)
 	return cmd.CombinedOutput()
 }
 

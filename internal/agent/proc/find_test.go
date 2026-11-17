@@ -1,6 +1,7 @@
 package proc
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -88,5 +89,59 @@ func TestPathWith(t *testing.T) {
 	}
 	if got := pathWith([]string{"HOME=/h"}, "/d"); !slices.Equal(got, []string{"HOME=/h", "PATH=/d"}) {
 		t.Fatalf("pathWith without PATH = %q", got)
+	}
+}
+
+func TestPathWithSeveral(t *testing.T) {
+	sep := string(os.PathListSeparator)
+	got := pathWith([]string{"PATH=/a"}, "/b", "/a", "", "/c", "/b")
+	if !slices.Equal(got, []string{"PATH=/a" + sep + "/b" + sep + "/c"}) {
+		t.Fatalf("pathWith = %q", got)
+	}
+}
+
+// The case of a daemon that launchd started: PATH=/usr/bin:/bin, a CLI in
+// ~/.local/bin that runs "#!/usr/bin/env node", and node only in the
+// newest nvm folder. The CLI finds node, for Output (the probe) and Start.
+func TestEnvNodeFromNvm(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", "/usr/bin:/bin")
+	old := InstallDirs
+	t.Cleanup(func() { InstallDirs = old })
+	InstallDirs = []string{"~/.local/bin", "~/.nvm/versions/node/*/bin"}
+
+	// An old node that must not be the one used, and the newest.
+	for v, out := range map[string]string{"v9.1.0": "old", "v22.13.0": "new"} {
+		node := filepath.Join(home, ".nvm/versions/node", v, "bin", "node")
+		writeScript(t, node, "#!/bin/sh\necho node-"+out+"\n")
+	}
+	cli := filepath.Join(home, ".local/bin/agent-js")
+	writeScript(t, cli, "#!/usr/bin/env node\n")
+
+	out, err := Output(t.Context(), "agent-js", "--version")
+	if err != nil || strings.TrimSpace(string(out)) != "node-new" {
+		t.Fatalf("Output = %q, %v; want the newest nvm node", out, err)
+	}
+	if v, err := Version(t.Context(), "agent-js"); err != nil || v != "node-new" {
+		t.Fatalf("Version = %q, %v", v, err)
+	}
+	p, err := Start(Config{Binary: "agent-js"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(p.Stdout)
+	if code, _ := p.Wait(); code != 0 || strings.TrimSpace(string(b)) != "node-new" {
+		t.Fatalf("Start: exit %d, stdout %q", code, b)
+	}
+}
+
+func writeScript(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
 	}
 }

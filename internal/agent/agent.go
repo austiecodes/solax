@@ -17,13 +17,6 @@ type Driver interface {
 	Start(ctx context.Context, spec SessionSpec) (Session, error)
 }
 
-// Fingerprinter is a driver that can tell, without starting a process,
-// that its binary changed: installed, updated or removed. The daemon then
-// probes again, so a new CLI shows up without a restart.
-type Fingerprinter interface {
-	Fingerprint() string
-}
-
 // Session is one live agent process.
 type Session interface {
 	Ref() ir.SessionRef

@@ -36,7 +36,7 @@ const probeTimeout = 5 * time.Second
 
 // driverWatch is how often the daemon looks for agent CLIs that were
 // installed, updated or removed. A look starts no process (see
-// agent.Fingerprinter); a change probes again and sends a new hello.
+// fingerprinter); a change probes again and sends a new hello.
 const driverWatch = 30 * time.Second
 
 // Daemon is one running daemon process.
@@ -265,11 +265,19 @@ func (d *Daemon) watchDrivers(ctx context.Context, every time.Duration) {
 	}
 }
 
+// fingerprinter is a driver that can tell, without starting a process,
+// that its binary changed: installed, updated or removed. The built-in
+// drivers are; a driver that is not is probed only on a connect or a
+// reload.
+type fingerprinter interface {
+	Fingerprint() string
+}
+
 // fingerprints names the binaries of all drivers as they are on disk.
 func (d *Daemon) fingerprints() string {
 	var b strings.Builder
 	for _, drv := range d.drivers {
-		if f, ok := drv.(agent.Fingerprinter); ok {
+		if f, ok := drv.(fingerprinter); ok {
 			b.WriteString(f.Fingerprint())
 			b.WriteByte('\n')
 		}
