@@ -1,5 +1,5 @@
-// Package agent defines the driver interface for coding agents. Code above
-// this package does not know about drivers. It uses only the IR (pkg/ir).
+// Package agent defines the runtime interface for coding agents. Code above
+// this package does not know about runtimes. It uses only the IR (pkg/ir).
 package agent
 
 import (
@@ -9,8 +9,8 @@ import (
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
-// Driver starts sessions of one coding agent kind.
-type Driver interface {
+// Runtime starts sessions of one coding agent kind.
+type Runtime interface {
 	Kind() ir.Kind
 	// Probe checks the installed binary: version, auth, capabilities.
 	Probe(ctx context.Context) (Probe, error)
@@ -32,7 +32,7 @@ type Session interface {
 	Close(ctx context.Context) error
 }
 
-// Decoder translates native records into IR events. Each driver has one.
+// Decoder translates native records into IR events. Each runtime has one.
 // It has no I/O, so golden tests can replay recorded transcripts through it.
 type Decoder interface {
 	Decode(record []byte) ([]ir.Event, error)
@@ -48,16 +48,16 @@ type SessionSpec struct {
 	Env          map[string]string // SOLAX_* values
 	Tools        ToolPolicy
 	Extensions   []string       // pi only
-	Options      map[string]any // driver-specific, for example pi "codemode"
+	Options      map[string]any // runtime-specific, for example pi "codemode"
 }
 
 // ToolPolicy limits the tools of a session.
 type ToolPolicy struct {
-	Allow []string // native tool names; empty means the driver default
+	Allow []string // native tool names; empty means the runtime default
 	Deny  []string
 }
 
-// Probe is the result of Driver.Probe.
+// Probe is the result of Runtime.Probe.
 type Probe struct {
 	Version string
 	OK      bool
@@ -74,14 +74,14 @@ type Accepted struct {
 	Duplicate bool
 }
 
-// Find returns the driver of kind k.
-func Find(ds []Driver, k ir.Kind) (Driver, error) {
+// Find returns the runtime of kind k.
+func Find(ds []Runtime, k ir.Kind) (Runtime, error) {
 	for _, d := range ds {
 		if d.Kind() == k {
 			return d, nil
 		}
 	}
-	return nil, fmt.Errorf("agent: no driver %q", k)
+	return nil, fmt.Errorf("agent: no runtime %q", k)
 }
 
 // Option returns a string option of the spec, or def.

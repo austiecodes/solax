@@ -7,7 +7,7 @@ import (
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
-// Queue holds inputs for modes that a driver does not support natively
+// Queue holds inputs for modes that a runtime does not support natively
 // (for example follow_up on Codex, note on Claude Code). It also remembers
 // accepted refs, so a redelivered batch is not sent twice. The delivery
 // path and the event pump share it, so it takes a lock.

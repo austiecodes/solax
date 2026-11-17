@@ -61,9 +61,9 @@ func hash(c byte) string { return strings.Repeat(string(c), 64) }
 // machine registers an approved machine with agents.
 // agentDef is an agent to set up on a test machine.
 type agentDef struct {
-	Name   string
-	Driver ir.Kind
-	Role   string
+	Name    string
+	Runtime ir.Kind
+	Role    string
 }
 
 func (e *env) machine(t *testing.T, name string, h byte, agents ...agentDef) core.Machine {
@@ -78,7 +78,7 @@ func (e *env) machine(t *testing.T, name string, h byte, agents ...agentDef) cor
 	}
 	for _, a := range agents {
 		_, err := e.eng.CreateAgent(ctx, e.human, core.AgentSpec{
-			Machine: string(m.ID), Name: a.Name, Driver: a.Driver, Dir: "/src", Super: a.Role == "super",
+			Machine: string(m.ID), Name: a.Name, Runtime: a.Runtime, Dir: "/src", Super: a.Role == "super",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -177,16 +177,16 @@ func TestEnrollBeforeInit(t *testing.T) {
 	is(t, err, errs.ErrUnavailable)
 }
 
-// A hello stores the detected drivers. An agent is online only when its
-// machine is connected and has a working CLI for its driver. Agents stay
+// A hello stores the detected runtimes. An agent is online only when its
+// machine is connected and has a working CLI for its runtime. Agents stay
 // across hellos: the server defines them, not the daemon.
-func TestMachineConnectedStoresDrivers(t *testing.T) {
+func TestMachineConnectedStoresRuntimes(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	m := e.machine(t, "mac", 'a',
-		agentDef{Name: "backend", Driver: ir.KindClaude},
-		agentDef{Name: "super", Driver: ir.KindPi, Role: "super"})
-	err := e.eng.MachineConnected(ctx, m.ID, protocol.Hello{FreeSlots: 3, Drivers: []protocol.DriverProbe{
+		agentDef{Name: "backend", Runtime: ir.KindClaude},
+		agentDef{Name: "super", Runtime: ir.KindPi, Role: "super"})
+	err := e.eng.MachineConnected(ctx, m.ID, protocol.Hello{FreeSlots: 3, Runtimes: []protocol.RuntimeProbe{
 		{Kind: ir.KindClaude, OK: true, Version: "2.1"}, {Kind: ir.KindPi, OK: false, Problem: "not found"}}})
 	if err != nil {
 		t.Fatal(err)
@@ -207,7 +207,7 @@ func TestMachineConnectedStoresDrivers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = e.eng.CreateAgent(ctx, e.human, core.AgentSpec{Machine: "linux", Name: "backend", Driver: ir.KindCodex, Dir: "/x"})
+	_, err = e.eng.CreateAgent(ctx, e.human, core.AgentSpec{Machine: "linux", Name: "backend", Runtime: ir.KindCodex, Dir: "/x"})
 	is(t, err, errs.ErrConflict)
 	machines, _ := e.eng.Machines(ctx, e.human)
 	if len(machines) != 2 || other.Online {
@@ -225,9 +225,9 @@ func TestMachineConnectedStoresDrivers(t *testing.T) {
 	}
 }
 
-// A built-in driver needs no report; a fork of Claude Code from the
+// A built-in runtime needs no report; a fork of Claude Code from the
 // config of a daemon must be one that the machine reported.
-func TestCreateAgentDrivers(t *testing.T) {
+func TestCreateAgentRuntimes(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	m, err := e.eng.RegisterMachine(ctx, e.human, "mac", hash('a'))
@@ -235,7 +235,7 @@ func TestCreateAgentDrivers(t *testing.T) {
 		t.Fatal(err)
 	}
 	add := func(name string, k ir.Kind) error {
-		_, err := e.eng.CreateAgent(ctx, e.human, core.AgentSpec{Machine: "mac", Name: name, Driver: k, Dir: "~"})
+		_, err := e.eng.CreateAgent(ctx, e.human, core.AgentSpec{Machine: "mac", Name: name, Runtime: k, Dir: "~"})
 		return err
 	}
 	if err := add("cc", ir.KindClaude); err != nil {
@@ -243,7 +243,7 @@ func TestCreateAgentDrivers(t *testing.T) {
 	}
 	is(t, add("fork", "mycc"), errs.ErrInvalid)
 	is(t, add("bad", "My CC"), errs.ErrInvalid)
-	err = e.eng.MachineConnected(ctx, m.ID, protocol.Hello{Drivers: []protocol.DriverProbe{{Kind: "mycc", OK: true}}})
+	err = e.eng.MachineConnected(ctx, m.ID, protocol.Hello{Runtimes: []protocol.RuntimeProbe{{Kind: "mycc", OK: true}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,8 +255,8 @@ func TestScopesAndRecall(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	m := e.machine(t, "mac", 'a',
-		agentDef{Name: "backend", Driver: ir.KindClaude},
-		agentDef{Name: "router", Driver: ir.KindPi, Role: "super"})
+		agentDef{Name: "backend", Runtime: ir.KindClaude},
+		agentDef{Name: "router", Runtime: ir.KindPi, Role: "super"})
 	views, err := e.eng.Agents(ctx, e.human)
 	if err != nil || len(views) != 2 {
 		t.Fatalf("agents = %+v, %v", views, err)

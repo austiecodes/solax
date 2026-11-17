@@ -136,7 +136,7 @@ func setupLocal(cmd *cobra.Command, g *globals, addr string) error {
 Solax runs on this machine. Add agents next. "solax machine list" shows
 the agent CLIs that the daemon found. For example:
 
-  solax agent add reviewer --driver claude --dir ~/src/app --desc "Reviews code"
+  solax agent add reviewer --runtime claude --dir ~/src/app --desc "Reviews code"
 
 Stop it with "solax daemon stop" and "solax server stop".
 `))

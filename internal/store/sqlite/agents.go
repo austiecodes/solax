@@ -8,7 +8,7 @@ import (
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
-const agentCols = `id, machine_id, name, description, instructions, driver, role, dir, model, options, deleted, created_at`
+const agentCols = `id, machine_id, name, description, instructions, runtime, role, dir, model, options, deleted, created_at`
 
 func (t *txn) Agent(ctx context.Context, id core.ID) (core.Agent, error) {
 	return scanAgent(t.q.QueryRowContext(ctx, `SELECT `+agentCols+` FROM agents WHERE id = ?`, id))
@@ -30,9 +30,9 @@ func (t *txn) SaveAgent(ctx context.Context, a core.Agent) error {
 	}
 	_, err = t.exec(ctx, `INSERT INTO agents(`+agentCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET machine_id = excluded.machine_id, name = excluded.name,
-			description = excluded.description, instructions = excluded.instructions, driver = excluded.driver, role = excluded.role, dir = excluded.dir,
+			description = excluded.description, instructions = excluded.instructions, runtime = excluded.runtime, role = excluded.role, dir = excluded.dir,
 			model = excluded.model, options = excluded.options, deleted = excluded.deleted`,
-		a.ID, a.MachineID, a.Name, a.Description, a.Instructions, a.Driver, a.Role, a.Dir, a.Model, opts, b2i(a.Deleted), ms(a.CreatedAt))
+		a.ID, a.MachineID, a.Name, a.Description, a.Instructions, a.Runtime, a.Role, a.Dir, a.Model, opts, b2i(a.Deleted), ms(a.CreatedAt))
 	return err
 }
 
@@ -43,13 +43,13 @@ func (t *txn) Agents(ctx context.Context) ([]core.Agent, error) {
 
 func scanAgent(s scanner) (core.Agent, error) {
 	var a core.Agent
-	var driver, role, opts string
+	var runtime, role, opts string
 	var deleted int
 	var created int64
-	if err := s.Scan(&a.ID, &a.MachineID, &a.Name, &a.Description, &a.Instructions, &driver, &role, &a.Dir, &a.Model, &opts, &deleted, &created); err != nil {
+	if err := s.Scan(&a.ID, &a.MachineID, &a.Name, &a.Description, &a.Instructions, &runtime, &role, &a.Dir, &a.Model, &opts, &deleted, &created); err != nil {
 		return a, mapErr(err)
 	}
-	a.Driver, a.Role, a.Deleted, a.CreatedAt = ir.Kind(driver), core.AgentRole(role), deleted != 0, tm(created)
+	a.Runtime, a.Role, a.Deleted, a.CreatedAt = ir.Kind(runtime), core.AgentRole(role), deleted != 0, tm(created)
 	if opts != "" && opts != "{}" {
 		if err := json.Unmarshal([]byte(opts), &a.Options); err != nil {
 			return a, err

@@ -14,7 +14,7 @@ Pages:
 - **Jobs**: the list of all jobs, or one job as the same transcript: its
   prompt, the steps of the agent, its replies and live text. It looks the
   same for Claude Code, Codex and pi. Send a follow-up or cancel.
-- **Agents**: set up agents (name, machine, driver, folder, model,
+- **Agents**: set up agents (name, machine, runtime, folder, model,
   description, instructions), edit the instructions of an agent, and
   choose the agent that is Solax.
 - **Machines**: machines, the agent CLIs their daemons found, and pairing.

@@ -26,11 +26,11 @@ import (
 )
 
 // rig is one server and one daemon in a test process. The daemon runs a
-// fake agent driver; everything else is the real code.
+// fake agent runtime; everything else is the real code.
 type rig struct {
 	url    string
 	client *client.Client
-	fake   *agenttest.FakeDriver
+	fake   *agenttest.FakeRuntime
 
 	mu     sync.Mutex
 	pushes []protocol.Push
@@ -70,13 +70,13 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 	}
 
 	// The daemon: real supervisor and connection, fake agent.
-	r.fake = &agenttest.FakeDriver{KindV: ir.KindClaude, TurnDelay: 20 * time.Millisecond}
+	r.fake = &agenttest.FakeRuntime{KindV: ir.KindClaude, TurnDelay: 20 * time.Millisecond}
 	r.fake.Reply = func(spec agent.SessionSpec, text string) string { return reply(r, spec, text) }
 	var sup *supervisor.Supervisor
 	cn := conn.New(srv.URL, mtoken,
 		func(ctx context.Context) protocol.Hello {
 			return protocol.Hello{
-				Drivers:  []protocol.DriverProbe{{Kind: ir.KindClaude, OK: true, Caps: agenttest.FakeCaps}},
+				Runtimes: []protocol.RuntimeProbe{{Kind: ir.KindClaude, OK: true, Caps: agenttest.FakeCaps}},
 				Sessions: sup.States(), FreeSlots: sup.FreeSlots(),
 			}
 		},
@@ -84,7 +84,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 		func(ctx context.Context, env protocol.Envelope) protocol.Ack { return sup.Handle(ctx, env) },
 		log)
 	sup = supervisor.New(ctx, supervisor.Config{
-		Drivers: []agent.Driver{r.fake},
+		Runtimes: []agent.Runtime{r.fake},
 		Env: func(e protocol.SessionEnsure) map[string]string {
 			return map[string]string{"SOLAX_SERVER": srv.URL, "SOLAX_TOKEN": e.AgentToken, "SOLAX_JOB": e.Job}
 		},
@@ -103,7 +103,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 func (r *rig) addAgent(t *testing.T, name string, super bool) {
 	t.Helper()
 	_, err := r.client.CreateAgent(context.Background(), protocol.CreateAgentRequest{
-		Machine: "mac", Name: name, Driver: ir.KindClaude, Dir: "/src", Description: name + " agent", Super: super,
+		Machine: "mac", Name: name, Runtime: ir.KindClaude, Dir: "/src", Description: name + " agent", Super: super,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -240,7 +240,7 @@ func TestAgentInstructionsReachSession(t *testing.T) {
 	r := newRig(t, func(_ *rig, _ agent.SessionSpec, text string) string { return "ok" })
 	ctx := context.Background()
 	a, err := r.client.CreateAgent(ctx, protocol.CreateAgentRequest{
-		Machine: "mac", Name: "reviewer", Driver: ir.KindClaude, Dir: "/src",
+		Machine: "mac", Name: "reviewer", Runtime: ir.KindClaude, Dir: "/src",
 		Instructions: "  Review Go code. Report bugs only.\n",
 	})
 	if err != nil {

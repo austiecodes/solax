@@ -36,7 +36,7 @@ func agentCmd(g *globals) *cobra.Command {
 func agentListCmd(g *globals) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: T("List agents with their machine, driver and description"),
+		Short: T("List agents with their machine, runtime and description"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
 			if err != nil {
@@ -48,13 +48,13 @@ func agentListCmd(g *globals) *cobra.Command {
 			}
 			return g.print(cmd.OutOrStdout(), as, func(w io.Writer) {
 				tw := table(w)
-				fmt.Fprintln(tw, T("NAME\tMACHINE\tDRIVER\tONLINE\tDESCRIPTION"))
+				fmt.Fprintln(tw, T("NAME\tMACHINE\tRUNTIME\tONLINE\tDESCRIPTION"))
 				for _, a := range as {
 					name := a.Name
 					if a.Role == "super" {
 						name += T(" (super)")
 					}
-					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", name, a.Machine, a.Driver, locale.Bool(a.Online), a.Description)
+					fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", name, a.Machine, a.Runtime, locale.Bool(a.Online), a.Description)
 				}
 				tw.Flush()
 			})
@@ -64,21 +64,21 @@ func agentListCmd(g *globals) *cobra.Command {
 
 func agentAddCmd(g *globals) *cobra.Command {
 	var r protocol.CreateAgentRequest
-	var driver string
+	var runtime string
 	var instr instructionsFlags
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: T("Set up an agent on a machine"),
-		Example: `  solax agent add reviewer --machine mac --driver claude --dir ~/src/app \
+		Example: `  solax agent add reviewer --machine mac --runtime claude --dir ~/src/app \
       --desc "Reviews Go code and finds bugs" --instructions-file review.md
-  solax agent add router --machine mac --driver pi --dir ~ --super`,
+  solax agent add router --machine mac --runtime pi --dir ~ --super`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
 			if err != nil {
 				return err
 			}
-			r.Name, r.Driver, r.Dir = args[0], ir.Kind(driver), expandDir(r.Dir)
+			r.Name, r.Runtime, r.Dir = args[0], ir.Kind(runtime), expandDir(r.Dir)
 			if r.Instructions, _, err = instr.read(cmd); err != nil {
 				return err
 			}
@@ -90,22 +90,22 @@ func agentAddCmd(g *globals) *cobra.Command {
 				return err
 			}
 			return g.print(cmd.OutOrStdout(), a, func(w io.Writer) {
-				fmt.Fprintf(w, T("agent %s on %s (%s)\n"), a.Name, a.Machine, a.Driver)
+				fmt.Fprintf(w, T("agent %s on %s (%s)\n"), a.Name, a.Machine, a.Runtime)
 				if !a.Online {
-					fmt.Fprintf(w, T("note: the machine is offline or has no working %s CLI yet\n"), a.Driver)
+					fmt.Fprintf(w, T("note: the machine is offline or has no working %s CLI yet\n"), a.Runtime)
 				}
 			})
 		},
 	}
 	f := cmd.Flags()
 	f.StringVar(&r.Machine, "machine", "", T("machine ID or name (default: this machine)"))
-	f.StringVar(&driver, "driver", "", T("claude, codex, pi, or a fork of Claude Code that the machine reports"))
+	f.StringVar(&runtime, "runtime", "", T("claude, codex, pi, or a fork of Claude Code that the machine reports"))
 	f.StringVar(&r.Description, "desc", "", T("what this agent is good at; the Super Agent routes by it"))
 	f.StringVar(&r.Dir, "dir", "", T("work folder on the machine"))
 	f.StringVar(&r.Model, "model", "", T("model (default: the CLI default)"))
 	f.BoolVar(&r.Super, "super", false, T("make this agent the Super Agent (the router)"))
 	instr.add(cmd)
-	_ = cmd.MarkFlagRequired("driver")
+	_ = cmd.MarkFlagRequired("runtime")
 	_ = cmd.MarkFlagRequired("dir")
 	return cmd
 }

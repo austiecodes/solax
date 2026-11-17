@@ -90,14 +90,14 @@ func sampleDesktop(t *testing.T) *desktop {
 	d.conn = connState{State: "connected"}
 	d.machines = []protocol.Machine{
 		{ID: "mac_1", Name: "AustiedeMacBook-Pro.local", State: protocol.MachineApproved, Online: true, LastSeen: now,
-			Drivers: []protocol.DriverProbe{{Kind: "claude", Version: "2.1.0", OK: true}, {Kind: "pi", Version: "0.9.2", OK: true}, {Kind: "codex", Problem: "not found in PATH"}}},
+			Runtimes: []protocol.RuntimeProbe{{Kind: "claude", Version: "2.1.0", OK: true}, {Kind: "pi", Version: "0.9.2", OK: true}, {Kind: "codex", Problem: "not found in PATH"}}},
 		{ID: "mac_2", Name: "build-box", State: protocol.MachinePending, LastSeen: now.Add(-3 * time.Hour)},
 	}
 	d.agents = []protocol.Agent{
-		{ID: "a1", Name: "coder", Driver: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local", Dir: "/Users/austie/codes",
+		{ID: "a1", Name: "coder", Runtime: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local", Dir: "/Users/austie/codes",
 			Description: "General coder: implements features, refactors and fixes code"},
-		{ID: "a2", Name: "solax", Role: "super", Driver: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local", Dir: "~/codes"},
-		{ID: "a3", Name: "reviewer", Driver: "claude", Machine: "build-box", Dir: "~/src/app", Model: "haiku",
+		{ID: "a2", Name: "solax", Role: "super", Runtime: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local", Dir: "~/codes"},
+		{ID: "a3", Name: "reviewer", Runtime: "claude", Machine: "build-box", Dir: "~/src/app", Model: "haiku",
 			Description:  "Reads diffs and points out bugs before merge",
 			Instructions: "Review only the diff. Report each bug with a failing test; do not change the style."},
 	}
@@ -112,7 +112,7 @@ func sampleDesktop(t *testing.T) *desktop {
 		{ID: "m1", Seq: 1, Author: protocol.Author{Kind: "human"}, Text: "hello", CreatedAt: now},
 		{ID: "m2", Seq: 2, Author: protocol.Author{Kind: "super"}, Text: "Hi! I'm the Solax router. I dispatch work to your coding agents on your machines. What would you like done today?", CreatedAt: now},
 		{ID: "m3", Seq: 3, Author: protocol.Author{Kind: "human"}, Text: "can you add another pi as coder?", CreatedAt: now},
-		{ID: "m4", Seq: 4, Author: protocol.Author{Kind: "super"}, Text: "You can run it yourself in a terminal:\n\n```bash\nsolax agent add coder --driver pi --dir ~/codes \\\n    --desc \"General coder: implements features\"\n```\n\nThen tell me what to give it.", CreatedAt: now},
+		{ID: "m4", Seq: 4, Author: protocol.Author{Kind: "super"}, Text: "You can run it yourself in a terminal:\n\n```bash\nsolax agent add coder --runtime pi --dir ~/codes \\\n    --desc \"General coder: implements features\"\n```\n\nThen tell me what to give it.", CreatedAt: now},
 	}
 	d.events["ses_3"] = []ir.Event{
 		done(1, ir.Item{ID: "u1", Kind: ir.ItemUserMessage, Text: "Read the repo and write a short README."}, now),

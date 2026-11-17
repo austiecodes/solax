@@ -95,7 +95,7 @@ func (h *Handlers) createAgent(c *gin.Context) {
 		return
 	}
 	ag, err := h.eng.CreateAgent(c.Request.Context(), actor(c), core.AgentSpec{
-		Machine: r.Machine, Name: r.Name, Description: r.Description, Instructions: r.Instructions, Driver: r.Driver,
+		Machine: r.Machine, Name: r.Name, Description: r.Description, Instructions: r.Instructions, Runtime: r.Runtime,
 		Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
 	})
 	h.replyAgent(c, http.StatusCreated, ag, err)

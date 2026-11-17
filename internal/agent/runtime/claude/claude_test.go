@@ -32,7 +32,7 @@ func fakeCLI(t *testing.T, prompts bool) (bin, argsFile string) {
 	return bin, argsFile
 }
 
-func startArgs(t *testing.T, d *Driver, argsFile string) string {
+func startArgs(t *testing.T, d *Runtime, argsFile string) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -72,7 +72,7 @@ func TestPermissionPromptsOnlyWhenSupported(t *testing.T) {
 	}
 }
 
-// The prompt goes in a file, unless the driver passes it inline, as a
+// The prompt goes in a file, unless the runtime passes it inline, as a
 // fork that adds its own --append-system-prompt needs.
 func TestPromptFileOrInline(t *testing.T) {
 	for _, inline := range []bool{false, true} {

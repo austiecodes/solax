@@ -7,10 +7,10 @@ import (
 	"strings"
 )
 
-// SessionDir is the per-session state folder of a driver: the role prompt
+// SessionDir is the per-session state folder of a runtime: the role prompt
 // file and the stderr log. It never lives in the repository of the user.
 type SessionDir struct {
-	Path string // "" when the driver has no state folder
+	Path string // "" when the runtime has no state folder
 }
 
 // NewSessionDir creates <stateDir>/<sessionID>. With an empty stateDir or

@@ -1,4 +1,4 @@
-// Package codex is the driver for Codex app-server (JSON-RPC 2.0 over
+// Package codex is the runtime for Codex app-server (JSON-RPC 2.0 over
 // stdio). See https://learn.chatgpt.com/docs/app-server.
 package codex
 
@@ -34,33 +34,33 @@ var Caps = ir.Caps{
 // startTimeout bounds initialize + thread/start.
 const startTimeout = 60 * time.Second
 
-// Config configures the driver.
+// Config configures the runtime.
 type Config struct {
 	Binary   string // default "codex"
 	StateDir string // per-session folders: logs
 }
 
-// Driver starts Codex sessions. It runs one app-server process per
+// Runtime starts Codex sessions. It runs one app-server process per
 // session, for isolation and simple crash handling.
-type Driver struct {
+type Runtime struct {
 	cfg Config
 }
 
-// New returns a Codex driver.
-func New(cfg Config) *Driver {
+// New returns a Codex runtime.
+func New(cfg Config) *Runtime {
 	if cfg.Binary == "" {
 		cfg.Binary = "codex"
 	}
-	return &Driver{cfg: cfg}
+	return &Runtime{cfg: cfg}
 }
 
-func (d *Driver) Kind() ir.Kind { return ir.KindCodex }
+func (d *Runtime) Kind() ir.Kind { return ir.KindCodex }
 
 // Fingerprint changes when the binary is installed, updated or removed.
-func (d *Driver) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
+func (d *Runtime) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
 
 // Probe runs "codex --version".
-func (d *Driver) Probe(ctx context.Context) (agent.Probe, error) {
+func (d *Runtime) Probe(ctx context.Context) (agent.Probe, error) {
 	v, err := proc.Version(ctx, d.cfg.Binary)
 	if err != nil {
 		return agent.Probe{Problem: err.Error(), Caps: Caps}, nil
@@ -71,7 +71,7 @@ func (d *Driver) Probe(ctx context.Context) (agent.Probe, error) {
 // Start runs "codex app-server", sends initialize + initialized, then
 // thread/start (or thread/resume) with cwd, model, approvalPolicy "never"
 // and sandbox "workspace-write".
-func (d *Driver) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
+func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
 	dir, err := proc.NewSessionDir(d.cfg.StateDir, spec.SessionID)
 	if err != nil {
 		return nil, err
@@ -298,4 +298,4 @@ func (s *session) run() {
 	s.em.Close()
 }
 
-var _ agent.Driver = (*Driver)(nil)
+var _ agent.Runtime = (*Runtime)(nil)

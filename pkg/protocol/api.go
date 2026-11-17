@@ -11,12 +11,12 @@ import (
 // clients. The domain types in internal/core are separate.
 
 type Machine struct {
-	ID       string        `json:"id"`
-	Name     string        `json:"name"`
-	State    MachineState  `json:"state"`
-	Online   bool          `json:"online"`
-	LastSeen time.Time     `json:"last_seen"`
-	Drivers  []DriverProbe `json:"drivers"` // the agent CLIs that the daemon detected
+	ID       string         `json:"id"`
+	Name     string         `json:"name"`
+	State    MachineState   `json:"state"`
+	Online   bool           `json:"online"`
+	LastSeen time.Time      `json:"last_seen"`
+	Runtimes []RuntimeProbe `json:"runtimes"` // the agent CLIs that the daemon detected
 }
 
 // MachineState is the approval state of a machine.
@@ -60,8 +60,8 @@ type Agent struct {
 	Instructions string         `json:"instructions,omitempty"`
 	MachineID    string         `json:"machine_id"`
 	Machine      string         `json:"machine"` // machine name
-	Online       bool           `json:"online"`  // the machine is connected and has the driver
-	Driver       ir.Kind        `json:"driver"`
+	Online       bool           `json:"online"`  // the machine is connected and has the runtime
+	Runtime      ir.Kind        `json:"runtime"`
 	Role         string         `json:"role,omitempty"` // "" or "super"
 	Dir          string         `json:"dir"`
 	Model        string         `json:"model,omitempty"`
@@ -77,7 +77,7 @@ type CreateAgentRequest struct {
 	Name         string         `json:"name"`
 	Description  string         `json:"description"`
 	Instructions string         `json:"instructions,omitempty"`
-	Driver       ir.Kind        `json:"driver"`
+	Runtime      ir.Kind        `json:"runtime"`
 	Dir          string         `json:"dir"`
 	Model        string         `json:"model,omitempty"`
 	Options      map[string]any `json:"options,omitempty"`

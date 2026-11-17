@@ -89,7 +89,7 @@ func (e *Engine) ensureFor(ctx context.Context, ses Session, ag Agent, m Machine
 	}
 	ens := protocol.SessionEnsure{
 		SessionID: string(ses.ID), Agent: ag.Name, Role: role, Job: string(ses.JobID),
-		Driver: ag.Driver, Dir: ag.Dir, Model: ag.Model, Options: ag.Options, Resume: ses.Ref,
+		Runtime: ag.Runtime, Dir: ag.Dir, Model: ag.Model, Options: ag.Options, Resume: ses.Ref,
 		Instructions: ag.Instructions,
 		LastSeq:      uint64(ses.LastSeq),
 	}

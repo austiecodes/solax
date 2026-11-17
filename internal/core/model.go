@@ -26,13 +26,13 @@ type Machine struct {
 	LastSeen  time.Time
 	Online    bool
 	Slots     int // free session slots from the last heartbeat
-	// Drivers are the coding agent CLIs that the daemon detected.
-	Drivers []protocol.DriverProbe
+	// Runtimes are the coding agent CLIs that the daemon detected.
+	Runtimes []protocol.RuntimeProbe
 }
 
-// HasDriver reports whether the daemon detected a working driver of kind k.
-func (m Machine) HasDriver(k ir.Kind) bool {
-	for _, d := range m.Drivers {
+// HasRuntime reports whether the daemon detected a working runtime of kind k.
+func (m Machine) HasRuntime(k ir.Kind) bool {
+	for _, d := range m.Runtimes {
 		if d.Kind == k && d.OK {
 			return true
 		}
@@ -40,10 +40,10 @@ func (m Machine) HasDriver(k ir.Kind) bool {
 	return false
 }
 
-// Reports tells whether the daemon reported a driver of kind k, working
+// Reports tells whether the daemon reported a runtime of kind k, working
 // or not.
 func (m Machine) Reports(k ir.Kind) bool {
-	for _, d := range m.Drivers {
+	for _, d := range m.Runtimes {
 		if d.Kind == k {
 			return true
 		}
@@ -75,11 +75,11 @@ type Agent struct {
 	// Instructions are the system prompt of the sessions of the agent,
 	// after the Solax role prompt. Empty: the role prompt only.
 	Instructions string
-	Driver       ir.Kind
+	Runtime      ir.Kind
 	Role         AgentRole
 	Dir          string
 	Model        string
-	Options      map[string]any // driver-specific, for example pi "thinking"
+	Options      map[string]any // runtime-specific, for example pi "thinking"
 	Deleted      bool
 	CreatedAt    time.Time
 }

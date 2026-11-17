@@ -1,4 +1,4 @@
-// Package session holds the driver-agnostic parts of a session: the state
+// Package session holds the runtime-agnostic parts of a session: the state
 // machine and the input queue for emulated modes.
 package session
 

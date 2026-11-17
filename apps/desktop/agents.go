@@ -65,7 +65,7 @@ func (d *desktop) chosenAgent() (protocol.Agent, bool) {
 }
 
 // agentItem is an agent in the roster, on one line: whether it is online,
-// its name, its role, its description and its driver.
+// its name, its role, its description and its runtime.
 func (d *desktop) agentItem(c *ui.Context, pal *palette, a protocol.Agent) {
 	cur, _ := d.chosenAgent()
 	selected := !d.form.open && a.Name == cur.Name
@@ -77,7 +77,7 @@ func (d *desktop) agentItem(c *ui.Context, pal *palette, a protocol.Agent) {
 			chip(c, locales.NavChat(), markAccent)
 		}
 		ui.Text(c, a.Description).FontSize(13).TextColor(pal.textMuted).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
-		chip(c, string(a.Driver), markQuiet)
+		chip(c, string(a.Runtime), markQuiet)
 	})
 	if it.Clicked() {
 		d.agentSel, d.form.open = a.Name, false
@@ -95,7 +95,7 @@ func (d *desktop) agentDetail(c *ui.Context, a protocol.Agent) {
 		desc = locales.AgentNoDesc()
 	}
 	section(c, "detail-"+a.ID, sectionSpec{
-		title: a.Name, count: string(a.Driver), desc: desc,
+		title: a.Name, count: string(a.Runtime), desc: desc,
 		lead: func() { avatar(c, icon, m) },
 		actions: func() {
 			if a.Role != "super" && button(c, "make-super", locales.AgentMakeSolax(), plainButton, false) {
@@ -196,11 +196,11 @@ func (d *desktop) agentFormView(c *ui.Context) {
 	if f.Machine == "" && len(machines) > 0 {
 		f.Machine = machines[0]
 	}
-	drivers := d.driversOf(f.Machine)
-	if !contains(drivers, f.Driver) && len(drivers) > 0 {
-		f.Driver = drivers[0]
+	runtimes := d.runtimesOf(f.Machine)
+	if !contains(runtimes, f.Runtime) && len(runtimes) > 0 {
+		f.Runtime = runtimes[0]
 	}
-	ready := !f.busy && strings.TrimSpace(f.Name) != "" && f.Machine != "" && f.Driver != "" && strings.TrimSpace(f.Dir) != ""
+	ready := !f.busy && strings.TrimSpace(f.Name) != "" && f.Machine != "" && f.Runtime != "" && strings.TrimSpace(f.Dir) != ""
 	pal := paletteFor(c)
 	section(c, "new-agent", sectionSpec{
 		title: locales.NewAgent(), desc: locales.NewAgentHelp(),
@@ -229,8 +229,8 @@ func (d *desktop) agentFormView(c *ui.Context) {
 			}
 			ui.Row(c).Width(fieldW).Children(func() { selectField(c, "machine", &f.Machine, machines) })
 		})
-		row(c, "driver", locales.FieldDriver(), locales.FieldDriverHelp(), func() {
-			ui.Row(c).Width(fieldW).Children(func() { selectField(c, "driver", &f.Driver, drivers) })
+		row(c, "runtime", locales.FieldRuntime(), locales.FieldRuntimeHelp(), func() {
+			ui.Row(c).Width(fieldW).Children(func() { selectField(c, "runtime", &f.Runtime, runtimes) })
 		})
 		row(c, "dir", locales.FieldDir(), locales.FieldDirHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { textField(c, "dir", &f.Dir, "~/src/my-app") })
@@ -255,7 +255,7 @@ func (d *desktop) agentFormView(c *ui.Context) {
 func (d *desktop) addAgent() {
 	f := &d.form
 	req := protocol.CreateAgentRequest{
-		Machine: f.Machine, Name: strings.TrimSpace(f.Name), Driver: ir.Kind(f.Driver), Dir: strings.TrimSpace(f.Dir),
+		Machine: f.Machine, Name: strings.TrimSpace(f.Name), Runtime: ir.Kind(f.Runtime), Dir: strings.TrimSpace(f.Dir),
 		Model: strings.TrimSpace(f.Model), Description: strings.TrimSpace(f.Desc), Super: f.Super,
 		Instructions: strings.TrimSpace(f.Instructions),
 	}
@@ -288,15 +288,15 @@ func (d *desktop) machineNames() []string {
 	return out
 }
 
-// driversOf returns the working drivers of a machine; the built-in ones
+// runtimesOf returns the working runtimes of a machine; the built-in ones
 // when the machine never reported any (it may be offline).
-func (d *desktop) driversOf(machine string) []string {
+func (d *desktop) runtimesOf(machine string) []string {
 	for _, m := range d.machines {
 		if m.Name != machine {
 			continue
 		}
 		var out []string
-		for _, dr := range m.Drivers {
+		for _, dr := range m.Runtimes {
 			if dr.OK {
 				out = append(out, string(dr.Kind))
 			}

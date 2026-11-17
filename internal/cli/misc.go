@@ -55,7 +55,7 @@ func machineCmd(g *globals) *cobra.Command {
 				fmt.Fprintln(tw, T("ID\tNAME\tSTATE\tONLINE\tAGENT CLIS"))
 				for _, m := range ms {
 					var found []string
-					for _, d := range m.Drivers {
+					for _, d := range m.Runtimes {
 						if d.OK {
 							found = append(found, string(d.Kind)+" "+d.Version)
 						}

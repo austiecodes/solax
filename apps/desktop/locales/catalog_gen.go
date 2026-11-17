@@ -842,24 +842,24 @@ func (msgs Messages) FieldMachine() string {
 	return Catalog.Format(msgs.locale, "fieldMachine", nil)
 }
 
-// FieldDriver says "Driver"
+// FieldRuntime says "Runtime"
 // in the language the app shows.
-func FieldDriver() string { return In(i18n.Locale()).FieldDriver() }
+func FieldRuntime() string { return In(i18n.Locale()).FieldRuntime() }
 
-// FieldDriver says "Driver"
+// FieldRuntime says "Runtime"
 // in the language of msgs.
-func (msgs Messages) FieldDriver() string {
-	return Catalog.Format(msgs.locale, "fieldDriver", nil)
+func (msgs Messages) FieldRuntime() string {
+	return Catalog.Format(msgs.locale, "fieldRuntime", nil)
 }
 
-// FieldDriverHelp says "The agent CLIs that the daemon found on this machine."
+// FieldRuntimeHelp says "The agent CLIs that the daemon found on this machine."
 // in the language the app shows.
-func FieldDriverHelp() string { return In(i18n.Locale()).FieldDriverHelp() }
+func FieldRuntimeHelp() string { return In(i18n.Locale()).FieldRuntimeHelp() }
 
-// FieldDriverHelp says "The agent CLIs that the daemon found on this machine."
+// FieldRuntimeHelp says "The agent CLIs that the daemon found on this machine."
 // in the language of msgs.
-func (msgs Messages) FieldDriverHelp() string {
-	return Catalog.Format(msgs.locale, "fieldDriverHelp", nil)
+func (msgs Messages) FieldRuntimeHelp() string {
+	return Catalog.Format(msgs.locale, "fieldRuntimeHelp", nil)
 }
 
 // FieldDir says "Work folder"
@@ -962,14 +962,14 @@ func (msgs Messages) MachinesEmpty() string {
 	return Catalog.Format(msgs.locale, "machinesEmpty", nil)
 }
 
-// DriverMissing says "not available: {problem}"
+// RuntimeMissing says "not available: {problem}"
 // in the language the app shows.
-func DriverMissing(problem string) string { return In(i18n.Locale()).DriverMissing(problem) }
+func RuntimeMissing(problem string) string { return In(i18n.Locale()).RuntimeMissing(problem) }
 
-// DriverMissing says "not available: {problem}"
+// RuntimeMissing says "not available: {problem}"
 // in the language of msgs.
-func (msgs Messages) DriverMissing(problem string) string {
-	return Catalog.Format(msgs.locale, "driverMissing", map[string]any{"problem": problem})
+func (msgs Messages) RuntimeMissing(problem string) string {
+	return Catalog.Format(msgs.locale, "runtimeMissing", map[string]any{"problem": problem})
 }
 
 // LastSeen says "last seen {ago} · {id}"
@@ -1756,11 +1756,11 @@ func (msgs Messages) AgentRoleHelp() string {
 	return Catalog.Format(msgs.locale, "agentRoleHelp", nil)
 }
 
-// AgentStatusHelp says "Online when its machine is connected and has the driver."
+// AgentStatusHelp says "Online when its machine is connected and has the runtime."
 // in the language the app shows.
 func AgentStatusHelp() string { return In(i18n.Locale()).AgentStatusHelp() }
 
-// AgentStatusHelp says "Online when its machine is connected and has the driver."
+// AgentStatusHelp says "Online when its machine is connected and has the runtime."
 // in the language of msgs.
 func (msgs Messages) AgentStatusHelp() string {
 	return Catalog.Format(msgs.locale, "agentStatusHelp", nil)
@@ -1816,34 +1816,34 @@ func (msgs Messages) DirOn(dir string, machine string) string {
 	return Catalog.Format(msgs.locale, "dirOn", map[string]any{"dir": dir, "machine": machine})
 }
 
-// DriverNotAvailable says "Not available"
+// RuntimeNotAvailable says "Not available"
 // in the language the app shows.
-func DriverNotAvailable() string { return In(i18n.Locale()).DriverNotAvailable() }
+func RuntimeNotAvailable() string { return In(i18n.Locale()).RuntimeNotAvailable() }
 
-// DriverNotAvailable says "Not available"
+// RuntimeNotAvailable says "Not available"
 // in the language of msgs.
-func (msgs Messages) DriverNotAvailable() string {
-	return Catalog.Format(msgs.locale, "driverNotAvailable", nil)
+func (msgs Messages) RuntimeNotAvailable() string {
+	return Catalog.Format(msgs.locale, "runtimeNotAvailable", nil)
 }
 
-// DriverReady says "Ready"
+// RuntimeReady says "Ready"
 // in the language the app shows.
-func DriverReady() string { return In(i18n.Locale()).DriverReady() }
+func RuntimeReady() string { return In(i18n.Locale()).RuntimeReady() }
 
-// DriverReady says "Ready"
+// RuntimeReady says "Ready"
 // in the language of msgs.
-func (msgs Messages) DriverReady() string {
-	return Catalog.Format(msgs.locale, "driverReady", nil)
+func (msgs Messages) RuntimeReady() string {
+	return Catalog.Format(msgs.locale, "runtimeReady", nil)
 }
 
-// DriversNotReported says "The daemon has not reported yet."
+// RuntimesNotReported says "The daemon has not reported yet."
 // in the language the app shows.
-func DriversNotReported() string { return In(i18n.Locale()).DriversNotReported() }
+func RuntimesNotReported() string { return In(i18n.Locale()).RuntimesNotReported() }
 
-// DriversNotReported says "The daemon has not reported yet."
+// RuntimesNotReported says "The daemon has not reported yet."
 // in the language of msgs.
-func (msgs Messages) DriversNotReported() string {
-	return Catalog.Format(msgs.locale, "driversNotReported", nil)
+func (msgs Messages) RuntimesNotReported() string {
+	return Catalog.Format(msgs.locale, "runtimesNotReported", nil)
 }
 
 // FieldAgentCLIs says "Agent CLIs"
@@ -1956,11 +1956,11 @@ func (msgs Messages) FieldMachineID() string {
 	return Catalog.Format(msgs.locale, "fieldMachineID", nil)
 }
 
-// FieldModelHelp says "Optional. Empty uses the driver's default."
+// FieldModelHelp says "Optional. Empty uses the runtime's default."
 // in the language the app shows.
 func FieldModelHelp() string { return In(i18n.Locale()).FieldModelHelp() }
 
-// FieldModelHelp says "Optional. Empty uses the driver's default."
+// FieldModelHelp says "Optional. Empty uses the runtime's default."
 // in the language of msgs.
 func (msgs Messages) FieldModelHelp() string {
 	return Catalog.Format(msgs.locale, "fieldModelHelp", nil)
@@ -2126,11 +2126,11 @@ func (msgs Messages) MachinesHelp() string {
 	return Catalog.Format(msgs.locale, "machinesHelp", nil)
 }
 
-// ModelDefault says "Driver default"
+// ModelDefault says "Runtime default"
 // in the language the app shows.
 func ModelDefault() string { return In(i18n.Locale()).ModelDefault() }
 
-// ModelDefault says "Driver default"
+// ModelDefault says "Runtime default"
 // in the language of msgs.
 func (msgs Messages) ModelDefault() string {
 	return Catalog.Format(msgs.locale, "modelDefault", nil)

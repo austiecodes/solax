@@ -81,7 +81,7 @@ func (d *desktop) actionItems() []paletteItem {
 func (d *desktop) agentItems() []paletteItem {
 	var out []paletteItem
 	for _, a := range d.agents {
-		detail := string(a.Driver) + " · " + a.Machine
+		detail := string(a.Runtime) + " · " + a.Machine
 		if a.Role == "super" {
 			detail = locales.NavChat() + " · " + detail
 		}

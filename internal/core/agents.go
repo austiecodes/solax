@@ -18,7 +18,7 @@ type AgentSpec struct {
 	Name         string
 	Description  string
 	Instructions string // system prompt after the Solax role prompt
-	Driver       ir.Kind
+	Runtime      ir.Kind
 	Dir          string
 	Model        string
 	Options      map[string]any
@@ -38,9 +38,9 @@ type AgentPatch struct {
 // agentName is a name that a prompt and a shell can carry without quotes.
 var agentName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
-// CreateAgent sets up an agent on a machine. A built-in driver does not
+// CreateAgent sets up an agent on a machine. A built-in runtime does not
 // have to be detected yet: a machine may be offline while a person sets it
-// up. Any other driver (a fork of Claude Code from the config of a daemon)
+// up. Any other runtime (a fork of Claude Code from the config of a daemon)
 // must be one that the machine reported.
 // There is at most one Super Agent; a new one replaces the role of the old.
 func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agent, error) {
@@ -51,8 +51,8 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 	if !agentName.MatchString(spec.Name) {
 		return Agent{}, fmt.Errorf("%w: agent name must match %s", errs.ErrInvalid, agentName)
 	}
-	if !agentName.MatchString(string(spec.Driver)) {
-		return Agent{}, fmt.Errorf("%w: driver must be one of %s, or one that the machine reports", errs.ErrInvalid, kindList())
+	if !agentName.MatchString(string(spec.Runtime)) {
+		return Agent{}, fmt.Errorf("%w: runtime must be one of %s, or one that the machine reports", errs.ErrInvalid, kindList())
 	}
 	if strings.TrimSpace(spec.Dir) == "" {
 		return Agent{}, fmt.Errorf("%w: an agent needs a work folder (dir)", errs.ErrInvalid)
@@ -63,9 +63,9 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 		if err != nil {
 			return err
 		}
-		if !slices.Contains(ir.BuiltinKinds, spec.Driver) && !m.Reports(spec.Driver) {
-			return fmt.Errorf("%w: driver %q: machine %s does not report it; the built-in drivers are %s",
-				errs.ErrInvalid, spec.Driver, m.Name, kindList())
+		if !slices.Contains(ir.BuiltinKinds, spec.Runtime) && !m.Reports(spec.Runtime) {
+			return fmt.Errorf("%w: runtime %q: machine %s does not report it; the built-in runtimes are %s",
+				errs.ErrInvalid, spec.Runtime, m.Name, kindList())
 		}
 		if _, err := tx.AgentByName(ctx, spec.Name); err == nil {
 			return fmt.Errorf("%w: agent %q exists", errs.ErrConflict, spec.Name)
@@ -75,7 +75,7 @@ func (e *Engine) CreateAgent(ctx context.Context, a Actor, spec AgentSpec) (Agen
 		now := e.clock()
 		ag = Agent{
 			ID: NewIDAt(PrefixAgent, now), MachineID: m.ID, Name: spec.Name, Description: strings.TrimSpace(spec.Description),
-			Instructions: strings.TrimSpace(spec.Instructions), Driver: spec.Driver, Dir: spec.Dir, Model: spec.Model, Options: spec.Options, CreatedAt: now,
+			Instructions: strings.TrimSpace(spec.Instructions), Runtime: spec.Runtime, Dir: spec.Dir, Model: spec.Model, Options: spec.Options, CreatedAt: now,
 		}
 		if spec.Super {
 			if err := clearSuper(ctx, tx); err != nil {

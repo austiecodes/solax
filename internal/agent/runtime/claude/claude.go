@@ -1,4 +1,4 @@
-// Package claude is the driver for Claude Code in stream-json mode
+// Package claude is the runtime for Claude Code in stream-json mode
 // (claude -p --input-format stream-json --output-format stream-json), and
 // for forks of it that speak the same protocol.
 package claude
@@ -35,9 +35,9 @@ var Caps = ir.Caps{
 	Subagent: true,  // parent_tool_use_id
 }
 
-// Config configures the driver.
+// Config configures the runtime.
 type Config struct {
-	// Kind names the driver. A fork of Claude Code that speaks the same
+	// Kind names the runtime. A fork of Claude Code that speaks the same
 	// stream-json is its own kind with its own binary.
 	Kind     ir.Kind // default ir.KindClaude
 	Binary   string  // default the kind
@@ -49,8 +49,8 @@ type Config struct {
 	InlinePrompt bool
 }
 
-// Driver starts Claude Code sessions.
-type Driver struct {
+// Runtime starts Claude Code sessions.
+type Runtime struct {
 	cfg Config
 
 	// mu guards prompts: whether the binary of a fingerprint has
@@ -59,24 +59,24 @@ type Driver struct {
 	prompts map[string]bool
 }
 
-// New returns a Claude Code driver.
-func New(cfg Config) *Driver {
+// New returns a Claude Code runtime.
+func New(cfg Config) *Runtime {
 	if cfg.Kind == "" {
 		cfg.Kind = ir.KindClaude
 	}
 	if cfg.Binary == "" {
 		cfg.Binary = string(cfg.Kind)
 	}
-	return &Driver{cfg: cfg, prompts: map[string]bool{}}
+	return &Runtime{cfg: cfg, prompts: map[string]bool{}}
 }
 
-func (d *Driver) Kind() ir.Kind { return d.cfg.Kind }
+func (d *Runtime) Kind() ir.Kind { return d.cfg.Kind }
 
 // Fingerprint changes when the binary is installed, updated or removed.
-func (d *Driver) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
+func (d *Runtime) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
 
 // Probe runs "claude --version", and "claude --help" to learn its flags.
-func (d *Driver) Probe(ctx context.Context) (agent.Probe, error) {
+func (d *Runtime) Probe(ctx context.Context) (agent.Probe, error) {
 	v, err := proc.Version(ctx, d.cfg.Binary)
 	if err != nil {
 		return agent.Probe{Problem: err.Error(), Caps: Caps}, nil
@@ -88,7 +88,7 @@ func (d *Driver) Probe(ctx context.Context) (agent.Probe, error) {
 // hasPermissionPrompts tells whether the binary has --permission-prompts.
 // Without it, print mode denies what would prompt, which is what "none"
 // asks for. The answer is kept per fingerprint, so an update asks again.
-func (d *Driver) hasPermissionPrompts(ctx context.Context) bool {
+func (d *Runtime) hasPermissionPrompts(ctx context.Context) bool {
 	fp := d.Fingerprint()
 	d.mu.Lock()
 	ok, known := d.prompts[fp]
@@ -119,7 +119,7 @@ func (d *Driver) hasPermissionPrompts(ctx context.Context) bool {
 //
 // Solax picks the session ID, so the session ref is known before the first
 // prompt. Claude Code prints system/init only after the first input.
-func (d *Driver) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
+func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
 	native := newUUID()
 	args := []string{
 		"-p", "--input-format", "stream-json", "--output-format", "stream-json",
@@ -296,4 +296,4 @@ func newUUID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
-var _ agent.Driver = (*Driver)(nil)
+var _ agent.Runtime = (*Runtime)(nil)

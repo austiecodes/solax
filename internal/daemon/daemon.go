@@ -1,4 +1,4 @@
-// Package daemon builds the "solax daemon run" process: drivers,
+// Package daemon builds the "solax daemon run" process: runtimes,
 // supervisor, the connection to the server and the local control socket.
 package daemon
 
@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/austiecodes/solax/internal/agent"
-	"github.com/austiecodes/solax/internal/agent/driver"
+	"github.com/austiecodes/solax/internal/agent/runtime"
 	"github.com/austiecodes/solax/internal/assets"
 	"github.com/austiecodes/solax/internal/daemon/conn"
 	"github.com/austiecodes/solax/internal/daemon/control"
@@ -30,14 +30,14 @@ import (
 // Version is the daemon version. The build sets it.
 var Version = "dev"
 
-// probeTimeout bounds one driver probe. A hung external CLI must not hang
+// probeTimeout bounds one runtime probe. A hung external CLI must not hang
 // the WebSocket handshake.
 const probeTimeout = 5 * time.Second
 
-// driverWatch is how often the daemon looks for agent CLIs that were
+// runtimeWatch is how often the daemon looks for agent CLIs that were
 // installed, updated or removed. A look starts no process (see
 // fingerprinter); a change probes again and sends a new hello.
-const driverWatch = 30 * time.Second
+const runtimeWatch = 30 * time.Second
 
 // Daemon is one running daemon process.
 type Daemon struct {
@@ -51,8 +51,8 @@ type Daemon struct {
 	mu  sync.RWMutex
 	cfg localconfig.Config
 
-	drivers []agent.Driver
-	// fpMu guards fp, the driver fingerprints of the last hello.
+	runtimes []agent.Runtime
+	// fpMu guards fp, the runtime fingerprints of the last hello.
 	fpMu sync.Mutex
 	fp   string
 	sup  *supervisor.Supervisor
@@ -84,7 +84,7 @@ func New(paths localconfig.Paths, log *slog.Logger) (*Daemon, error) {
 
 	state := cfg.Machine.StateDir
 	// The role prompts travel in the binary. Release them next to the
-	// driver state, so a single binary on a fresh machine finds them.
+	// runtime state, so a single binary on a fresh machine finds them.
 	assetsDir := filepath.Join(state, "assets")
 	if err := assets.Release(assetsDir); err != nil {
 		return nil, fmt.Errorf("release assets: %w", err)
@@ -93,11 +93,11 @@ func New(paths localconfig.Paths, log *slog.Logger) (*Daemon, error) {
 	if exe, err := os.Executable(); err == nil {
 		bin = filepath.Dir(exe)
 	}
-	ds, err := driver.All(state, cfg.Drivers.ClaudeCompatible...)
+	ds, err := runtime.All(state, cfg.Runtimes.ClaudeCompatible...)
 	if err != nil {
 		return nil, err
 	}
-	d := &Daemon{paths: paths, cfg: cfg, creds: creds, log: log, assets: assetsDir, bin: bin, drivers: ds}
+	d := &Daemon{paths: paths, cfg: cfg, creds: creds, log: log, assets: assetsDir, bin: bin, runtimes: ds}
 	d.conn = conn.New(cfg.Backend.URL, creds.MachineToken, d.hello, d.heartbeat, d.handle, log)
 	return d, nil
 }
@@ -114,7 +114,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	ctx, d.stop = context.WithCancel(ctx)
 	defer d.stop()
 	d.sup = supervisor.New(ctx, supervisor.Config{
-		Drivers:  d.drivers,
+		Runtimes: d.runtimes,
 		Prompt:   func(role protocol.SessionRole) (string, error) { return assets.Prompt(d.assets, role) },
 		Env:      d.sessionEnv,
 		Dir:      localconfig.ExpandHome,
@@ -126,7 +126,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	errc := make(chan error, 2)
 	go func() { errc <- control.Serve(ctx, d.paths.Socket(), d) }()
 	go func() { errc <- d.conn.Run(ctx) }()
-	go d.watchDrivers(ctx, driverWatch)
+	go d.watchRuntimes(ctx, runtimeWatch)
 
 	var err error
 	select {
@@ -171,7 +171,7 @@ func (d *Daemon) Status() control.Status {
 	return st
 }
 
-// Reload reads config.yaml again and sends a new hello with fresh driver
+// Reload reads config.yaml again and sends a new hello with fresh runtime
 // probes, for example after a person installed an agent CLI. The backend
 // URL cannot change under a running daemon: the machine identity belongs
 // to one server.
@@ -212,7 +212,7 @@ func (d *Daemon) handle(ctx context.Context, env protocol.Envelope) protocol.Ack
 	return d.sup.Handle(ctx, env)
 }
 
-// hello builds the Hello record for each connect. Each driver probe gets
+// hello builds the Hello record for each connect. Each runtime probe gets
 // its own timeout, so one hung CLI cannot stall the handshake.
 func (d *Daemon) hello(ctx context.Context) protocol.Hello {
 	fp := d.fingerprints()
@@ -224,26 +224,26 @@ func (d *Daemon) hello(ctx context.Context) protocol.Hello {
 	if d.sup != nil {
 		h.FreeSlots, h.Sessions = d.sup.FreeSlots(), d.sup.States()
 	}
-	for _, drv := range d.drivers {
+	for _, drv := range d.runtimes {
 		pctx, cancel := context.WithTimeout(ctx, probeTimeout)
 		p, err := drv.Probe(pctx)
 		cancel()
-		dp := protocol.DriverProbe{Kind: drv.Kind(), Version: p.Version, OK: p.OK && err == nil, Problem: p.Problem, Caps: p.Caps}
+		dp := protocol.RuntimeProbe{Kind: drv.Kind(), Version: p.Version, OK: p.OK && err == nil, Problem: p.Problem, Caps: p.Caps}
 		if err != nil {
 			dp.OK, dp.Problem = false, err.Error()
 		}
 		if !dp.OK {
-			d.log.Info("agent CLI not available", "driver", drv.Kind(), "problem", dp.Problem)
+			d.log.Info("agent CLI not available", "runtime", drv.Kind(), "problem", dp.Problem)
 		}
-		h.Drivers = append(h.Drivers, dp)
+		h.Runtimes = append(h.Runtimes, dp)
 	}
 	return h
 }
 
-// watchDrivers sends a new hello when an agent CLI was installed,
+// watchRuntimes sends a new hello when an agent CLI was installed,
 // updated or removed, so the server, and the agents it suggests, know the
 // CLIs of this machine without a restart or "solax daemon reload".
-func (d *Daemon) watchDrivers(ctx context.Context, every time.Duration) {
+func (d *Daemon) watchRuntimes(ctx context.Context, every time.Duration) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
@@ -265,18 +265,18 @@ func (d *Daemon) watchDrivers(ctx context.Context, every time.Duration) {
 	}
 }
 
-// fingerprinter is a driver that can tell, without starting a process,
+// fingerprinter is a runtime that can tell, without starting a process,
 // that its binary changed: installed, updated or removed. The built-in
-// drivers are; a driver that is not is probed only on a connect or a
+// runtimes are; a runtime that is not is probed only on a connect or a
 // reload.
 type fingerprinter interface {
 	Fingerprint() string
 }
 
-// fingerprints names the binaries of all drivers as they are on disk.
+// fingerprints names the binaries of all runtimes as they are on disk.
 func (d *Daemon) fingerprints() string {
 	var b strings.Builder
-	for _, drv := range d.drivers {
+	for _, drv := range d.runtimes {
 		if f, ok := drv.(fingerprinter); ok {
 			b.WriteString(f.Fingerprint())
 			b.WriteByte('\n')

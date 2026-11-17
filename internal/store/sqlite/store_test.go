@@ -41,8 +41,8 @@ func seed(t *testing.T, s *Store) (core.Owner, core.Agent, core.Agent) {
 	ctx := context.Background()
 	o := core.Owner{ID: "own_1", CreatedAt: t0}
 	m := core.Machine{ID: "mch_1", OwnerID: o.ID, Name: "mac", State: core.MachineApproved, TokenHash: "h1"}
-	a := core.Agent{ID: "agt_a", MachineID: m.ID, Name: "backend", Driver: ir.KindClaude}
-	b := core.Agent{ID: "agt_b", MachineID: m.ID, Name: "infra", Driver: ir.KindCodex}
+	a := core.Agent{ID: "agt_a", MachineID: m.ID, Name: "backend", Runtime: ir.KindClaude}
+	b := core.Agent{ID: "agt_b", MachineID: m.ID, Name: "infra", Runtime: ir.KindCodex}
 	atomic_(t, s, func(tx core.Tx) error {
 		return errors.Join(
 			tx.SaveOwner(ctx, o),
@@ -75,7 +75,7 @@ func TestTopology(t *testing.T) {
 
 	err := s.Read(ctx, func(tx core.Tx) error {
 		got, err := tx.AgentByName(ctx, "backend")
-		if err != nil || got.ID != a.ID || got.Driver != ir.KindClaude {
+		if err != nil || got.ID != a.ID || got.Runtime != ir.KindClaude {
 			t.Fatalf("AgentByName = %+v, %v", got, err)
 		}
 		if _, err := tx.Machine(ctx, "mch_x"); !errors.Is(err, errs.ErrNotFound) {
@@ -93,7 +93,7 @@ func TestTopology(t *testing.T) {
 
 	// A second agent with the same (machine, name) is a conflict.
 	err = s.Atomic(ctx, func(tx core.Tx) error {
-		return tx.SaveAgent(ctx, core.Agent{ID: "agt_dup", MachineID: "mch_1", Name: "backend", Driver: ir.KindPi})
+		return tx.SaveAgent(ctx, core.Agent{ID: "agt_dup", MachineID: "mch_1", Name: "backend", Runtime: ir.KindPi})
 	})
 	if !errors.Is(err, errs.ErrConflict) {
 		t.Fatalf("duplicate agent: %v", err)

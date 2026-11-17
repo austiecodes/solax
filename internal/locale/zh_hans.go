@@ -5,10 +5,10 @@ package locale
 
 // zhHans holds the Simplified Chinese messages, by their English text.
 var zhHans = map[string]string{
-	"Coding agents on your machines: set up, list, change":   "你机器上的编码 Agent：添加、列出、修改",
-	"Remove an agent (its jobs stay)":                        "删除一个 Agent（它的任务会保留）",
-	"List agents with their machine, driver and description": "列出 Agent 及其机器、驱动和描述",
-	"NAME\tMACHINE\tDRIVER\tONLINE\tDESCRIPTION":             "名称\t机器\t驱动\t在线\t描述",
+	"Coding agents on your machines: set up, list, change":    "你机器上的编码 Agent：添加、列出、修改",
+	"Remove an agent (its jobs stay)":                         "删除一个 Agent（它的任务会保留）",
+	"List agents with their machine, runtime and description": "列出 Agent 及其机器、运行时和描述",
+	"NAME\tMACHINE\tRUNTIME\tONLINE\tDESCRIPTION":             "名称\t机器\t运行时\t在线\t描述",
 	" (super)":                     "（超级 Agent）",
 	"Set up an agent on a machine": "在一台机器上添加 Agent",
 	"agent %s on %s (%s)\n":        "Agent %s 位于 %s（%s）\n",
@@ -151,7 +151,7 @@ var zhHans = map[string]string{
 	"Set up Solax with no other host: the server and the daemon both run on\nthis machine, as two background processes.\n\n  1. Create the server database, if there is none (~/.solax/server/).\n  2. Start the server, if it does not run.\n  3. Use it from this CLI: save its URL and a client token.\n  4. Start the daemon, if it does not run. The machine is approved at once.\n\nYou can run it again at any time. It changes only what is missing.": "不需要其他主机即可设置 Solax：服务器和守护进程都在本机运行，\n作为两个后台进程。\n\n  1. 如果没有服务器数据库，就创建一个（~/.solax/server/）。\n  2. 如果服务器没有运行，就启动它。\n  3. 让这个 CLI 使用它：保存它的 URL 和一个客户端令牌。\n  4. 如果守护进程没有运行，就启动它。本机会立即通过审批。\n\n可以随时再次运行，它只补上缺少的部分。",
 	"listen address of the server": "服务器的监听地址",
 	"the server runs (pid %d), but not on %s: run \"solax server stop\", or set --addr": "服务器在运行（pid %d），但不在 %s 上：请运行 \"solax server stop\"，或设置 --addr",
-	"\nSolax runs on this machine. Add agents next. \"solax machine list\" shows\nthe agent CLIs that the daemon found. For example:\n\n  solax agent add reviewer --driver claude --dir ~/src/app --desc \"Reviews code\"\n\nStop it with \"solax daemon stop\" and \"solax server stop\".\n": "\nSolax 已在本机运行。下一步添加 Agent。\"solax machine list\" 列出守护进程\n发现的 Agent CLI。例如：\n\n  solax agent add reviewer --driver claude --dir ~/src/app --desc \"审查代码\"\n\n用 \"solax daemon stop\" 和 \"solax server stop\" 停止。\n",
+	"\nSolax runs on this machine. Add agents next. \"solax machine list\" shows\nthe agent CLIs that the daemon found. For example:\n\n  solax agent add reviewer --runtime claude --dir ~/src/app --desc \"Reviews code\"\n\nStop it with \"solax daemon stop\" and \"solax server stop\".\n": "\nSolax 已在本机运行。下一步添加 Agent。\"solax machine list\" 列出守护进程\n发现的 Agent CLI。例如：\n\n  solax agent add reviewer --runtime claude --dir ~/src/app --desc \"审查代码\"\n\n用 \"solax daemon stop\" 和 \"solax server stop\" 停止。\n",
 	"check the saved client token: %w":                               "检查已保存的客户端令牌：%w",
 	"Tasks in workspaces":                                            "工作区中的事项",
 	"Create a task. This wakes the leader":                           "创建事项，会唤醒负责人",

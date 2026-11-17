@@ -136,8 +136,8 @@ func TestPopulatedPagesInChinese(t *testing.T) {
 		want  []string
 	}{
 		{"jobs", func(d *desktop) { d.page = pageJobs }, []string{"所有任务", "3 个任务，1 个运行中", "最近的任务", "任务分组"}},
-		{"agent", func(d *desktop) { d.page = pageAgents }, []string{"Agent 列表", "状态", "在线", "驱动默认值", "设为 Solax", "指令"}},
-		{"new-agent", func(d *desktop) { d.page, d.form.open = pageAgents, true }, []string{"新建 Agent", "名称", "驱动", "描述", "指令", "添加 Agent"}},
+		{"agent", func(d *desktop) { d.page = pageAgents }, []string{"Agent 列表", "状态", "在线", "运行时默认值", "设为 Solax", "指令"}},
+		{"new-agent", func(d *desktop) { d.page, d.form.open = pageAgents, true }, []string{"新建 Agent", "名称", "运行时", "描述", "指令", "添加 Agent"}},
 		{"machines", func(d *desktop) { d.page = pageMachines }, []string{"配对码", "最近在线", "机器 ID", "就绪", "不可用"}},
 		{"settings", func(d *desktop) { d.page = pageSettings }, []string{"外观", "语言", "侧边栏", "任务分组方式", "项目", "保存并连接"}},
 		{"palette", func(d *desktop) { d.openPalette() }, []string{"搜索", "移动", "打开", "关闭"}},

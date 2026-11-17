@@ -87,7 +87,7 @@ func Replay(t *testing.T, d agent.Decoder, path string) []ir.Event {
 	return evs
 }
 
-// CheckTurns checks the rules that hold for every driver: turns do not
+// CheckTurns checks the rules that hold for every runtime: turns do not
 // nest, every turn.started has one turn.completed, and every item.started
 // has an item.completed with the same ID.
 func CheckTurns(t *testing.T, evs []ir.Event) {

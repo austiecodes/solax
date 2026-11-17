@@ -27,7 +27,7 @@ var ErrUnknownSession = errors.New("unknown session")
 
 // Config is what the supervisor needs from the daemon.
 type Config struct {
-	Drivers []agent.Driver
+	Runtimes []agent.Runtime
 	// Prompt returns the role prompt of a session.
 	Prompt func(role protocol.SessionRole) (string, error)
 	// Env returns the environment of a session: SOLAX_* values and PATH.
@@ -55,7 +55,7 @@ type Supervisor struct {
 	sessions map[string]*running
 	starting map[string]chan struct{} // ensure under way, by session ID
 	// seqs is the last event seq of each session. The supervisor numbers
-	// events itself: a driver counts from 1 in each process, but the
+	// events itself: a runtime counts from 1 in each process, but the
 	// server keeps one seq space for each session across restarts.
 	seqs map[string]uint64
 }
@@ -204,7 +204,7 @@ func (s *Supervisor) ensure(ctx context.Context, payload json.RawMessage) error 
 		close(done)
 	}()
 
-	drv, err := agent.Find(s.cfg.Drivers, e.Driver)
+	drv, err := agent.Find(s.cfg.Runtimes, e.Runtime)
 	if err != nil {
 		return err
 	}
@@ -240,12 +240,12 @@ func (s *Supervisor) ensure(ctx context.Context, payload json.RawMessage) error 
 	ref := sess.Ref()
 	s.report(protocol.SessionStateReport{SessionID: e.SessionID, State: ir.SessionStarting, Ref: &ref})
 	go s.pump(r)
-	s.cfg.Log.Info("session started", "session", e.SessionID, "agent", e.Agent, "driver", e.Driver, "role", e.Role)
+	s.cfg.Log.Info("session started", "session", e.SessionID, "agent", e.Agent, "runtime", e.Runtime, "role", e.Role)
 	return nil
 }
 
 // deliver sends input as soon as possible: a prompt when the session is
-// idle, a native follow_up when it is busy, or the queue when the driver
+// idle, a native follow_up when it is busy, or the queue when the runtime
 // has no follow_up. Steer and interrupt pass through.
 func (s *Supervisor) deliver(ctx context.Context, payload json.RawMessage) error {
 	var d protocol.SessionDeliver
@@ -287,7 +287,7 @@ func (r *running) idle() bool {
 // send writes one input. The caller holds mu.
 func (r *running) send(ctx context.Context, in ir.Input) error {
 	if !r.caps.Native[in.Mode] {
-		return fmt.Errorf("%w: driver has no mode %q", errs.ErrInvalid, in.Mode)
+		return fmt.Errorf("%w: runtime has no mode %q", errs.ErrInvalid, in.Mode)
 	}
 	if _, err := r.sess.Send(ctx, in); err != nil {
 		return err

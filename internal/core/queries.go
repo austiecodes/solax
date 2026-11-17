@@ -35,7 +35,7 @@ type AgentView struct {
 	Agent
 	MachineName string
 	// Online is true when the machine is connected and its daemon detected
-	// a working driver for the agent.
+	// a working runtime for the agent.
 	Online bool
 	// SessionID is the conversation session of the Super Agent, once it
 	// has one. It is empty for other agents: their sessions are per job.
@@ -63,7 +63,7 @@ func (e *Engine) Agents(ctx context.Context, a Actor) ([]AgentView, error) {
 			if !ok {
 				continue
 			}
-			v := AgentView{Agent: ag, MachineName: m.Name, Online: m.Online && m.HasDriver(ag.Driver)}
+			v := AgentView{Agent: ag, MachineName: m.Name, Online: m.Online && m.HasRuntime(ag.Runtime)}
 			if ag.Role == RoleSuper {
 				if ses, err := tx.SessionFor(ctx, ag.ID, ""); err == nil {
 					v.SessionID = ses.ID
@@ -135,7 +135,7 @@ func recall(ctx context.Context, tx Tx, a Actor, id ID) (protocol.Object, error)
 			return obj, err
 		}
 		obj.Type = "agent"
-		obj.Summary = fmt.Sprintf("Agent %s@%s (%s, %s).", ag.Name, m.Name, ag.Driver, onlineWord(m.Online))
+		obj.Summary = fmt.Sprintf("Agent %s@%s (%s, %s).", ag.Name, m.Name, ag.Runtime, onlineWord(m.Online))
 		obj.Links["machine"] = string(m.ID)
 	case PrefixMachine:
 		m, err := tx.Machine(ctx, id)

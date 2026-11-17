@@ -7,7 +7,7 @@ import (
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
-// Constructors for IR events. Drivers use them so that every driver fills
+// Constructors for IR events. Runtimes use them so that every runtime fills
 // the same fields for the same event type. Seq, SessionID and At are set
 // later by the emitter.
 
@@ -68,8 +68,8 @@ func Notice(turnID, level, code, msg string) ir.Event {
 }
 
 // UserMessage is the input that the daemon sent to the agent. Sessions
-// emit it themselves, so the stream looks the same for every driver: no
-// driver depends on the agent to echo the input.
+// emit it themselves, so the stream looks the same for every runtime: no
+// runtime depends on the agent to echo the input.
 func UserMessage(id, text string) ir.Event {
 	return ItemCompleted("", ir.Item{ID: id, Kind: ir.ItemUserMessage, Text: text})
 }

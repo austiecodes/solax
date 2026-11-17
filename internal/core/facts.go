@@ -13,7 +13,7 @@ import (
 // What daemons report through the hub: machines that connect, heartbeats,
 // and session states and events. The names are in the past tense.
 
-// MachineConnected records that the machine is online with the drivers
+// MachineConnected records that the machine is online with the runtimes
 // that its daemon detected. Sessions that the daemon still runs stay live;
 // all other sessions of the machine are stopped, and the delivery loop
 // starts them again when they have input.
@@ -27,7 +27,7 @@ func (e *Engine) MachineConnected(ctx context.Context, machineID ID, h protocol.
 		if m.State != MachineApproved {
 			return errs.ErrForbidden
 		}
-		m.Online, m.LastSeen, m.Slots, m.Drivers = true, e.clock(), h.FreeSlots, h.Drivers
+		m.Online, m.LastSeen, m.Slots, m.Runtimes = true, e.clock(), h.FreeSlots, h.Runtimes
 		owner = m.OwnerID
 		if err := tx.SaveMachine(ctx, m); err != nil {
 			return err

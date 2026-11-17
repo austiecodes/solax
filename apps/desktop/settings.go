@@ -67,7 +67,7 @@ func (d *desktop) chosenMachine() (protocol.Machine, bool) {
 }
 
 // machineItem is a machine in the list, on one line: whether it is
-// online, its name, its approval if not yet, its drivers and when it was
+// online, its name, its approval if not yet, its runtimes and when it was
 // last seen.
 func (d *desktop) machineItem(c *ui.Context, pal *palette, m protocol.Machine) {
 	cur, _ := d.chosenMachine()
@@ -79,7 +79,7 @@ func (d *desktop) machineItem(c *ui.Context, pal *palette, m protocol.Machine) {
 			chip(c, stateWord(string(m.State)), stateMark(m.State))
 		}
 		ui.Spacer(c)
-		for _, dr := range m.Drivers {
+		for _, dr := range m.Runtimes {
 			if dr.OK {
 				chip(c, string(dr.Kind), markQuiet)
 			}
@@ -123,19 +123,19 @@ func (d *desktop) machineDetail(c *ui.Context, m protocol.Machine) {
 			row(c, "seen", locales.FieldLastSeen(), "", func() { valueText(c, ago(m.LastSeen), false) })
 		}
 		row(c, "id", locales.FieldMachineID(), "", func() { valueText(c, m.ID, true) })
-		if len(m.Drivers) == 0 {
-			row(c, "drivers", locales.FieldAgentCLIs(), locales.DriversNotReported(), nil)
+		if len(m.Runtimes) == 0 {
+			row(c, "runtimes", locales.FieldAgentCLIs(), locales.RuntimesNotReported(), nil)
 		}
-		for _, dr := range m.Drivers {
+		for _, dr := range m.Runtimes {
 			help := dr.Version
 			if !dr.OK {
 				help = dr.Problem
 			}
-			row(c, "driver-"+string(dr.Kind), string(dr.Kind), help, func() {
+			row(c, "runtime-"+string(dr.Kind), string(dr.Kind), help, func() {
 				if dr.OK {
-					chip(c, locales.DriverReady(), markGood)
+					chip(c, locales.RuntimeReady(), markGood)
 				} else {
-					chip(c, locales.DriverNotAvailable(), markBad)
+					chip(c, locales.RuntimeNotAvailable(), markBad)
 				}
 			})
 		}

@@ -15,9 +15,9 @@ import (
 // follow_up with its queue.
 var FakeCaps = ir.Caps{Native: map[ir.InputMode]bool{ir.ModePrompt: true, ir.ModeInterrupt: true}}
 
-// FakeDriver is an in-process agent for tests. Each prompt runs one turn
+// FakeRuntime is an in-process agent for tests. Each prompt runs one turn
 // that answers with Reply(spec, text).
-type FakeDriver struct {
+type FakeRuntime struct {
 	KindV ir.Kind
 	// Reply returns the agent message for a prompt. It runs on the turn
 	// goroutine, so it may call the server (as a Super Agent would).
@@ -29,20 +29,20 @@ type FakeDriver struct {
 	starts []agent.SessionSpec
 }
 
-func (d *FakeDriver) Kind() ir.Kind { return d.KindV }
+func (d *FakeRuntime) Kind() ir.Kind { return d.KindV }
 
-func (d *FakeDriver) Probe(context.Context) (agent.Probe, error) {
+func (d *FakeRuntime) Probe(context.Context) (agent.Probe, error) {
 	return agent.Probe{OK: true, Version: "fake", Caps: FakeCaps}, nil
 }
 
 // Starts returns the specs of all started sessions.
-func (d *FakeDriver) Starts() []agent.SessionSpec {
+func (d *FakeRuntime) Starts() []agent.SessionSpec {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]agent.SessionSpec(nil), d.starts...)
 }
 
-func (d *FakeDriver) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
+func (d *FakeRuntime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
 	d.mu.Lock()
 	d.starts = append(d.starts, spec)
 	d.mu.Unlock()
@@ -52,7 +52,7 @@ func (d *FakeDriver) Start(ctx context.Context, spec agent.SessionSpec) (agent.S
 }
 
 type fakeSession struct {
-	d    *FakeDriver
+	d    *FakeRuntime
 	spec agent.SessionSpec
 	em   *proc.Emitter
 	ref  ir.SessionRef

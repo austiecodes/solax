@@ -1,4 +1,4 @@
-// Package pi is the driver for pi in RPC mode (pi --mode rpc).
+// Package pi is the runtime for pi in RPC mode (pi --mode rpc).
 package pi
 
 import (
@@ -37,32 +37,32 @@ var Caps = ir.Caps{
 // startTimeout bounds the get_state handshake after spawn.
 const startTimeout = 30 * time.Second
 
-// Config configures the driver.
+// Config configures the runtime.
 type Config struct {
 	Binary   string // default "pi"
 	StateDir string // per-session folders: pi session files, prompt, logs
 }
 
-// Driver starts pi sessions.
-type Driver struct {
+// Runtime starts pi sessions.
+type Runtime struct {
 	cfg Config
 }
 
-// New returns a pi driver.
-func New(cfg Config) *Driver {
+// New returns a pi runtime.
+func New(cfg Config) *Runtime {
 	if cfg.Binary == "" {
 		cfg.Binary = "pi"
 	}
-	return &Driver{cfg: cfg}
+	return &Runtime{cfg: cfg}
 }
 
-func (d *Driver) Kind() ir.Kind { return ir.KindPi }
+func (d *Runtime) Kind() ir.Kind { return ir.KindPi }
 
 // Fingerprint changes when the binary is installed, updated or removed.
-func (d *Driver) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
+func (d *Runtime) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
 
 // Probe runs "pi --version".
-func (d *Driver) Probe(ctx context.Context) (agent.Probe, error) {
+func (d *Runtime) Probe(ctx context.Context) (agent.Probe, error) {
 	v, err := proc.Version(ctx, d.cfg.Binary)
 	if err != nil {
 		return agent.Probe{Problem: err.Error(), Caps: Caps}, nil
@@ -76,7 +76,7 @@ func (d *Driver) Probe(ctx context.Context) (agent.Probe, error) {
 //	   [--tools <list>] [--append-system-prompt <file>] [-e <ext>...]
 //
 // then reads the session ID and file with get_state.
-func (d *Driver) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
+func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
 	dir, err := proc.NewSessionDir(d.cfg.StateDir, spec.SessionID)
 	if err != nil {
 		return nil, err
@@ -382,4 +382,4 @@ func (s *session) pump() {
 	s.em.Close()
 }
 
-var _ agent.Driver = (*Driver)(nil)
+var _ agent.Runtime = (*Runtime)(nil)

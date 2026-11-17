@@ -103,13 +103,13 @@ func TestTopologyOverHTTP(t *testing.T) {
 
 	// The daemon of "mac" connects and reports its agent CLIs; a person
 	// sets up the agents.
-	if err := eng.MachineConnected(ctx, core.ID(reg.MachineID), protocol.Hello{Drivers: []protocol.DriverProbe{
+	if err := eng.MachineConnected(ctx, core.ID(reg.MachineID), protocol.Hello{Runtimes: []protocol.RuntimeProbe{
 		{Kind: ir.KindClaude, OK: true}, {Kind: ir.KindCodex, OK: true}}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, a := range []protocol.CreateAgentRequest{
-		{Machine: "mac", Name: "backend", Driver: ir.KindClaude, Dir: "/api", Description: "Go backend"},
-		{Machine: reg.MachineID, Name: "infra", Driver: ir.KindCodex, Dir: "/infra"},
+		{Machine: "mac", Name: "backend", Runtime: ir.KindClaude, Dir: "/api", Description: "Go backend"},
+		{Machine: reg.MachineID, Name: "infra", Runtime: ir.KindCodex, Dir: "/infra"},
 	} {
 		if _, err := c.CreateAgent(ctx, a); err != nil {
 			t.Fatalf("create agent %s: %v", a.Name, err)

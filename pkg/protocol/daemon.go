@@ -41,18 +41,18 @@ const (
 
 // Hello is the first record that a daemon sends after it connects.
 type Hello struct {
-	MachineID     string        `json:"machine_id"`
-	MachineName   string        `json:"machine_name"`
-	DaemonVersion string        `json:"daemon_version"`
-	Drivers       []DriverProbe `json:"drivers"`
-	FreeSlots     int           `json:"free_slots"`
+	MachineID     string         `json:"machine_id"`
+	MachineName   string         `json:"machine_name"`
+	DaemonVersion string         `json:"daemon_version"`
+	Runtimes      []RuntimeProbe `json:"runtimes"`
+	FreeSlots     int            `json:"free_slots"`
 	// Sessions are the sessions that still run on the machine, for example
 	// after a network drop. The server does not start them again.
 	Sessions map[string]ir.SessionState `json:"sessions,omitempty"`
 }
 
-// DriverProbe is the result of a driver probe on the machine.
-type DriverProbe struct {
+// RuntimeProbe is the result of a runtime probe on the machine.
+type RuntimeProbe struct {
 	Kind    ir.Kind `json:"kind"`
 	Version string  `json:"version"`
 	OK      bool    `json:"ok"`
@@ -86,7 +86,7 @@ type SessionEnsure struct {
 	Job        string         `json:"job,omitempty"` // empty for the Super Agent
 	AgentToken string         `json:"agent_token"`
 	Resume     *ir.SessionRef `json:"resume,omitempty"`
-	Driver     ir.Kind        `json:"driver"`
+	Runtime    ir.Kind        `json:"runtime"`
 	Dir        string         `json:"dir"`
 	Model      string         `json:"model,omitempty"`
 	Options    map[string]any `json:"options,omitempty"`

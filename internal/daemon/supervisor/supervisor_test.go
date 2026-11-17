@@ -60,16 +60,16 @@ func wait(t *testing.T, ok func() bool) {
 }
 
 // Input to an idle session is a prompt. Input to a busy session of a
-// driver without native follow_up waits in the queue and goes out as one
+// runtime without native follow_up waits in the queue and goes out as one
 // prompt when the turn ends. A redelivered ref is dropped.
 func TestDeliverModes(t *testing.T) {
-	fake := &agenttest.FakeDriver{KindV: ir.KindClaude, TurnDelay: 100 * time.Millisecond,
+	fake := &agenttest.FakeRuntime{KindV: ir.KindClaude, TurnDelay: 100 * time.Millisecond,
 		Reply: func(_ agent.SessionSpec, text string) string { return "re: " + text }}
 	sk := &sink{}
 	ctx := context.Background()
-	s := New(ctx, Config{Drivers: []agent.Driver{fake}, MaxSlots: 1, Sink: sk})
+	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 1, Sink: sk})
 
-	ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Driver: ir.KindClaude, Dir: "/x"}
+	ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Runtime: ir.KindClaude, Dir: "/x"}
 	if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
 		t.Fatal(ack.Error)
 	}
@@ -119,11 +119,11 @@ func TestDeliverModes(t *testing.T) {
 // When all slots are full, a new session evicts the idle worker session
 // that waited longest. The Super Agent session and busy sessions stay.
 func TestEvictIdle(t *testing.T) {
-	fake := &agenttest.FakeDriver{KindV: ir.KindClaude, TurnDelay: time.Second}
+	fake := &agenttest.FakeRuntime{KindV: ir.KindClaude, TurnDelay: time.Second}
 	ctx := context.Background()
-	s := New(ctx, Config{Drivers: []agent.Driver{fake}, MaxSlots: 2, Sink: &sink{}})
+	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 2, Sink: &sink{}})
 	ensure := func(id string, role protocol.SessionRole) protocol.Ack {
-		return s.Handle(ctx, cmd(protocol.TypeSessionEnsure, protocol.SessionEnsure{SessionID: id, Role: role, Driver: ir.KindClaude}))
+		return s.Handle(ctx, cmd(protocol.TypeSessionEnsure, protocol.SessionEnsure{SessionID: id, Role: role, Runtime: ir.KindClaude}))
 	}
 	if !ensure("super", protocol.RoleSuper).OK || !ensure("w1", protocol.RoleWorker).OK {
 		t.Fatal("start failed")
@@ -146,16 +146,16 @@ func TestEvictIdle(t *testing.T) {
 	}
 }
 
-// A driver counts event seqs from 1 in each process. The supervisor
+// A runtime counts event seqs from 1 in each process. The supervisor
 // numbers them after the seq the server holds, and after the seqs it sent
 // itself, so a resumed session never reuses a seq (the server drops a
 // stored seq as a resend).
 func TestEventSeqContinues(t *testing.T) {
-	fake := &agenttest.FakeDriver{KindV: ir.KindClaude, Reply: func(_ agent.SessionSpec, text string) string { return "re: " + text }}
+	fake := &agenttest.FakeRuntime{KindV: ir.KindClaude, Reply: func(_ agent.SessionSpec, text string) string { return "re: " + text }}
 	ctx := context.Background()
 	run := func(s *Supervisor, sk *sink, lastSeq uint64, text string) {
 		t.Helper()
-		ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Driver: ir.KindClaude, Dir: "/x", LastSeq: lastSeq}
+		ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Runtime: ir.KindClaude, Dir: "/x", LastSeq: lastSeq}
 		if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
 			t.Fatal(ack.Error)
 		}
@@ -188,7 +188,7 @@ func TestEventSeqContinues(t *testing.T) {
 	// A new daemon process resumes a session whose events the server
 	// holds up to seq 50.
 	sk := &sink{}
-	s := New(ctx, Config{Drivers: []agent.Driver{fake}, MaxSlots: 1, Sink: sk})
+	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 1, Sink: sk})
 	run(s, sk, 50, "one")
 	first := seqs(sk)
 	increasing(first, 50)

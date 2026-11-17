@@ -8,12 +8,12 @@ import (
 // Wire forms of core values. Handlers never expose core types.
 
 func wireMachine(m core.Machine) protocol.Machine {
-	drivers := m.Drivers
-	if drivers == nil {
-		drivers = []protocol.DriverProbe{}
+	runtimes := m.Runtimes
+	if runtimes == nil {
+		runtimes = []protocol.RuntimeProbe{}
 	}
 	return protocol.Machine{ID: string(m.ID), Name: m.Name, State: protocol.MachineState(m.State),
-		Online: m.Online, LastSeen: m.LastSeen, Drivers: drivers}
+		Online: m.Online, LastSeen: m.LastSeen, Runtimes: runtimes}
 }
 
 func wireEnrolled(m core.Machine) protocol.MachineEnrolled {
@@ -24,7 +24,7 @@ func wireEnrolled(m core.Machine) protocol.MachineEnrolled {
 func wireAgent(v core.AgentView) protocol.Agent {
 	return protocol.Agent{
 		ID: string(v.ID), Name: v.Name, Description: v.Description, Instructions: v.Instructions, MachineID: string(v.MachineID), Machine: v.MachineName,
-		Online: v.Online, Driver: v.Driver, Role: string(v.Role), Dir: v.Dir, Model: v.Model, Options: v.Options,
+		Online: v.Online, Runtime: v.Runtime, Role: string(v.Role), Dir: v.Dir, Model: v.Model, Options: v.Options,
 		SessionID: string(v.SessionID),
 	}
 }

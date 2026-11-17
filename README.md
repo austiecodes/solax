@@ -57,8 +57,8 @@ updated or removed. `solax machine list` shows them.
 Set up a Super Agent and one worker agent:
 
 ```sh
-solax agent add router --driver pi --dir ~ --super
-solax agent add reviewer --driver claude --dir ~/src/app \
+solax agent add router --runtime pi --dir ~ --super
+solax agent add reviewer --runtime claude --dir ~/src/app \
     --desc "Reviews Go code and finds bugs" \
     --instructions-file review.md
 ```
@@ -89,16 +89,16 @@ To follow everything live, run `solax watch`.
 ### Forks of Claude Code
 
 A CLI that speaks the stream-json of Claude Code runs on the Claude Code
-driver. Add one, or point the built-in `claude` at another binary, in
-`~/.solax/config.yaml`; the base name of the binary is the driver name.
+runtime. Add one, or point the built-in `claude` at another binary, in
+`~/.solax/config.yaml`; the base name of the binary is the runtime name.
 Restart the daemon after a change.
 
 ```yaml
-drivers:
+runtimes:
   claude_compatible:
     - mycc                  # on the PATH
-    - /opt/tools/other-cc   # a path: the driver is other-cc
-    - ~/bin/claude          # the claude driver uses this binary
+    - /opt/tools/other-cc   # a path: the runtime is other-cc
+    - ~/bin/claude          # the claude runtime uses this binary
 ```
 
 ## Language
@@ -141,7 +141,7 @@ go run .
 | Path               | Contents                                                      |
 | ------------------ | ------------------------------------------------------------- |
 | `cmd/solax`        | The `solax` binary                                            |
-| `internal/`        | Server, daemon, CLI, store, agent drivers                     |
+| `internal/`        | Server, daemon, CLI, store, agent runtimes                    |
 | `pkg/`             | Public packages: API client, event format (IR), wire protocol |
 | `api/openapi.yaml` | REST API                                                      |
 | `apps/desktop`     | macOS desktop app                                             |

@@ -129,10 +129,10 @@ type desktop struct {
 
 // agentForm is the "new agent" form.
 type agentForm struct {
-	Name, Machine, Driver, Dir, Model, Desc, Instructions string
-	Super                                                 bool
-	open                                                  bool // it shows in place of the chosen agent
-	busy                                                  bool
+	Name, Machine, Runtime, Dir, Model, Desc, Instructions string
+	Super                                                  bool
+	open                                                   bool // it shows in place of the chosen agent
+	busy                                                   bool
 }
 
 // instrDraft edits the instructions of the agent that the Agents page

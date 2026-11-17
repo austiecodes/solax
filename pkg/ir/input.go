@@ -1,7 +1,7 @@
 package ir
 
 // InputMode is how input reaches a session. The server selects the mode.
-// The driver maps it to a native command, or the daemon emulates it.
+// The runtime maps it to a native command, or the daemon emulates it.
 type InputMode string
 
 const (
@@ -26,7 +26,7 @@ type Image struct {
 	Data     string `json:"data"` // base64
 }
 
-// Caps describes what a driver supports.
+// Caps describes what a runtime supports.
 type Caps struct {
 	// Native maps each input mode to true when the agent supports it, and
 	// to false when the daemon emulates it.

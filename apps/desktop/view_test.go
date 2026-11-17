@@ -252,7 +252,7 @@ func TestPalette(t *testing.T) {
 func TestConfirm(t *testing.T) {
 	d := testDesktop(t)
 	d.page = pageAgents
-	d.agents = []protocol.Agent{{ID: "a1", Name: "coder", Driver: "claude", Machine: "mbp", Dir: "~/src"}}
+	d.agents = []protocol.Agent{{ID: "a1", Name: "coder", Runtime: "claude", Machine: "mbp", Dir: "~/src"}}
 	tt := ui.NewTester(d.view, 1240, 820)
 	if err := tt.Click("Remove"); err != nil {
 		t.Fatal(err)
@@ -388,8 +388,8 @@ func TestAgentsPage(t *testing.T) {
 	d := testDesktop(t)
 	d.page = pageAgents
 	d.agents = []protocol.Agent{
-		{ID: "a1", Name: "coder", Driver: "pi", Dir: "~/codes", Description: "Writes code"},
-		{ID: "a2", Name: "solax", Driver: "pi", Role: "super", Dir: "~/codes"},
+		{ID: "a1", Name: "coder", Runtime: "pi", Dir: "~/codes", Description: "Writes code"},
+		{ID: "a2", Name: "solax", Runtime: "pi", Role: "super", Dir: "~/codes"},
 	}
 	tt := ui.NewTester(d.view, 1240, 820)
 	if !tt.HasText("Make it Solax") || tt.HasText("Add agent") {

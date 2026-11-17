@@ -16,7 +16,7 @@ import (
 // the replies of the agent, and between them its steps (reasoning and
 // tool calls), folded into one group, as chat apps show them. The chat
 // with the Super Agent and the jobs both show one; this file builds it
-// from IR events, so every driver looks the same. transcript_view.go
+// from IR events, so every runtime looks the same. transcript_view.go
 // draws it.
 
 type blockKind int

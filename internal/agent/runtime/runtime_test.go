@@ -1,4 +1,4 @@
-package driver
+package runtime
 
 import (
 	"strings"
@@ -41,7 +41,7 @@ func TestAllBuiltinBinary(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n := len(ds); n != len(ir.BuiltinKinds) {
-		t.Fatalf("%d drivers, want the %d built-ins", n, len(ir.BuiltinKinds))
+		t.Fatalf("%d runtimes, want the %d built-ins", n, len(ir.BuiltinKinds))
 	}
 	d, err := agent.Find(ds, ir.KindClaude)
 	if err != nil {

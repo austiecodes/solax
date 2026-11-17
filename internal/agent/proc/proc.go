@@ -1,4 +1,4 @@
-// Package proc holds the process plumbing that all drivers share: spawn an
+// Package proc holds the process plumbing that all runtimes share: spawn an
 // agent CLI in its own process group, stop it in steps, probe its version,
 // and stamp IR events onto an unbounded event channel.
 package proc

@@ -215,7 +215,7 @@ func (m mark) color(pal *palette) ui.Color {
 	return pal.textMuted
 }
 
-// chip is a small tag: a driver, a role, a state. It is a tint of its
+// chip is a small tag: a runtime, a role, a state. It is a tint of its
 // mark, not a solid fill, so a row of chips stays quiet.
 func chip(c *ui.Context, text string, m mark) ui.Element {
 	pal := paletteFor(c)

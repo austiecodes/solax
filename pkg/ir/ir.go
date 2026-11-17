@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// Kind identifies a coding agent driver.
+// Kind identifies a coding agent runtime.
 type Kind string
 
 const (
@@ -23,9 +23,9 @@ const (
 	KindClaude Kind = "claude"
 )
 
-// BuiltinKinds are the drivers of every daemon. A daemon can also run
+// BuiltinKinds are the runtimes of every daemon. A daemon can also run
 // forks of Claude Code that speak its stream-json, each its own kind
-// (config.yaml drivers.claude_compatible).
+// (config.yaml runtimes.claude_compatible).
 var BuiltinKinds = []Kind{KindPi, KindCodex, KindClaude}
 
 // SessionRef is the stable native reference of a session. The daemon uses
@@ -36,7 +36,7 @@ type SessionRef struct {
 	Path     string `json:"path,omitempty"` // transcript path on the machine
 }
 
-// SessionState is derived only from IR events. It does not depend on a driver.
+// SessionState is derived only from IR events. It does not depend on a runtime.
 type SessionState string
 
 const (

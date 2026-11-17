@@ -14,12 +14,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/austiecodes/solax/internal/agent"
-	"github.com/austiecodes/solax/internal/agent/driver"
+	"github.com/austiecodes/solax/internal/agent/runtime"
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
 // tryCmd runs one local agent session without a server or daemon and
-// prints its IR events. It is the quickest way to see how a driver maps
+// prints its IR events. It is the quickest way to see how a runtime maps
 // the native stream of an agent.
 func tryCmd(g *globals) *cobra.Command {
 	var (
@@ -37,7 +37,7 @@ func tryCmd(g *globals) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			ds, err := tryDrivers()
+			ds, err := tryRuntimes()
 			if err != nil {
 				return err
 			}
@@ -153,9 +153,9 @@ func short(s string) string {
 	return s
 }
 
-// tryDrivers are the drivers of the daemon of this machine: the built-in
+// tryRuntimes are the runtimes of the daemon of this machine: the built-in
 // ones and the forks of Claude Code in config.yaml.
-func tryDrivers() ([]agent.Driver, error) {
+func tryRuntimes() ([]agent.Runtime, error) {
 	p, err := paths()
 	if err != nil {
 		return nil, err
@@ -164,5 +164,5 @@ func tryDrivers() ([]agent.Driver, error) {
 	if err != nil {
 		return nil, err
 	}
-	return driver.All("", cfg.Drivers.ClaudeCompatible...)
+	return runtime.All("", cfg.Runtimes.ClaudeCompatible...)
 }

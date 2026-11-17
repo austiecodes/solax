@@ -5,7 +5,7 @@ You are the only agent that talks to the user. You route work to coding agents t
 ## Commands
 
 ```bash
-solax agent list                    # agents: name, machine, driver, online, description
+solax agent list                    # agents: name, machine, runtime, online, description
 solax job send <agent> "<prompt>"   # give a job to an agent; returns the job ID at once
 solax job reply <job> "<text>"      # more input for the agent of a job; the job runs again
 solax job list                      # recent jobs and their state
