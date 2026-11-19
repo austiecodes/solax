@@ -42,7 +42,7 @@ type palette struct {
 	attention ui.Color // connecting, needs a look
 	danger    ui.Color
 	dangerBg  ui.Color
-	done      ui.Color // the filled check of an unread job
+	done      ui.Color // the filled check of an unread task
 	onDone    ui.Color
 	onAccent  ui.Color // text on accent, success and danger badges
 

@@ -21,9 +21,9 @@ func (d *desktop) run(id string) {
 		d.toggleDark()
 	case "data.reload":
 		d.reloadAll()
-	case "nav.jobs":
-		d.jobSel = "" // the list of all jobs; a job opens from the sidebar
-		d.goTo(pageJobs)
+	case "nav.tasks":
+		d.taskSel = "" // the list of all tasks; a task opens from the sidebar
+		d.goTo(pageTasks)
 	default:
 		for _, p := range navPages {
 			if p.action == id {
@@ -40,8 +40,8 @@ func (d *desktop) run(id string) {
 // left.
 func (d *desktop) goTo(page string) {
 	d.page, d.status = page, ""
-	if page == pageJobs && d.jobSel != "" {
-		d.loadEvents(d.jobSel)
+	if page == pageTasks && d.taskSel != "" {
+		d.loadEvents(d.taskSel)
 	}
 }
 

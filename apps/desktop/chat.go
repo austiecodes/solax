@@ -56,7 +56,7 @@ type suggestion struct {
 var suggestions = []suggestion{
 	{pencilIcon, locales.ChatSuggestionReadme},
 	{agentIcon, locales.ChatSuggestionDoing},
-	{jobsIcon, locales.ChatSuggestionFailed},
+	{tasksIcon, locales.ChatSuggestionFailed},
 }
 
 // chatEmpty fills the chat before the first message, as the Codex app's
@@ -136,9 +136,9 @@ func (d *desktop) superAgent() *protocol.Agent {
 	return nil
 }
 
-// jobOf returns the job ID of a "[job <id>] ..." note.
-func jobOf(text string) string {
-	rest, ok := strings.CutPrefix(text, "[job ")
+// taskOf returns the task ID of a "[task <id>] ..." note.
+func taskOf(text string) string {
+	rest, ok := strings.CutPrefix(text, "[task ")
 	if !ok {
 		return ""
 	}

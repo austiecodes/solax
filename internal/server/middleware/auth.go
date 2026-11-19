@@ -64,7 +64,7 @@ func RequireSuper() gin.HandlerFunc {
 
 // RequireClientOrSuper accepts a person (client token) or the Super Agent
 // (an agent token with Super). Plain worker agent tokens are rejected with
-// 403. It guards the job routes.
+// 403. It guards the task routes.
 func RequireClientOrSuper() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		cl := Claims(c)

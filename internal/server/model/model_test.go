@@ -194,12 +194,12 @@ func TestSessions(t *testing.T) {
 	open(t)
 	ctx := context.Background()
 	_, a, _ := seed(t)
-	ses := Session{ID: "ses_1", AgentID: a.ID, JobID: "job_1", State: ir.SessionIdle,
+	ses := Session{ID: "ses_1", AgentID: a.ID, TaskID: "tsk_1", State: ir.SessionIdle,
 		Ref: &ir.SessionRef{Kind: ir.KindClaude, NativeID: "abc"}, UpdatedAt: t0}
 	atomic_(t, func(tx *sql.Tx) error { return SaveSession(ctx, tx, ses) })
 	err := Snapshot(ctx, func(tx *sql.Tx) error {
-		got, err := GetSessionFor(ctx, tx, a.ID, "job_1")
-		if err != nil || got.ID != ses.ID || got.JobID != "job_1" || got.Ref == nil || got.Ref.NativeID != "abc" {
+		got, err := GetSessionFor(ctx, tx, a.ID, "tsk_1")
+		if err != nil || got.ID != ses.ID || got.TaskID != "tsk_1" || got.Ref == nil || got.Ref.NativeID != "abc" {
 			t.Fatalf("For = %+v, %v", got, err)
 		}
 		on, err := ListSessionsOnMachine(ctx, tx, "mch_1")
@@ -213,7 +213,7 @@ func TestSessions(t *testing.T) {
 	}
 }
 
-// Migration 0003 keeps the Super Agent conversation and the job sessions
+// Migration 0003 keeps the Super Agent conversation and the task sessions
 // of a v2 database, and drops the task model.
 func TestMigrateDropsTasks(t *testing.T) {
 	ctx := context.Background()
@@ -239,7 +239,7 @@ func TestMigrateDropsTasks(t *testing.T) {
 		`INSERT INTO messages(id, owner_id, workspace_id, task_id, seq, author_kind, kind, text, created_at)
 			VALUES ('msg_s', 'own_1', '', '', 1, 'human', 'chat', 'hello super', 0),
 			       ('msg_t', 'own_1', 'ws_1', 'tsk_1', 1, 'agent', 'chat', 'task talk', 0)`,
-		`INSERT INTO sessions(id, agent_id, task_id, state, updated_at) VALUES ('ses_1', 'agt_a', 'job_1', 'idle', 0)`,
+		`INSERT INTO sessions(id, agent_id, task_id, state, updated_at) VALUES ('ses_1', 'agt_a', 'tsk_1', 'idle', 0)`,
 	)
 	for _, q := range stmts {
 		if _, err := db.ExecContext(ctx, q); err != nil {
@@ -257,7 +257,7 @@ func TestMigrateDropsTasks(t *testing.T) {
 		if err != nil || len(msgs) != 1 || msgs[0].Text != "hello super" {
 			t.Fatalf("messages = %+v, %v", msgs, err)
 		}
-		ses, err := GetSessionFor(ctx, tx, "agt_a", "job_1")
+		ses, err := GetSessionFor(ctx, tx, "agt_a", "tsk_1")
 		if err != nil || ses.ID != "ses_1" {
 			t.Fatalf("session = %+v, %v", ses, err)
 		}

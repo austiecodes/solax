@@ -45,7 +45,7 @@ var (
 // Helpers shared by the domain files.
 
 // requireManager rejects a plain worker agent. Only a person and the Super
-// Agent dispatch, follow up and cancel jobs.
+// Agent dispatch, follow up and cancel tasks.
 func requireManager(a model.Actor) error {
 	if a.Kind != model.AuthorHuman && a.Kind != model.AuthorSuper {
 		return errs.ErrForbidden
@@ -89,7 +89,7 @@ func mustJSON(v any) json.RawMessage {
 const (
 	PushAgents   = "agents.changed"   // no payload: reload the agent list
 	PushMachines = "machines.changed" // no payload: reload the machine list
-	PushJob      = "job"              // protocol.Job
+	PushTask     = "task"             // protocol.Task
 	PushSession  = "session.event"    // protocol.SessionEventNote
 	PushMessage  = "super.message"    // protocol.Message of the Super Agent conversation
 )

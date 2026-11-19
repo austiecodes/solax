@@ -10,12 +10,12 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// How the sidebar groups the recent jobs, as the Codex app groups its
-// threads: by project (the work folder of the job's agent), by agent, or
+// How the sidebar groups the recent tasks, as the Codex app groups its
+// threads: by project (the work folder of the task's agent), by agent, or
 // not at all. The prefs keep the choice. No UI here, so the tests cover
 // the rules; sidebar.go draws the groups.
 
-// grouping is a way to group the jobs.
+// grouping is a way to group the tasks.
 type grouping struct {
 	id    string        // the prefs value
 	label func() string // the Settings label, in the language shown
@@ -60,29 +60,29 @@ func groupingIDs() []string {
 	return ids
 }
 
-// jobGroup is a group of jobs in the sidebar. With no grouping there is
+// taskGroup is a group of tasks in the sidebar. With no grouping there is
 // one group, with no key and no title.
-type jobGroup struct {
+type taskGroup struct {
 	key   string // stable across reloads: the prefs keep the closed groups by it
 	title string
 	tip   string
 	icon  *ui.SVG
-	jobs  []protocol.Job
+	tasks []protocol.Task
 }
 
-// groupJobs groups jobs by the grouping id. The groups and the jobs in
-// them keep the order of jobs, newest first, so the group with the newest
-// job comes first.
-func groupJobs(jobs []protocol.Job, agents []protocol.Agent, id string) []jobGroup {
+// groupTasks groups tasks by the grouping id. The groups and the tasks in
+// them keep the order of tasks, newest first, so the group with the newest
+// task comes first.
+func groupTasks(tasks []protocol.Task, agents []protocol.Agent, id string) []taskGroup {
 	if id == "none" {
-		if len(jobs) == 0 {
+		if len(tasks) == 0 {
 			return nil
 		}
-		return []jobGroup{{jobs: jobs}}
+		return []taskGroup{{tasks: tasks}}
 	}
-	var out []jobGroup
+	var out []taskGroup
 	at := map[string]int{}
-	for _, j := range jobs {
+	for _, j := range tasks {
 		g := groupOf(j, agents, id)
 		i, ok := at[g.key]
 		if !ok {
@@ -90,16 +90,16 @@ func groupJobs(jobs []protocol.Job, agents []protocol.Agent, id string) []jobGro
 			at[g.key] = i
 			out = append(out, g)
 		}
-		out[i].jobs = append(out[i].jobs, j)
+		out[i].tasks = append(out[i].tasks, j)
 	}
 	return out
 }
 
-// groupOf is the group of a job, without its jobs.
-func groupOf(j protocol.Job, agents []protocol.Agent, id string) jobGroup {
+// groupOf is the group of a task, without its tasks.
+func groupOf(j protocol.Task, agents []protocol.Agent, id string) taskGroup {
 	a, found := agentOf(j, agents)
 	if id == "agent" {
-		g := jobGroup{key: "agent:" + j.Agent, title: j.Agent, icon: agentIcon}
+		g := taskGroup{key: "agent:" + j.Agent, title: j.Agent, icon: agentIcon}
 		if found {
 			g.tip = locales.DirOn(a.Dir, a.Machine)
 			if a.Role == "super" {
@@ -110,10 +110,10 @@ func groupOf(j protocol.Job, agents []protocol.Agent, id string) jobGroup {
 	}
 	if !found || a.Dir == "" {
 		// The agent was removed: its folder is not known any more.
-		return jobGroup{key: "project:", title: locales.GroupOther(), tip: locales.GroupOtherTip(), icon: folderIcon}
+		return taskGroup{key: "project:", title: locales.GroupOther(), tip: locales.GroupOtherTip(), icon: folderIcon}
 	}
 	dir := strings.TrimRight(a.Dir, "/") // "~/codes/" is "~/codes"
-	return jobGroup{
+	return taskGroup{
 		key:   "project:" + a.Machine + ":" + dir,
 		title: folderName(a.Dir),
 		tip:   locales.DirOn(a.Dir, a.Machine),
@@ -121,8 +121,8 @@ func groupOf(j protocol.Job, agents []protocol.Agent, id string) jobGroup {
 	}
 }
 
-// agentOf finds the agent of a job: by ID, else by name.
-func agentOf(j protocol.Job, agents []protocol.Agent) (protocol.Agent, bool) {
+// agentOf finds the agent of a task: by ID, else by name.
+func agentOf(j protocol.Task, agents []protocol.Agent) (protocol.Agent, bool) {
 	for _, a := range agents {
 		if j.AgentID != "" && a.ID == j.AgentID {
 			return a, true
@@ -146,11 +146,11 @@ func folderName(dir string) string {
 	return filepath.Base(dir)
 }
 
-// sidebarJobs are the jobs in the order the sidebar shows them.
-func sidebarJobs(groups []jobGroup) []protocol.Job {
-	var out []protocol.Job
+// sidebarTasks are the tasks in the order the sidebar shows them.
+func sidebarTasks(groups []taskGroup) []protocol.Task {
+	var out []protocol.Task
 	for _, g := range groups {
-		out = append(out, g.jobs...)
+		out = append(out, g.tasks...)
 	}
 	return out
 }

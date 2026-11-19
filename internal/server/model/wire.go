@@ -5,9 +5,9 @@ import "github.com/austiecodes/solax/pkg/protocol"
 // Wire forms of model values. The service pushes them on the client stream,
 // and the API returns them.
 
-// WireJob converts a job to its wire form.
-func WireJob(j Job, agentName string) protocol.Job {
-	return protocol.Job{
+// WireTask converts a task to its wire form.
+func WireTask(j Task, agentName string) protocol.Task {
+	return protocol.Task{
 		ID: string(j.ID), Agent: agentName, AgentID: string(j.AgentID), SessionID: string(j.SessionID),
 		RequestedBy: string(j.RequestedBy), Title: j.Title, Prompt: j.Prompt, State: string(j.State),
 		Result: j.Result, Error: j.Error, CreatedAt: j.CreatedAt, UpdatedAt: j.UpdatedAt,

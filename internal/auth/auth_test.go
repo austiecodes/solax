@@ -25,7 +25,7 @@ func TestAgentTokenRoundTrip(t *testing.T) {
 		OwnerID:   "own_1",
 		AgentID:   "agt_1",
 		SessionID: "ses_1",
-		Job:       "job_1",
+		Task:      "tsk_1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +37,7 @@ func TestAgentTokenRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cl.Kind != KindAgent || cl.Subject != "agt_1" || cl.Job != "job_1" || cl.SessionID != "ses_1" {
+	if cl.Kind != KindAgent || cl.Subject != "agt_1" || cl.Task != "tsk_1" || cl.SessionID != "ses_1" {
 		t.Fatalf("claims = %+v", cl)
 	}
 	if cl.Expires.IsZero() || !cl.Expires.After(time.Now()) {
@@ -48,7 +48,7 @@ func TestAgentTokenRoundTrip(t *testing.T) {
 func TestAgentTokenTampered(t *testing.T) {
 	withSecret(t, "test-secret")
 	ctx := context.Background()
-	token, err := IssueToken(ctx, model.TokenRequest{AgentID: "agt_1", Job: "job_1"})
+	token, err := IssueToken(ctx, model.TokenRequest{AgentID: "agt_1", Task: "tsk_1"})
 	if err != nil {
 		t.Fatal(err)
 	}

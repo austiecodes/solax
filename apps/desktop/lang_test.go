@@ -61,7 +61,7 @@ func TestCatalogsComplete(t *testing.T) {
 	if got := locales.In("en").ToolsUsed(1); got != "1 tool used" {
 		t.Errorf("ToolsUsed(1) = %q", got)
 	}
-	for _, id := range []string{"settings.open", "palette.open", "nav.chat", "nav.jobs", "nav.agents", "nav.machines", "sidebar.toggle", "theme.toggle", "data.reload"} {
+	for _, id := range []string{"settings.open", "palette.open", "nav.chat", "nav.tasks", "nav.agents", "nav.machines", "sidebar.toggle", "theme.toggle", "data.reload"} {
 		if _, ok := actionTitles[id]; !ok {
 			t.Errorf("action %q has no title", id)
 		}
@@ -73,7 +73,7 @@ func TestPagesInChinese(t *testing.T) {
 	inLocale(t, "zh-Hans")
 	for page, want := range map[string][]string{
 		pageChat:     {"Solax 尚未设置", "任务", "机器"},
-		pageJobs:     {"还没有任务", "给 Solax 发消息"},
+		pageTasks:    {"还没有任务", "给 Solax 发消息"},
 		pageAgents:   {"还没有 Agent。在下方添加一个。", "添加 Agent", "工作目录"},
 		pageMachines: {"审批机器", "刷新"},
 		pageSettings: {"外观", "语言", "跟随系统", "保存并连接"},
@@ -87,7 +87,7 @@ func TestPagesInChinese(t *testing.T) {
 					t.Errorf("no %q in %q", w, tt.Texts())
 				}
 			}
-			for _, en := range []string{"Jobs", "Machines", "Settings", "Refresh"} {
+			for _, en := range []string{"Tasks", "Machines", "Settings", "Refresh"} {
 				if tt.HasText(en) {
 					t.Errorf("English %q left in %q", en, tt.Texts())
 				}
@@ -97,8 +97,8 @@ func TestPagesInChinese(t *testing.T) {
 	if got := seconds(125e9); got != "2 分 5 秒" {
 		t.Errorf("seconds = %q", got)
 	}
-	if title("nav.jobs") != "任务" || menuTitle("View") != "显示" || stateWord("running") != "运行中" {
-		t.Errorf("titles: %q %q %q", title("nav.jobs"), menuTitle("View"), stateWord("running"))
+	if title("nav.tasks") != "任务" || menuTitle("View") != "显示" || stateWord("running") != "运行中" {
+		t.Errorf("titles: %q %q %q", title("nav.tasks"), menuTitle("View"), stateWord("running"))
 	}
 }
 
@@ -126,7 +126,7 @@ func TestLanguageChoice(t *testing.T) {
 	}
 }
 
-// The upstream page kit, agent details and job grouping stay localized
+// The upstream page kit, agent details and task grouping stay localized
 // when they contain data, not just in their empty states.
 func TestPopulatedPagesInChinese(t *testing.T) {
 	inLocale(t, "zh-Hans")
@@ -135,7 +135,7 @@ func TestPopulatedPagesInChinese(t *testing.T) {
 		setup func(*desktop)
 		want  []string
 	}{
-		{"jobs", func(d *desktop) { d.page = pageJobs }, []string{"所有任务", "3 个任务，1 个运行中", "最近的任务", "任务分组"}},
+		{"tasks", func(d *desktop) { d.page = pageTasks }, []string{"所有任务", "3 个任务，1 个运行中", "最近的任务", "任务分组"}},
 		{"agent", func(d *desktop) { d.page = pageAgents }, []string{"Agent 列表", "状态", "在线", "运行时默认值", "设为 Solax", "指令"}},
 		{"new-agent", func(d *desktop) { d.page, d.form.open = pageAgents, true }, []string{"新建 Agent", "名称", "运行时", "描述", "指令", "添加 Agent"}},
 		{"machines", func(d *desktop) { d.page = pageMachines }, []string{"配对码", "最近在线", "机器 ID", "就绪", "不可用"}},
@@ -200,8 +200,8 @@ func TestGroupLabelsFollowLocale(t *testing.T) {
 	if got := groupingLabel("project"); got != "项目" {
 		t.Fatalf("Chinese label = %q", got)
 	}
-	if got := groupOf(protocol.Job{}, nil, "project"); got.title != "其他" || got.key != "project:" {
-		t.Fatalf("orphaned job group = %+v", got)
+	if got := groupOf(protocol.Task{}, nil, "project"); got.title != "其他" || got.key != "project:" {
+		t.Fatalf("orphaned task group = %+v", got)
 	}
 	if got := suggestions[0].text(); got != "让 coder 给仓库加一个 README" {
 		t.Fatalf("suggestion = %q", got)

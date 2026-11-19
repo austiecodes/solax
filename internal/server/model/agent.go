@@ -10,7 +10,7 @@ import (
 
 // Agent is a coding agent that a person set up on one machine. The server
 // defines it; the daemon of the machine runs its sessions. The name is
-// unique: the Super Agent routes jobs by name, with the description as the
+// unique: the Super Agent routes tasks by name, with the description as the
 // hint for what the agent is good at.
 type Agent struct {
 	ID          ID

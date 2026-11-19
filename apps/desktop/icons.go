@@ -27,7 +27,7 @@ var (
 	gearIcon     = glyph("f7-gear-alt")
 	reloadIcon   = glyph("f7-arrow-clockwise")
 	sparklesIcon = glyph("f7-sparkles")
-	jobsIcon     = glyph("f7-list-bullet-indent")
+	tasksIcon    = glyph("f7-list-bullet-indent")
 	agentIcon    = glyph("meteor-terminal")
 	machineIcon  = glyph("f7-desktopcomputer")
 	plusIcon     = glyph("f7-plus")

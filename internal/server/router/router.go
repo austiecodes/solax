@@ -47,15 +47,15 @@ func New(daemon http.Handler, st *stream.Stream) *gin.Engine {
 	agents.PATCH("/:agent", controller.UpdateAgent)
 	agents.DELETE("/:agent", controller.DeleteAgent)
 
-	// Jobs: a person or the Super Agent dispatches work to an agent. The
+	// Tasks: a person or the Super Agent dispatches work to an agent. The
 	// call returns at once; the result arrives on the stream (and in the
 	// Super Agent inbox).
-	jobs := v1.Group("/jobs", middleware.RequireClientOrSuper())
-	jobs.POST("", controller.DispatchJob)
-	jobs.GET("", controller.ListJobs)
-	jobs.GET("/:job", controller.GetJob)
-	jobs.POST("/:job/messages", controller.FollowUpJob)
-	jobs.POST("/:job/cancel", controller.CancelJob)
+	tasks := v1.Group("/tasks", middleware.RequireClientOrSuper())
+	tasks.POST("", controller.DispatchTask)
+	tasks.GET("", controller.ListTasks)
+	tasks.GET("/:task", controller.GetTask)
+	tasks.POST("/:task/messages", controller.FollowUpTask)
+	tasks.POST("/:task/cancel", controller.CancelTask)
 	v1.GET("/sessions/:session/events", middleware.RequireClientOrSuper(), controller.ListSessionEvents)
 
 	// The conversation of the user with the Super Agent.

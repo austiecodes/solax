@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// ID is a prefixed, time-sortable object ID, for example "job_0m3k2f9a1b2c3d4e".
+// ID is a prefixed, time-sortable object ID, for example "tsk_0m3k2f9a1b2c3d4e".
 type ID string
 
 // Prefix is the type prefix of an ID.
@@ -21,7 +21,7 @@ const (
 	PrefixAgent   Prefix = "agt"
 	PrefixMessage Prefix = "msg"
 	PrefixSession Prefix = "ses"
-	PrefixJob     Prefix = "job"
+	PrefixTask    Prefix = "tsk"
 	PrefixInput   Prefix = "in"
 )
 

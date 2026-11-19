@@ -8,13 +8,13 @@ import (
 	"github.com/austiecodes/solax/pkg/ir"
 )
 
-// Session is one agent process: the session of a job, or the Super Agent
+// Session is one agent process: the session of a task, or the Super Agent
 // session. The daemon owns the
 // process. The server keeps its state and its native ref.
 type Session struct {
 	ID        ID
 	AgentID   ID
-	JobID     ID // the job of a worker session; empty for the Super Agent session
+	TaskID    ID // the task of a worker session; empty for the Super Agent session
 	State     ir.SessionState
 	Ref       *ir.SessionRef
 	Live      bool  // the daemon reports the process as running
@@ -28,17 +28,17 @@ const SessionStopped ir.SessionState = "stopped"
 
 // Sessions.
 
-const sessionCols = `s.id, s.agent_id, s.job_id, s.state, s.ref, s.live, s.last_seq, s.updated_at`
+const sessionCols = `s.id, s.agent_id, s.task_id, s.state, s.ref, s.live, s.last_seq, s.updated_at`
 
 // GetSession returns the session with this ID.
 func GetSession(ctx context.Context, db Querier, id ID) (Session, error) {
 	return scanSession(db.QueryRowContext(ctx, `SELECT `+sessionCols+` FROM sessions s WHERE s.id = ?`, id))
 }
 
-// GetSessionFor returns the session of an agent for a job ("" for the
+// GetSessionFor returns the session of an agent for a task ("" for the
 // Super Agent).
-func GetSessionFor(ctx context.Context, db Querier, agentID, jobID ID) (Session, error) {
-	return scanSession(db.QueryRowContext(ctx, `SELECT `+sessionCols+` FROM sessions s WHERE s.agent_id = ? AND s.job_id = ?`, agentID, jobID))
+func GetSessionFor(ctx context.Context, db Querier, agentID, taskID ID) (Session, error) {
+	return scanSession(db.QueryRowContext(ctx, `SELECT `+sessionCols+` FROM sessions s WHERE s.agent_id = ? AND s.task_id = ?`, agentID, taskID))
 }
 
 // SaveSession inserts or updates a session by ID.
@@ -51,10 +51,10 @@ func SaveSession(ctx context.Context, db Executor, s Session) error {
 		}
 		ref = string(b)
 	}
-	_, err := exec(ctx, db, `INSERT INTO sessions(id, agent_id, job_id, state, ref, live, last_seq, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := exec(ctx, db, `INSERT INTO sessions(id, agent_id, task_id, state, ref, live, last_seq, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET state = excluded.state, ref = excluded.ref, live = excluded.live,
 			last_seq = excluded.last_seq, updated_at = excluded.updated_at`,
-		s.ID, s.AgentID, s.JobID, s.State, ref, b2i(s.Live), s.LastSeq, ms(s.UpdatedAt))
+		s.ID, s.AgentID, s.TaskID, s.State, ref, b2i(s.Live), s.LastSeq, ms(s.UpdatedAt))
 	return err
 }
 
@@ -70,7 +70,7 @@ func scanSession(sc scanner) (Session, error) {
 	var state, ref string
 	var updated int64
 	var live int
-	if err := sc.Scan(&s.ID, &s.AgentID, &s.JobID, &state, &ref, &live, &s.LastSeq, &updated); err != nil {
+	if err := sc.Scan(&s.ID, &s.AgentID, &s.TaskID, &state, &ref, &live, &s.LastSeq, &updated); err != nil {
 		return s, mapErr(err)
 	}
 	s.State, s.Live, s.UpdatedAt = ir.SessionState(state), live != 0, tm(updated)

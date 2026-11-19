@@ -95,8 +95,8 @@ type UpdateAgentRequest struct {
 	Super        *bool          `json:"super,omitempty"`
 }
 
-// Job is one piece of work for one agent.
-type Job struct {
+// Task is one piece of work for one agent.
+type Task struct {
 	ID          string    `json:"id"`
 	Agent       string    `json:"agent"` // agent name
 	AgentID     string    `json:"agent_id"`
@@ -111,7 +111,7 @@ type Job struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// DispatchRequest is the body of POST /v1/jobs.
+// DispatchRequest is the body of POST /v1/tasks.
 type DispatchRequest struct {
 	Agent  string `json:"agent"` // agent name or ID
 	Prompt string `json:"prompt"`
@@ -121,14 +121,14 @@ type DispatchRequest struct {
 type SessionEventNote struct {
 	SessionID string   `json:"session_id"`
 	Agent     string   `json:"agent"`
-	JobID     string   `json:"job_id,omitempty"`
+	TaskID    string   `json:"task_id,omitempty"`
 	Super     bool     `json:"super,omitempty"` // the Super Agent session
 	Event     ir.Event `json:"event"`
 }
 
 // Push is one record on the client stream (/v1/stream).
 type Push struct {
-	Event   string          `json:"event"` // agents.changed | machines.changed | job | session.event | super.message
+	Event   string          `json:"event"` // agents.changed | machines.changed | task | session.event | super.message
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 

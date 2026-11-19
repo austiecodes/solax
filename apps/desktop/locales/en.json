@@ -12,7 +12,7 @@
   "@navChat": {
     "description": "The page of the chat with Solax, the Super Agent. A name."
   },
-  "navJobs": "Jobs",
+  "navTasks": "Tasks",
   "navAgents": "Agents",
   "navMachines": "Machines",
   "actionToggleSidebar": "Toggle Sidebar",
@@ -34,7 +34,7 @@
   "hideSidebar": "Hide Sidebar",
   "settings": "Settings",
   "goTo": "Go to",
-  "recentJobs": "Recent jobs",
+  "recentTasks": "Recent tasks",
   "footerLive": "{count} queued or running",
   "@footerLive": {
     "placeholders": {
@@ -67,23 +67,23 @@
   "errNoProfile": "no server profile: add one in Settings",
   "stateQueued": "queued",
   "@stateQueued": {
-    "description": "A job state."
+    "description": "A task state."
   },
   "stateRunning": "running",
   "@stateRunning": {
-    "description": "A job state."
+    "description": "A task state."
   },
   "stateDone": "done",
   "@stateDone": {
-    "description": "A job state."
+    "description": "A task state."
   },
   "stateFailed": "failed",
   "@stateFailed": {
-    "description": "A job state, and a failed tool call."
+    "description": "A task state, and a failed tool call."
   },
   "stateCancelled": "cancelled",
   "@stateCancelled": {
-    "description": "A job state."
+    "description": "A task state."
   },
   "statePending": "pending",
   "@statePending": {
@@ -112,16 +112,16 @@
   "@chatSuggestionDoing": {
     "description": "Sent to Solax as is when clicked."
   },
-  "chatSuggestionFailed": "Which jobs failed today?",
+  "chatSuggestionFailed": "Which tasks failed today?",
   "@chatSuggestionFailed": {
     "description": "Sent to Solax as is when clicked."
   },
   "chatNoSolaxTitle": "Solax is not set up yet",
-  "chatNoSolaxDetail": "Solax is the agent you talk to. It gives jobs to your other agents. On the Agents page, add the agents found on your machines, or choose the agent that is Solax.",
+  "chatNoSolaxDetail": "Solax is the agent you talk to. It gives tasks to your other agents. On the Agents page, add the agents found on your machines, or choose the agent that is Solax.",
   "chatEmptyTitle": "What should your agents do?",
-  "chatEmptyDetail": "Solax gives jobs to your agents and tells you when they are done.",
-  "jobsCount": "{count, plural, one {# job} other {# jobs}}, {running} running",
-  "@jobsCount": {
+  "chatEmptyDetail": "Solax gives tasks to your agents and tells you when they are done.",
+  "tasksCount": "{count, plural, one {# task} other {# tasks}}, {running} running",
+  "@tasksCount": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -131,14 +131,14 @@
       }
     }
   },
-  "jobsEmptyTitle": "No jobs yet",
-  "jobsEmptyDetail": "Ask Solax for work, and it gives jobs to your agents. You can also send a job from a shell:",
-  "jobCancel": "Cancel job",
-  "jobCancelQuestion": "Cancel this job?",
-  "jobCancelDetail": "{agent} stops work on \"{title}\". You cannot resume it.",
-  "jobKeep": "Keep job",
-  "jobFollowUp": "Send more input to {agent}",
-  "jobWasCancelled": "The job was cancelled",
+  "tasksEmptyTitle": "No tasks yet",
+  "tasksEmptyDetail": "Ask Solax for work, and it gives tasks to your agents. You can also send a task from a shell:",
+  "taskCancel": "Cancel task",
+  "taskCancelQuestion": "Cancel this task?",
+  "taskCancelDetail": "{agent} stops work on \"{title}\". You cannot resume it.",
+  "taskKeep": "Keep task",
+  "taskFollowUp": "Send more input to {agent}",
+  "taskWasCancelled": "The task was cancelled",
   "agoNow": "just now",
   "agoMinutes": "{n} min ago",
   "@agoMinutes": {
@@ -167,7 +167,7 @@
   "agentMakeSolax": "Make it Solax",
   "agentRemove": "Remove",
   "agentRemoveQuestion": "Remove {name}?",
-  "agentRemoveDetail": "Solax can no longer give jobs to {name}. Its past jobs stay.",
+  "agentRemoveDetail": "Solax can no longer give tasks to {name}. Its past tasks stay.",
   "agentModel": "model {model}",
   "fieldName": "Name",
   "fieldNameHelp": "Lower case, digits and dashes.",
@@ -227,7 +227,7 @@
   "notifyDone": "{agent} finished",
   "notifyFailed": "{agent} failed",
   "paletteActions": "Actions",
-  "palettePlaceholder": "Search jobs, agents and actions",
+  "palettePlaceholder": "Search tasks, agents and actions",
   "paletteFind": "Find",
   "paletteNoMatches": "No matches.",
   "cancel": "Cancel",
@@ -290,7 +290,7 @@
       }
     }
   },
-  "openJob": "Open job",
+  "openTask": "Open task",
   "scrollToEnd": "Scroll to the end",
   "stepDeclined": "declined",
   "@stepDeclined": {
@@ -307,10 +307,10 @@
   "composerHint": "Return to send, Shift+Return for a new line",
   "send": "Send",
   "agentDirHelp": "The agent works in this folder.",
-  "agentNoDesc": "No description. Solax routes by the description, so it does not give jobs to this agent by itself.",
-  "agentRoleHelp": "You talk to this agent. It gives jobs to the others.",
+  "agentNoDesc": "No description. Solax routes by the description, so it does not give tasks to this agent by itself.",
+  "agentRoleHelp": "You talk to this agent. It gives tasks to the others.",
   "agentStatusHelp": "Online when its machine is connected and has the runtime.",
-  "allJobs": "All jobs",
+  "allTasks": "All tasks",
   "anotherHost": "Another host",
   "appearanceHelp": "System follows the macOS setting.",
   "close": "Close",
@@ -331,10 +331,10 @@
   "fieldMachineID": "Machine ID",
   "fieldModelHelp": "Optional. Empty uses the runtime's default.",
   "fieldStatus": "Status",
-  "fieldSuperHelp": "You talk to Solax. It gives jobs to the other agents.",
-  "groupJobs": "Group jobs",
-  "groupJobsBy": "Group jobs by",
-  "groupJobsHelp": "How the sidebar lists the recent jobs. A project is the work folder of the job's agent.",
+  "fieldSuperHelp": "You talk to Solax. It gives tasks to the other agents.",
+  "groupTasks": "Group tasks",
+  "groupTasksBy": "Group tasks by",
+  "groupTasksHelp": "How the sidebar lists the recent tasks. A project is the work folder of the task's agent.",
   "groupProject": "Project",
   "groupAgent": "Agent",
   "groupNone": "None",
@@ -342,14 +342,14 @@
   "groupByAgent": "By agent",
   "groupByNone": "By none",
   "groupOther": "Other",
-  "groupOtherTip": "Jobs of agents that were removed",
+  "groupOtherTip": "Tasks of agents that were removed",
   "localNotSetUp": "Not set up",
   "localServer": "Local server",
   "machinesHelp": "Each machine runs \"solax daemon start\". The daemon reports the agent CLIs that it finds.",
   "modelDefault": "Runtime default",
   "neverSeen": "never seen",
   "newAgent": "New agent",
-  "newAgentHelp": "Solax reads the description to choose the agent for a job.",
+  "newAgentHelp": "Solax reads the description to choose the agent for a task.",
   "noMachinesYet": "No machines yet",
   "notConnected": "not connected",
   "openAgents": "Open Agents",
@@ -360,7 +360,7 @@
   "paletteSearch": "Search",
   "profileHelp": "A name for this server.",
   "roster": "Roster",
-  "rosterHelp": "Solax gives each job to the agent whose description fits it best.",
+  "rosterHelp": "Solax gives each task to the agent whose description fits it best.",
   "seenOnline": "online",
   "sendTip": "Send (Return)\nNew line (Shift+Return)",
   "serverHelp": "The Solax server this app talks to.",

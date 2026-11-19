@@ -31,26 +31,26 @@ func TestShots(t *testing.T) {
 			"chat-empty": func(d *desktop) { d.page, d.messages = pageChat, nil },
 			"chat-working": func(d *desktop) {
 				d.page, d.superWaiting = pageChat, true
-				d.messages = append(d.messages, protocol.Message{ID: "m5", Seq: 5, Author: protocol.Author{Kind: "human"}, Text: "give coder the README job"})
+				d.messages = append(d.messages, protocol.Message{ID: "m5", Seq: 5, Author: protocol.Author{Kind: "human"}, Text: "give coder the README task"})
 			},
-			"jobs": func(d *desktop) { d.page = pageJobs },
-			"job": func(d *desktop) {
-				d.page, d.jobSel = pageJobs, "job_3"
+			"tasks": func(d *desktop) { d.page = pageTasks },
+			"task": func(d *desktop) {
+				d.page, d.taskSel = pageTasks, "tsk_3"
 				d.folds["steps-r1"] = &fold{open: true, set: true}
 			},
-			"agents":     func(d *desktop) { d.page = pageAgents },
-			"agent-new":  func(d *desktop) { d.page, d.form.open = pageAgents, true },
-			"machines":   func(d *desktop) { d.page = pageMachines },
-			"settings":   func(d *desktop) { d.page = pageSettings },
-			"jobs-agent": func(d *desktop) { d.page, d.prefs.JobGroups = pageJobs, "agent" },
-			"jobs-empty": func(d *desktop) { d.page, d.jobs = pageJobs, nil },
-			"chat-unset": func(d *desktop) { d.page, d.agents, d.messages = pageChat, nil, nil },
-			"palette":    func(d *desktop) { d.openPalette() },
+			"agents":      func(d *desktop) { d.page = pageAgents },
+			"agent-new":   func(d *desktop) { d.page, d.form.open = pageAgents, true },
+			"machines":    func(d *desktop) { d.page = pageMachines },
+			"settings":    func(d *desktop) { d.page = pageSettings },
+			"tasks-agent": func(d *desktop) { d.page, d.prefs.TaskGroups = pageTasks, "agent" },
+			"tasks-empty": func(d *desktop) { d.page, d.tasks = pageTasks, nil },
+			"chat-unset":  func(d *desktop) { d.page, d.agents, d.messages = pageChat, nil, nil },
+			"palette":     func(d *desktop) { d.openPalette() },
 			"confirm": func(d *desktop) {
-				d.page, d.jobSel = pageJobs, "job_1"
-				d.ask("Cancel this job?", `coder stops work on "Add a README to the repo". You cannot resume it.`, "Cancel job", true, func() {}).keep = "Keep job"
+				d.page, d.taskSel = pageTasks, "tsk_1"
+				d.ask("Cancel this task?", `coder stops work on "Add a README to the repo". You cannot resume it.`, "Cancel task", true, func() {}).keep = "Keep task"
 			},
-			"jobs-flat": func(d *desktop) { d.page, d.prefs.JobGroups = pageJobs, "none" },
+			"tasks-flat": func(d *desktop) { d.page, d.prefs.TaskGroups = pageTasks, "none" },
 		}
 		for page, setup := range shots {
 			d := sampleDesktop(t)
@@ -82,7 +82,7 @@ func writePNG(t *testing.T, path string, tt *ui.Tester) {
 	}
 }
 
-// sampleDesktop is a desktop with two machines, two agents, a few jobs and
+// sampleDesktop is a desktop with two machines, two agents, a few tasks and
 // a short chat.
 func sampleDesktop(t *testing.T) *desktop {
 	d := testDesktop(t)
@@ -101,13 +101,13 @@ func sampleDesktop(t *testing.T) *desktop {
 			Description:  "Reads diffs and points out bugs before merge",
 			Instructions: "Review only the diff. Report each bug with a failing test; do not change the style."},
 	}
-	d.jobs = []protocol.Job{
-		{ID: "job_1", Agent: "coder", State: "running", Title: "Add a README to the repo", CreatedAt: now.Add(-2 * time.Minute)},
-		{ID: "job_2", Agent: "reviewer", State: "failed", Title: "Review the auth change", CreatedAt: now.Add(-50 * time.Minute)},
-		{ID: "job_3", Agent: "coder", State: "done", Title: "You are doing a README pass", CreatedAt: now.Add(-time.Hour), SessionID: "ses_3",
+	d.tasks = []protocol.Task{
+		{ID: "tsk_1", Agent: "coder", State: "running", Title: "Add a README to the repo", CreatedAt: now.Add(-2 * time.Minute)},
+		{ID: "tsk_2", Agent: "reviewer", State: "failed", Title: "Review the auth change", CreatedAt: now.Add(-50 * time.Minute)},
+		{ID: "tsk_3", Agent: "coder", State: "done", Title: "You are doing a README pass", CreatedAt: now.Add(-time.Hour), SessionID: "ses_3",
 			Prompt: "Read the repo and write a short README."},
 	}
-	d.unread["job_2"] = true
+	d.unread["tsk_2"] = true
 	d.messages = []protocol.Message{
 		{ID: "m1", Seq: 1, Author: protocol.Author{Kind: "human"}, Text: "hello", CreatedAt: now},
 		{ID: "m2", Seq: 2, Author: protocol.Author{Kind: "super"}, Text: "Hi! I'm the Solax router. I dispatch work to your coding agents on your machines. What would you like done today?", CreatedAt: now},

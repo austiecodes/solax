@@ -15,7 +15,7 @@ import (
 // A transcript is what an agent did, as blocks: the messages of the user,
 // the replies of the agent, and between them its steps (reasoning and
 // tool calls), folded into one group, as chat apps show them. The chat
-// with the Super Agent and the jobs both show one; this file builds it
+// with the Super Agent and the tasks both show one; this file builds it
 // from IR events, so every runtime looks the same. transcript_view.go
 // draws it.
 
@@ -25,7 +25,7 @@ const (
 	blockUser    blockKind = iota // a message from the user
 	blockReply                    // text from the agent, in markdown
 	blockSteps                    // reasoning and tool calls, folded
-	blockNote                     // one line: a job that ended, an error
+	blockNote                     // one line: a task that ended, an error
 	blockWorking                  // the agent works, and nothing else shows it
 )
 
@@ -35,7 +35,7 @@ type block struct {
 	text  string
 	steps []step
 	live  bool   // steps: the agent works on them now; reply: it streams
-	job   string // note: the job it tells of
+	task  string // note: the task it tells of
 	warn  bool   // note: an error or a warning
 }
 
@@ -228,9 +228,9 @@ func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveTe
 		case "human":
 			out = append(out, block{kind: blockUser, key: m.ID, text: m.Text})
 		case "system":
-			// "[job <id>] agent coder: done"
-			id := jobOf(m.Text)
-			out = append(out, block{kind: blockNote, key: m.ID, text: strings.TrimPrefix(m.Text, "[job "+id+"] "), job: id})
+			// "[task <id>] agent coder: done"
+			id := taskOf(m.Text)
+			out = append(out, block{kind: blockNote, key: m.ID, text: strings.TrimPrefix(m.Text, "[task "+id+"] "), task: id})
 		default:
 			text := strings.TrimSpace(m.Text)
 			if k := slices.IndexFunc(leads[next:], func(l lead) bool { return l.text == text }); k >= 0 {
@@ -259,11 +259,11 @@ func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveTe
 	return append(out, tail...)
 }
 
-// jobBlocks is the transcript of a job: its prompt, then what its session
-// did. A job without events (an old one, or one that never ran) shows its
+// taskBlocks is the transcript of a task: its prompt, then what its session
+// did. A task without events (an old one, or one that never ran) shows its
 // result; one that failed ends with its error.
-func jobBlocks(j protocol.Job, evs []ir.Event, live map[string]*liveText) []block {
-	blocks := eventBlocks(evs, live, jobLive(j.State))
+func taskBlocks(j protocol.Task, evs []ir.Event, live map[string]*liveText) []block {
+	blocks := eventBlocks(evs, live, taskLive(j.State))
 	prompt := strings.TrimSpace(j.Prompt)
 	if prompt != "" && !slices.ContainsFunc(blocks, func(b block) bool { return b.kind == blockUser && b.text == prompt }) {
 		blocks = slices.Insert(blocks, 0, block{kind: blockUser, key: "prompt-" + j.ID, text: prompt})

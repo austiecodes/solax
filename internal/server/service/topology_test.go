@@ -270,7 +270,7 @@ func TestScopesAndRecall(t *testing.T) {
 	is(t, err, errs.ErrForbidden)
 	_, err = service.Dispatch(ctx, worker, "backend", "x")
 	is(t, err, errs.ErrForbidden)
-	_, err = service.Jobs(ctx, worker, 0)
+	_, err = service.Tasks(ctx, worker, 0)
 	is(t, err, errs.ErrForbidden)
 
 	msg, err := service.SendToSuper(ctx, e.human, "hello")

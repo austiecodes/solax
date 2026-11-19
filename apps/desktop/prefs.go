@@ -8,22 +8,22 @@ import (
 )
 
 // prefs are what the window remembers between runs. The data itself
-// (jobs, agents, the conversation) is the server's.
+// (tasks, agents, the conversation) is the server's.
 type prefs struct {
 	Page          string  `json:"page,omitempty"`
-	Job           string  `json:"job,omitempty"` // the job open on the jobs page
+	Task          string  `json:"task,omitempty"` // the task open on the tasks page
 	SidebarWidth  float32 `json:"sidebarWidth,omitempty"`
 	SidebarHidden bool    `json:"sidebarHidden,omitempty"`
 	// Appearance is "light", "dark" or "" for the system's; Theme is one
 	// of themeNames (theme.go), "" for the default.
 	Appearance string `json:"appearance,omitempty"`
 	Theme      string `json:"theme,omitempty"`
-	// JobGroups is how the sidebar groups the jobs, one of groupings
-	// (jobgroups.go); ClosedGroups are the keys of the groups closed.
-	JobGroups    string   `json:"jobGroups,omitempty"`
+	// TaskGroups is how the sidebar groups the tasks, one of groupings
+	// (taskgroups.go); ClosedGroups are the keys of the groups closed.
+	TaskGroups   string   `json:"taskGroups,omitempty"`
 	ClosedGroups []string `json:"closedGroups,omitempty"`
-	// Unread are the jobs that ended unseen; SeenAt is when the app last
-	// knew all jobs, so a job that ended after it, while the app was
+	// Unread are the tasks that ended unseen; SeenAt is when the app last
+	// knew all tasks, so a task that ended after it, while the app was
 	// closed, is unread too (unread.go).
 	Unread []string  `json:"unread,omitempty"`
 	SeenAt time.Time `json:"seenAt,omitzero"`
@@ -51,8 +51,8 @@ func loadPrefs(path string) prefs {
 	if _, ok := looks[p.Theme]; !ok {
 		p.Theme = defaultTheme
 	}
-	if !validGrouping(p.JobGroups) {
-		p.JobGroups = defaultGrouping
+	if !validGrouping(p.TaskGroups) {
+		p.TaskGroups = defaultGrouping
 	}
 	if !validPage(p.Page) {
 		p.Page = pageChat

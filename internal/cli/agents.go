@@ -15,12 +15,12 @@ import (
 )
 
 // agentCmd manages the agents. A person sets them up; the Super Agent
-// reads the list to route jobs.
+// reads the list to route tasks.
 func agentCmd(g *globals) *cobra.Command {
 	cmd := &cobra.Command{Use: "agent", Short: T("Coding agents on your machines: set up, list, change")}
 	cmd.AddCommand(agentListCmd(g), agentAddCmd(g), agentEditCmd(g), &cobra.Command{
 		Use:   "rm <agent>",
-		Short: T("Remove an agent (its jobs stay)"),
+		Short: T("Remove an agent (its tasks stay)"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()

@@ -317,13 +317,13 @@ func (d *desktop) lookForm(c *ui.Context) {
 	})
 }
 
-// sidebarForm chooses how the sidebar groups the jobs.
+// sidebarForm chooses how the sidebar groups the tasks.
 func (d *desktop) sidebarForm(c *ui.Context) {
 	section(c, "sidebar", sectionSpec{title: locales.SidebarSection()}, func() {
-		row(c, "grouping", locales.GroupJobsBy(), locales.GroupJobsHelp(), func() {
+		row(c, "grouping", locales.GroupTasksBy(), locales.GroupTasksHelp(), func() {
 			ui.Row(c).Width(180).Children(func() {
-				if id, ok := choose(c, "grouping", d.prefs.JobGroups, groupingIDs(), groupingLabel); ok {
-					d.prefs.JobGroups = id
+				if id, ok := choose(c, "grouping", d.prefs.TaskGroups, groupingIDs(), groupingLabel); ok {
+					d.prefs.TaskGroups = id
 					d.savePrefs()
 				}
 			})

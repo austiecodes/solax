@@ -10,7 +10,7 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// The sidebar: the traffic lights and the hide button, the pages, the jobs
+// The sidebar: the traffic lights and the hide button, the pages, the tasks
 // with their state (as kero lists its sessions), and a footer with the
 // counts that need the user and the connection.
 
@@ -27,13 +27,13 @@ func (d *desktop) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 		}
 	})
 	// The space around the rows moves the window, as the top bar does.
-	list := ui.Scroll(c.Key("jobs")).Grow(1).Padding(0, 8, 12, 8).Gap(1).DragWindow()
+	list := ui.Scroll(c.Key("tasks")).Grow(1).Padding(0, 8, 12, 8).Gap(1).DragWindow()
 	list.Children(func() {
-		if len(d.jobs) == 0 {
+		if len(d.tasks) == 0 {
 			return
 		}
-		d.jobsHead(c, pal)
-		for _, g := range d.jobGroups() {
+		d.tasksHead(c, pal)
+		for _, g := range d.taskGroups() {
 			d.groupView(c, pal, g)
 		}
 	})
@@ -45,7 +45,7 @@ func (d *desktop) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 // to say (a count, or that it works).
 func (d *desktop) navRow(c *ui.Context, pal *palette, p navPage) {
 	label := title(p.action)
-	selected := d.page == p.id && (p.id != pageJobs || d.jobSel == "")
+	selected := d.page == p.id && (p.id != pageTasks || d.taskSel == "")
 	row := sideRow(c, pal, p.id, selected).Label(label).Tooltip(tip(label, p.action))
 	fg := pal.textMuted
 	if selected {
@@ -59,8 +59,8 @@ func (d *desktop) navRow(c *ui.Context, pal *palette, p navPage) {
 			if d.superBusy {
 				statusIcon(c, pal, "running", false, 12)
 			}
-		case pageJobs:
-			if n := d.countJobs(func(j protocol.Job) bool { return jobLive(j.State) }); n > 0 {
+		case pageTasks:
+			if n := d.countTasks(func(j protocol.Task) bool { return taskLive(j.State) }); n > 0 {
 				ui.Textf(c, "%d", n).FontSize(12).TextColor(pal.textFaint).FontFeatures("tnum")
 			}
 		}
@@ -70,21 +70,21 @@ func (d *desktop) navRow(c *ui.Context, pal *palette, p navPage) {
 	}
 }
 
-// jobsHead is the head of the jobs: its label, and a menu that chooses
+// tasksHead is the head of the tasks: its label, and a menu that chooses
 // how to group them, as the Codex app's "Organize" menu.
-func (d *desktop) jobsHead(c *ui.Context, pal *palette) {
-	ui.Row(c.Key("jobs-head")).Height(28).Margin(14, 0, 2, 0).Padding(0, 2, 0, 8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, locales.RecentJobs()).FontSize(12).FontWeight(500).TextColor(pal.textFaint).Grow(1)
+func (d *desktop) tasksHead(c *ui.Context, pal *palette) {
+	ui.Row(c.Key("tasks-head")).Height(28).Margin(14, 0, 2, 0).Padding(0, 2, 0, 8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, locales.RecentTasks()).FontSize(12).FontWeight(500).TextColor(pal.textFaint).Grow(1)
 		b := ui.ButtonBase(c.Key("organize")).Size(24, 22).Radius(6).Center().TextColor(pal.textFaint).
-			Label(locales.GroupJobs()).Tooltip(locales.GroupJobs())
+			Label(locales.GroupTasks()).Tooltip(locales.GroupTasks())
 		if b.Hovered() {
 			b.Background(pal.rowHover).TextColor(pal.text)
 		}
 		b.Children(func() { ui.Icon(c, organizeIcon).Size(14, 14) })
 		b.Menu(func(m *ui.Menu) {
 			for _, g := range groupings {
-				if m.Item(g.menu()).Radio(d.prefs.JobGroups == g.id).Chosen() {
-					d.prefs.JobGroups = g.id
+				if m.Item(g.menu()).Radio(d.prefs.TaskGroups == g.id).Chosen() {
+					d.prefs.TaskGroups = g.id
 					d.savePrefs()
 				}
 			}
@@ -92,16 +92,16 @@ func (d *desktop) jobsHead(c *ui.Context, pal *palette) {
 	})
 }
 
-// jobGroups are the groups of jobs the sidebar shows.
-func (d *desktop) jobGroups() []jobGroup { return groupJobs(d.jobs, d.agents, d.prefs.JobGroups) }
+// taskGroups are the groups of tasks the sidebar shows.
+func (d *desktop) taskGroups() []taskGroup { return groupTasks(d.tasks, d.agents, d.prefs.TaskGroups) }
 
-// groupView is a group of jobs: a head that opens and closes it, as a
-// project folder in the Codex app, then its jobs. A group with no title
-// (no grouping) is its jobs only.
-func (d *desktop) groupView(c *ui.Context, pal *palette, g jobGroup) {
+// groupView is a group of tasks: a head that opens and closes it, as a
+// project folder in the Codex app, then its tasks. A group with no title
+// (no grouping) is its tasks only.
+func (d *desktop) groupView(c *ui.Context, pal *palette, g taskGroup) {
 	if g.title == "" {
-		for _, j := range g.jobs {
-			d.jobRow(c, pal, j, false)
+		for _, j := range g.tasks {
+			d.taskRow(c, pal, j, false)
 		}
 		return
 	}
@@ -123,8 +123,8 @@ func (d *desktop) groupView(c *ui.Context, pal *palette, g jobGroup) {
 	if closed {
 		return
 	}
-	for _, j := range g.jobs {
-		d.jobRow(c, pal, j, true)
+	for _, j := range g.tasks {
+		d.taskRow(c, pal, j, true)
 	}
 }
 
@@ -139,22 +139,22 @@ func (d *desktop) setGroupClosed(key string, closed bool) {
 	d.savePrefs()
 }
 
-// openGroupOf opens the group of a job, so the sidebar shows it.
+// openGroupOf opens the group of a task, so the sidebar shows it.
 func (d *desktop) openGroupOf(id string) {
-	if j, ok := d.job(id); ok && d.prefs.JobGroups != "none" {
-		if key := groupOf(j, d.agents, d.prefs.JobGroups).key; d.groupClosed(key) {
+	if j, ok := d.task(id); ok && d.prefs.TaskGroups != "none" {
+		if key := groupOf(j, d.agents, d.prefs.TaskGroups).key; d.groupClosed(key) {
 			d.setGroupClosed(key, false)
 		}
 	}
 }
 
-// jobRow is a job in the sidebar, on one line, as a thread in the Codex
+// taskRow is a task in the sidebar, on one line, as a thread in the Codex
 // app: its title, then its age, or its state while that needs the user
-// (it runs, it failed, or it ended unread). An unread job is bold. The
+// (it runs, it failed, or it ended unread). An unread task is bold. The
 // tooltip names its agent and its prompt. In a group, its title lines up
 // with the group's.
-func (d *desktop) jobRow(c *ui.Context, pal *palette, j protocol.Job, inGroup bool) {
-	selected := d.page == pageJobs && d.jobSel == j.ID
+func (d *desktop) taskRow(c *ui.Context, pal *palette, j protocol.Task, inGroup bool) {
+	selected := d.page == pageTasks && d.taskSel == j.ID
 	unread := d.unread[j.ID]
 	row := sideRow(c, pal, j.ID, selected).Label(j.Title).Tooltip(j.Agent + "\n" + clip(j.Prompt, 300))
 	if inGroup {
@@ -165,14 +165,14 @@ func (d *desktop) jobRow(c *ui.Context, pal *palette, j protocol.Job, inGroup bo
 		if unread {
 			name.FontWeight(600)
 		}
-		if jobLive(j.State) || j.State == "failed" || unread {
+		if taskLive(j.State) || j.State == "failed" || unread {
 			ui.Box(c).Width(24).Shrink(0).AlignItems(ui.End).Children(func() { statusIcon(c, pal, j.State, unread, 12) })
 		} else {
 			ui.Text(c, since(j.CreatedAt)).FontSize(12).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().Shrink(0)
 		}
 	})
 	if row.Clicked() && !selected {
-		d.openJob(j.ID)
+		d.openTask(j.ID)
 	}
 }
 
@@ -191,7 +191,7 @@ func sideRow(c *ui.Context, pal *palette, key string, selected bool) ui.Element 
 }
 
 // sidebarFooter has the reload and settings buttons, then what needs the
-// user: counts of running, failed and finished jobs, each a jump to the
+// user: counts of running, failed and finished tasks, each a jump to the
 // next of them. Without a connection it says so instead.
 func (d *desktop) sidebarFooter(c *ui.Context, pal *palette) {
 	ui.Row(c).Height(44).Shrink(0).Padding(0, 8, 4, 8).Gap(2).AlignItems(ui.Center).DragWindow().Children(func() {
@@ -206,16 +206,16 @@ func (d *desktop) sidebarFooter(c *ui.Context, pal *palette) {
 			d.connNote(c, pal)
 			return
 		}
-		d.footerChip(c, pal, "running", false, locales.FooterLive, func(j protocol.Job) bool { return jobLive(j.State) })
-		d.footerChip(c, pal, "failed", true, locales.FooterFailed, func(j protocol.Job) bool { return j.State == "failed" && d.unread[j.ID] })
-		d.footerChip(c, pal, "done", true, locales.FooterDone, func(j protocol.Job) bool { return j.State == "done" && d.unread[j.ID] })
+		d.footerChip(c, pal, "running", false, locales.FooterLive, func(j protocol.Task) bool { return taskLive(j.State) })
+		d.footerChip(c, pal, "failed", true, locales.FooterFailed, func(j protocol.Task) bool { return j.State == "failed" && d.unread[j.ID] })
+		d.footerChip(c, pal, "done", true, locales.FooterDone, func(j protocol.Task) bool { return j.State == "done" && d.unread[j.ID] })
 	})
 }
 
-// footerChip counts the jobs that match, with their state icon. A click
+// footerChip counts the tasks that match, with their state icon. A click
 // opens the next of them. It shows nothing while none match.
-func (d *desktop) footerChip(c *ui.Context, pal *palette, state string, unread bool, say func(int) string, is func(protocol.Job) bool) {
-	n := d.countJobs(is)
+func (d *desktop) footerChip(c *ui.Context, pal *palette, state string, unread bool, say func(int) string, is func(protocol.Task) bool) {
+	n := d.countTasks(is)
 	if n == 0 {
 		return
 	}
@@ -275,9 +275,9 @@ func (d *desktop) resizeHandle(c *ui.Context) {
 	}
 }
 
-func (d *desktop) countJobs(is func(protocol.Job) bool) int {
+func (d *desktop) countTasks(is func(protocol.Task) bool) int {
 	n := 0
-	for _, j := range d.jobs {
+	for _, j := range d.tasks {
 		if is(j) {
 			n++
 		}
@@ -285,20 +285,20 @@ func (d *desktop) countJobs(is func(protocol.Job) bool) int {
 	return n
 }
 
-// jumpTo opens the next job that matches, after the one open, in sidebar
+// jumpTo opens the next task that matches, after the one open, in sidebar
 // order, and wraps around.
-func (d *desktop) jumpTo(is func(protocol.Job) bool) {
-	jobs := sidebarJobs(d.jobGroups())
+func (d *desktop) jumpTo(is func(protocol.Task) bool) {
+	tasks := sidebarTasks(d.taskGroups())
 	start := 0
-	for i, j := range jobs {
-		if j.ID == d.jobSel {
+	for i, j := range tasks {
+		if j.ID == d.taskSel {
 			start = i + 1
 		}
 	}
-	for k := range jobs {
-		j := jobs[(start+k)%len(jobs)]
+	for k := range tasks {
+		j := tasks[(start+k)%len(tasks)]
 		if is(j) {
-			d.openJob(j.ID)
+			d.openTask(j.ID)
 			return
 		}
 	}

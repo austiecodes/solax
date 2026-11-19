@@ -207,7 +207,7 @@ func TestEventSeqContinues(t *testing.T) {
 // their own heading. Either one can be empty.
 func TestSystemPrompt(t *testing.T) {
 	for _, tc := range []struct{ role, instr, want string }{
-		{"# Role: Solax agent\n\nDo the job.\n", "  Review Go code.\n", "# Role: Solax agent\n\nDo the job.\n\n# Instructions\n\nReview Go code."},
+		{"# Role: Solax agent\n\nDo the task.\n", "  Review Go code.\n", "# Role: Solax agent\n\nDo the task.\n\n# Instructions\n\nReview Go code."},
 		{"# Role\n", "", "# Role"},
 		{"", "Review Go code.", "Review Go code."},
 		{"", "", ""},

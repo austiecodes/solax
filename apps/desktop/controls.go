@@ -8,7 +8,7 @@ import (
 
 // The app's own controls, after the Codex app's: flat buttons with a
 // hairline edge, the main one filled in the ink; a field with a hairline
-// that darkens on focus; and the job status icon. Pages use these, not
+// that darkens on focus; and the task status icon. Pages use these, not
 // ui.Button or ui.TextInput, so the look changes in one place.
 
 const controlH = 28
@@ -136,10 +136,10 @@ func selectField(c *ui.Context, key string, value *string, options []string) ui.
 	return tr
 }
 
-// jobLive tells whether a job state still changes.
-func jobLive(state string) bool { return state == "queued" || state == "running" }
+// taskLive tells whether a task state still changes.
+func taskLive(state string) bool { return state == "queued" || state == "running" }
 
-// statusIcon draws a job state, as the sidebar shows it: a faint ring
+// statusIcon draws a task state, as the sidebar shows it: a faint ring
 // while queued, a turning ring while it runs, a check when done (filled
 // while unread), a red disc when failed, a crossed ring when cancelled.
 func statusIcon(c *ui.Context, pal *palette, state string, unread bool, size float32) ui.Element {

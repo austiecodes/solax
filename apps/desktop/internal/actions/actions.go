@@ -29,7 +29,7 @@ var All = []Action{
 
 	{ID: "palette.open", Title: "Go to…", Menu: MenuGo, Keys: "CmdOrCtrl+K"},
 	{ID: "nav.chat", Title: "Solax", Menu: MenuGo, Keys: "CmdOrCtrl+1"},
-	{ID: "nav.jobs", Title: "Jobs", Menu: MenuGo, Keys: "CmdOrCtrl+2"},
+	{ID: "nav.tasks", Title: "Tasks", Menu: MenuGo, Keys: "CmdOrCtrl+2"},
 	{ID: "nav.agents", Title: "Agents", Menu: MenuGo, Keys: "CmdOrCtrl+3"},
 	{ID: "nav.machines", Title: "Machines", Menu: MenuGo, Keys: "CmdOrCtrl+4"},
 

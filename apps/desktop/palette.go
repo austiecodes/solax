@@ -13,7 +13,7 @@ import (
 )
 
 // The command palette (⌘K), in the look of the Codex app's: one field
-// that finds jobs, agents and actions as one types, and a footer with
+// that finds tasks, agents and actions as one types, and a footer with
 // its keys. Each kind of item comes from one
 // source function; a new kind is one more source in paletteItems.
 
@@ -30,14 +30,14 @@ type paletteItem struct {
 	title  string
 	detail string
 	keys   string  // the shortcut, as the menus show it
-	icon   *ui.SVG // nil with a job, which shows its state
-	job    *protocol.Job
+	icon   *ui.SVG // nil with a task, which shows its state
+	task   *protocol.Task
 	run    func()
 	score  int
 }
 
-// recentJobs is how many jobs the palette shows before the user types.
-const recentJobs = 6
+// recentTasks is how many tasks the palette shows before the user types.
+const recentTasks = 6
 
 func (d *desktop) openPalette() {
 	d.pal = paletteState{open: true, reveal: true}
@@ -45,16 +45,16 @@ func (d *desktop) openPalette() {
 
 // paletteItems are all the items, in the order they show unfiltered.
 func (d *desktop) paletteItems() []paletteItem {
-	return slices.Concat(d.jobItems(), d.actionItems(), d.agentItems())
+	return slices.Concat(d.taskItems(), d.actionItems(), d.agentItems())
 }
 
-func (d *desktop) jobItems() []paletteItem {
+func (d *desktop) taskItems() []paletteItem {
 	var out []paletteItem
-	for i := range d.jobs {
-		j := &d.jobs[i]
+	for i := range d.tasks {
+		j := &d.tasks[i]
 		id := j.ID
-		out = append(out, paletteItem{group: locales.NavJobs(), title: j.Title, detail: j.Agent + " · " + stateWord(j.State) + " · " + ago(j.CreatedAt),
-			job: j, run: func() { d.openJob(id) }})
+		out = append(out, paletteItem{group: locales.NavTasks(), title: j.Title, detail: j.Agent + " · " + stateWord(j.State) + " · " + ago(j.CreatedAt),
+			task: j, run: func() { d.openTask(id) }})
 	}
 	return out
 }
@@ -92,14 +92,14 @@ func (d *desktop) agentItems() []paletteItem {
 }
 
 // matches filters and orders the items for the query. With no query it
-// keeps the order, and only the recent jobs.
+// keeps the order, and only the recent tasks.
 func matches(items []paletteItem, query string) []paletteItem {
 	var out []paletteItem
-	jobs := 0
+	tasks := 0
 	for _, it := range items {
 		if query == "" {
-			if it.job != nil {
-				if jobs++; jobs > recentJobs {
+			if it.task != nil {
+				if tasks++; tasks > recentTasks {
 					continue
 				}
 			}
@@ -210,8 +210,8 @@ func (d *desktop) paletteView(c *ui.Context, pal *palette) {
 					chosen = it.run
 				}
 				row.Children(func() {
-					if it.job != nil {
-						statusIcon(c, pal, it.job.State, d.unread[it.job.ID], 14)
+					if it.task != nil {
+						statusIcon(c, pal, it.task.State, d.unread[it.task.ID], 14)
 					} else {
 						ui.Icon(c, it.icon).Size(14, 14).TextColor(pal.textFaint)
 					}

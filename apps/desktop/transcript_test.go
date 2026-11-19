@@ -113,23 +113,23 @@ func TestChatBlocks(t *testing.T) {
 	msgs := []protocol.Message{
 		msg("m1", "human", "add a README"),
 		msg("m2", "super", "Sent it to coder."),
-		msg("m3", "system", "[job job_1] agent coder: done"),
+		msg("m3", "system", "[task tsk_1] agent coder: done"),
 		msg("m4", "super", "The README is in."),
 	}
 	evs := []ir.Event{
 		done(1, ir.Item{ID: "u1", Kind: ir.ItemUserMessage, Text: "[user] add a README"}, t0),
-		done(2, ir.Item{ID: "t1", Kind: ir.ItemToolCall, Tool: shell("solax job send coder")}, t0),
+		done(2, ir.Item{ID: "t1", Kind: ir.ItemToolCall, Tool: shell("solax task send coder")}, t0),
 		done(3, ir.Item{ID: "a1", Kind: ir.ItemAgentMessage, Text: "Sent it to coder.\n"}, t0),
-		done(4, ir.Item{ID: "t2", Kind: ir.ItemToolCall, Tool: shell("solax job get job_1")}, t0),
+		done(4, ir.Item{ID: "t2", Kind: ir.ItemToolCall, Tool: shell("solax task get tsk_1")}, t0),
 		done(5, ir.Item{ID: "a2", Kind: ir.ItemAgentMessage, Text: "The README is in."}, t0),
-		done(6, ir.Item{ID: "t3", Kind: ir.ItemToolCall, Tool: shell("solax jobs")}, t0),
+		done(6, ir.Item{ID: "t3", Kind: ir.ItemToolCall, Tool: shell("solax tasks")}, t0),
 	}
 	bs := chatBlocks(msgs, evs, nil, true)
 	want := []blockKind{blockUser, blockSteps, blockReply, blockNote, blockSteps, blockReply, blockSteps}
 	if got := kinds(bs); !slices.Equal(got, want) {
 		t.Fatalf("kinds = %v, want %v", got, want)
 	}
-	if bs[1].steps[0].id != "t1" || bs[4].steps[0].id != "t2" || bs[3].job != "job_1" || bs[3].text != "agent coder: done" {
+	if bs[1].steps[0].id != "t1" || bs[4].steps[0].id != "t2" || bs[3].task != "tsk_1" || bs[3].text != "agent coder: done" {
 		t.Fatalf("blocks = %+v", bs)
 	}
 	if !bs[6].live || bs[6].key != "steps-t3" {

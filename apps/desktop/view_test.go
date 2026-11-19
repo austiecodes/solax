@@ -39,7 +39,7 @@ func push(t *testing.T, event string, v any) protocol.Push {
 // Every page renders without a server, and a click on an empty form
 // starts no request.
 func TestPagesRender(t *testing.T) {
-	for _, page := range []string{pageChat, pageJobs, pageAgents, pageMachines, pageSettings} {
+	for _, page := range []string{pageChat, pageTasks, pageAgents, pageMachines, pageSettings} {
 		t.Run(page, func(t *testing.T) {
 			d := testDesktop(t)
 			d.page = page
@@ -51,8 +51,8 @@ func TestPagesRender(t *testing.T) {
 	}
 }
 
-// Pushes from the stream build the conversation, the jobs and the live
-// state of the Super Agent; the jobs page shows the events of a job.
+// Pushes from the stream build the conversation, the tasks and the live
+// state of the Super Agent; the tasks page shows the events of a task.
 func TestStreamPushes(t *testing.T) {
 	d := testDesktop(t)
 	now := time.Now()
@@ -68,26 +68,26 @@ func TestStreamPushes(t *testing.T) {
 		t.Fatal("Super Agent turn did not show as busy")
 	}
 
-	job := protocol.Job{ID: "job_1", Agent: "coder", SessionID: "ses_1", State: "running", Title: "Fix the bug", Prompt: "Fix the bug", CreatedAt: now}
-	d.apply(push(t, "job", job))
+	task := protocol.Task{ID: "tsk_1", Agent: "coder", SessionID: "ses_1", State: "running", Title: "Fix the bug", Prompt: "Fix the bug", CreatedAt: now}
+	d.apply(push(t, "task", task))
 	tool := &ir.ToolCall{Name: "Bash", Class: ir.ToolShell, Input: json.RawMessage(`{"command":"go test ./..."}`), Output: "ok"}
 	for _, e := range []ir.Event{
 		{Seq: 1, Type: ir.TurnStarted, Turn: &ir.Turn{Cause: ir.CauseInput}},
 		{Seq: 2, Type: ir.ItemCompleted, Item: &ir.Item{ID: "t1", Kind: ir.ItemToolCall, Status: ir.StatusCompleted, Tool: tool}},
 		{Seq: 0, Type: ir.ItemDelta, Delta: &ir.Delta{ItemID: "a1", Kind: "text", Text: "Fixed"}},
 	} {
-		d.apply(push(t, "session.event", protocol.SessionEventNote{SessionID: "ses_1", JobID: "job_1", Agent: "coder", Event: e}))
+		d.apply(push(t, "session.event", protocol.SessionEventNote{SessionID: "ses_1", TaskID: "tsk_1", Agent: "coder", Event: e}))
 	}
 	if len(d.events["ses_1"]) != 2 || d.live["ses_1"]["a1"].text != "Fixed" {
 		t.Fatalf("events = %+v live = %+v", d.events["ses_1"], d.live["ses_1"])
 	}
 
-	d.page, d.jobSel = pageJobs, "job_1"
+	d.page, d.taskSel = pageTasks, "tsk_1"
 	tt := ui.NewTester(d.view, 1240, 820)
 	// The tool call is done and text follows it, so its group is closed.
 	for _, want := range []string{"coder", "Fix the bug", "1 tool used", "Fixed"} {
 		if !tt.HasText(want) {
-			t.Fatalf("jobs page lacks %q: %q", want, tt.Texts())
+			t.Fatalf("tasks page lacks %q: %q", want, tt.Texts())
 		}
 	}
 	if tt.HasText("go test ./...") {
@@ -99,19 +99,19 @@ func TestStreamPushes(t *testing.T) {
 		t.Fatalf("an open group lacks its steps: %q", tt.Texts())
 	}
 
-	job.State, job.Result = "done", "All tests pass."
-	d.apply(push(t, "job", job))
-	if d.countJobs(func(j protocol.Job) bool { return jobLive(j.State) }) != 0 || len(d.jobs) != 1 {
-		t.Fatalf("jobs = %+v", d.jobs)
+	task.State, task.Result = "done", "All tests pass."
+	d.apply(push(t, "task", task))
+	if d.countTasks(func(j protocol.Task) bool { return taskLive(j.State) }) != 0 || len(d.tasks) != 1 {
+		t.Fatalf("tasks = %+v", d.tasks)
 	}
 }
 
-func TestJobOf(t *testing.T) {
-	if got := jobOf("[job job_9] agent coder: done"); got != "job_9" {
-		t.Fatalf("jobOf = %q", got)
+func TestTaskOf(t *testing.T) {
+	if got := taskOf("[task tsk_9] agent coder: done"); got != "tsk_9" {
+		t.Fatalf("taskOf = %q", got)
 	}
-	if jobOf("hello") != "" {
-		t.Fatal("jobOf of a plain text")
+	if taskOf("hello") != "" {
+		t.Fatal("taskOf of a plain text")
 	}
 }
 
@@ -143,7 +143,7 @@ func TestActions(t *testing.T) {
 	}
 }
 
-// Prefs survive a restart: the page, the job, the sidebar.
+// Prefs survive a restart: the page, the task, the sidebar.
 func TestPrefsRoundTrip(t *testing.T) {
 	st, err := profile.Open(t.TempDir()+"/profiles.json", memSecrets{})
 	if err != nil {
@@ -154,68 +154,68 @@ func TestPrefsRoundTrip(t *testing.T) {
 	if d.page != pageChat || d.prefs.SidebarWidth != defaultSidebar {
 		t.Fatalf("defaults: page %q width %v", d.page, d.prefs.SidebarWidth)
 	}
-	d.page, d.jobSel, d.prefs.SidebarWidth, d.prefs.SidebarHidden = pageJobs, "job_7", 300, true
+	d.page, d.taskSel, d.prefs.SidebarWidth, d.prefs.SidebarHidden = pageTasks, "tsk_7", 300, true
 	d.savePrefs()
 
 	d2 := newDesktop(st, path)
-	if d2.page != pageJobs || d2.jobSel != "job_7" || d2.prefs.SidebarWidth != 300 || !d2.prefs.SidebarHidden {
-		t.Fatalf("restored %+v page %q job %q", d2.prefs, d2.page, d2.jobSel)
+	if d2.page != pageTasks || d2.taskSel != "tsk_7" || d2.prefs.SidebarWidth != 300 || !d2.prefs.SidebarHidden {
+		t.Fatalf("restored %+v page %q task %q", d2.prefs, d2.page, d2.taskSel)
 	}
 }
 
-// A job that ends while the user looks elsewhere is unread: bold in the
+// A task that ends while the user looks elsewhere is unread: bold in the
 // sidebar, counted in the footer. Opening it reads it; the footer chip
 // jumps to the next unread one.
-func TestUnreadJobs(t *testing.T) {
+func TestUnreadTasks(t *testing.T) {
 	d := testDesktop(t)
 	d.conn.State = "connected"
 	now := time.Now()
-	a := protocol.Job{ID: "job_a", Agent: "coder", State: "running", Title: "Job A", CreatedAt: now}
-	b := protocol.Job{ID: "job_b", Agent: "coder", State: "running", Title: "Job B", CreatedAt: now}
-	d.apply(push(t, "job", a))
-	d.apply(push(t, "job", b))
-	d.openJob("job_a") // the user watches A
+	a := protocol.Task{ID: "tsk_a", Agent: "coder", State: "running", Title: "Task A", CreatedAt: now}
+	b := protocol.Task{ID: "tsk_b", Agent: "coder", State: "running", Title: "Task B", CreatedAt: now}
+	d.apply(push(t, "task", a))
+	d.apply(push(t, "task", b))
+	d.openTask("tsk_a") // the user watches A
 
 	a.State, b.State = "done", "failed"
-	d.apply(push(t, "job", a))
-	d.apply(push(t, "job", b))
-	if d.unread["job_a"] || !d.unread["job_b"] {
-		t.Fatalf("unread = %v, want only job_b", d.unread)
+	d.apply(push(t, "task", a))
+	d.apply(push(t, "task", b))
+	if d.unread["tsk_a"] || !d.unread["tsk_b"] {
+		t.Fatalf("unread = %v, want only tsk_b", d.unread)
 	}
 	tt := ui.NewTester(d.view, 1240, 820)
-	if !tt.HasText("Job B") || !tt.HasText("1") {
-		t.Fatalf("sidebar lacks the unread job: %q", tt.Texts())
+	if !tt.HasText("Task B") || !tt.HasText("1") {
+		t.Fatalf("sidebar lacks the unread task: %q", tt.Texts())
 	}
 	if err := tt.Click("1 failed"); err != nil {
 		t.Fatal(err)
 	}
-	if d.jobSel != "job_b" || d.unread["job_b"] {
-		t.Fatalf("chip opened %q, unread %v", d.jobSel, d.unread)
+	if d.taskSel != "tsk_b" || d.unread["tsk_b"] {
+		t.Fatalf("chip opened %q, unread %v", d.taskSel, d.unread)
 	}
 }
 
-// The Jobs page without an open job lists all jobs; nav.jobs goes there.
-func TestJobsOverview(t *testing.T) {
+// The Tasks page without an open task lists all tasks; nav.tasks goes there.
+func TestTasksOverview(t *testing.T) {
 	d := testDesktop(t)
-	d.apply(push(t, "job", protocol.Job{ID: "job_1", Agent: "coder", State: "queued", Title: "Write docs", CreatedAt: time.Now()}))
-	d.openJob("job_1")
-	d.run("nav.jobs")
-	if d.jobSel != "" || d.page != pageJobs {
-		t.Fatalf("nav.jobs: page %q job %q", d.page, d.jobSel)
+	d.apply(push(t, "task", protocol.Task{ID: "tsk_1", Agent: "coder", State: "queued", Title: "Write docs", CreatedAt: time.Now()}))
+	d.openTask("tsk_1")
+	d.run("nav.tasks")
+	if d.taskSel != "" || d.page != pageTasks {
+		t.Fatalf("nav.tasks: page %q task %q", d.page, d.taskSel)
 	}
 	tt := ui.NewTester(d.view, 1240, 820)
-	if !tt.HasText("1 job, 1 running") {
+	if !tt.HasText("1 task, 1 running") {
 		t.Fatalf("overview not shown: %q", tt.Texts())
 	}
 }
 
-// The palette finds jobs and actions by fuzzy letters; Return runs the
+// The palette finds tasks and actions by fuzzy letters; Return runs the
 // first match, and the arrows move the highlight.
 func TestPalette(t *testing.T) {
 	d := testDesktop(t)
 	now := time.Now()
-	d.apply(push(t, "job", protocol.Job{ID: "job_1", Agent: "coder", State: "running", Title: "Add a README", CreatedAt: now}))
-	d.apply(push(t, "job", protocol.Job{ID: "job_2", Agent: "tester", State: "done", Title: "Run tests", CreatedAt: now}))
+	d.apply(push(t, "task", protocol.Task{ID: "tsk_1", Agent: "coder", State: "running", Title: "Add a README", CreatedAt: now}))
+	d.apply(push(t, "task", protocol.Task{ID: "tsk_2", Agent: "tester", State: "done", Title: "Run tests", CreatedAt: now}))
 
 	got := matches(d.paletteItems(), "rdme")
 	if len(got) == 0 || got[0].title != "Add a README" {
@@ -230,13 +230,13 @@ func TestPalette(t *testing.T) {
 
 	d.run("palette.open")
 	tt := ui.NewTester(d.view, 1240, 820)
-	if !tt.HasText("Jobs") || !tt.HasText("Actions") {
+	if !tt.HasText("Tasks") || !tt.HasText("Actions") {
 		t.Fatalf("palette groups missing: %q", tt.Texts())
 	}
 	tt.Type("run tests")
 	tt.Key(0, ui.KeyEnter)
-	if d.pal.open || d.page != pageJobs || d.jobSel != "job_2" {
-		t.Fatalf("palette: open %v page %q job %q", d.pal.open, d.page, d.jobSel)
+	if d.pal.open || d.page != pageTasks || d.taskSel != "tsk_2" {
+		t.Fatalf("palette: open %v page %q task %q", d.pal.open, d.page, d.taskSel)
 	}
 
 	d.run("palette.open")
@@ -284,30 +284,30 @@ type fakeNotes struct {
 func (f *fakeNotes) notify(_, title, _ string) { f.shown = append(f.shown, title) }
 func (f *fakeNotes) badge(n int)               { f.count = n }
 
-// A job that ends while the window is in the back notifies; one that ends
+// A task that ends while the window is in the back notifies; one that ends
 // while it is in front does not, but is unread all the same. Cancelled
-// jobs never notify. The badge counts unread failed jobs.
+// tasks never notify. The badge counts unread failed tasks.
 func TestNotifications(t *testing.T) {
 	d := testDesktop(t)
 	notes := &fakeNotes{}
 	d.notes = notes
 	now := time.Now()
-	jobs := []protocol.Job{
+	tasks := []protocol.Task{
 		{ID: "j1", Agent: "coder", State: "running", Title: "One", CreatedAt: now},
 		{ID: "j2", Agent: "tester", State: "running", Title: "Two", CreatedAt: now},
 		{ID: "j3", Agent: "coder", State: "running", Title: "Three", CreatedAt: now},
 	}
-	for _, j := range jobs {
-		d.apply(push(t, "job", j))
+	for _, j := range tasks {
+		d.apply(push(t, "task", j))
 	}
 
-	jobs[0].State = "done" // in front: no notification
-	d.apply(push(t, "job", jobs[0]))
+	tasks[0].State = "done" // in front: no notification
+	d.apply(push(t, "task", tasks[0]))
 	d.setFocused(false)
-	jobs[1].State, jobs[1].Error = "failed", "exit 1"
-	d.apply(push(t, "job", jobs[1]))
-	jobs[2].State = "cancelled"
-	d.apply(push(t, "job", jobs[2]))
+	tasks[1].State, tasks[1].Error = "failed", "exit 1"
+	d.apply(push(t, "task", tasks[1]))
+	tasks[2].State = "cancelled"
+	d.apply(push(t, "task", tasks[2]))
 
 	if len(notes.shown) != 1 || notes.shown[0] != "tester failed" {
 		t.Fatalf("notifications = %q", notes.shown)
@@ -318,13 +318,13 @@ func TestNotifications(t *testing.T) {
 	if notes.count != 1 {
 		t.Fatalf("badge = %d, want 1", notes.count)
 	}
-	d.openJob("j2")
+	d.openTask("j2")
 	if notes.count != 0 || d.unread["j2"] {
 		t.Fatalf("after reading: badge %d unread %v", notes.count, d.unread)
 	}
 }
 
-// Unread jobs survive a restart, and a job that ended while the app was
+// Unread tasks survive a restart, and a task that ended while the app was
 // closed is unread on the first load. A reload after a reconnect marks
 // what ended while the stream was down.
 func TestUnreadAcrossRestart(t *testing.T) {
@@ -336,7 +336,7 @@ func TestUnreadAcrossRestart(t *testing.T) {
 	now := time.Now()
 
 	d := newDesktop(st, path)
-	d.setJobs([]protocol.Job{
+	d.setTasks([]protocol.Task{
 		{ID: "old", State: "done", UpdatedAt: now.Add(-time.Hour)},
 		{ID: "a", State: "running", UpdatedAt: now},
 	})
@@ -345,7 +345,7 @@ func TestUnreadAcrossRestart(t *testing.T) {
 
 	// Restart: "a" ended while the app was closed; "old" is still unread.
 	d2 := newDesktop(st, path)
-	d2.setJobs([]protocol.Job{
+	d2.setTasks([]protocol.Task{
 		{ID: "old", State: "done", UpdatedAt: now.Add(-time.Hour)},
 		{ID: "a", State: "done", UpdatedAt: time.Now().Add(time.Minute)},
 		{ID: "b", State: "running", UpdatedAt: now},
@@ -355,7 +355,7 @@ func TestUnreadAcrossRestart(t *testing.T) {
 	}
 
 	// Reconnect: "b" ended while the stream was down; "old" left the list.
-	d2.setJobs([]protocol.Job{
+	d2.setTasks([]protocol.Task{
 		{ID: "a", State: "done"},
 		{ID: "b", State: "failed"},
 	})

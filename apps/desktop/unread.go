@@ -10,17 +10,17 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// Unread jobs, as kero's unread sessions: a job that ends while the user
+// Unread tasks, as kero's unread sessions: a task that ends while the user
 // does not look at it. The sidebar shows it bold, the footer counts it, a
 // notification tells of it while the window is not in front, and the Dock
 // badge counts the failed ones. The list is saved with the prefs, so it
-// survives a restart; jobs that ended while the app was closed become
+// survives a restart; tasks that ended while the app was closed become
 // unread on the first load.
 
-// notifier tells the system about jobs: notifications and the Dock badge.
+// notifier tells the system about tasks: notifications and the Dock badge.
 // Tests use a fake.
 type notifier interface {
-	notify(jobID, title, body string)
+	notify(taskID, title, body string)
 	badge(n int)
 }
 
@@ -30,17 +30,17 @@ type noNotifier struct{}
 func (noNotifier) notify(string, string, string) {}
 func (noNotifier) badge(int)                     {}
 
-// systemNotifier shows macOS notifications. A click opens the job.
+// systemNotifier shows macOS notifications. A click opens the task.
 type systemNotifier struct{ d *desktop }
 
-func (s systemNotifier) notify(jobID, title, body string) {
+func (s systemNotifier) notify(taskID, title, body string) {
 	if !mygo.NotificationsSupported() {
 		return
 	}
-	n := mygo.NewNotification(mygo.NotificationOptions{ID: "job/" + jobID, Group: "jobs", Title: title, Body: body})
+	n := mygo.NewNotification(mygo.NotificationOptions{ID: "task/" + taskID, Group: "tasks", Title: title, Body: body})
 	n.OnClick(func() {
 		s.d.update(func() {
-			s.d.openJob(jobID)
+			s.d.openTask(taskID)
 			s.d.showWindow()
 		})
 		n.Close()
@@ -50,10 +50,10 @@ func (s systemNotifier) notify(jobID, title, body string) {
 
 func (systemNotifier) badge(n int) { mygo.App.SetBadgeCount(n) }
 
-// jobEnded handles a job that came to an end, from a push or a reload:
+// taskEnded handles a task that came to an end, from a push or a reload:
 // unread unless the user looks at it, and a notification while the window
-// is not in front. Cancelled jobs notify nobody: someone chose that.
-func (d *desktop) jobEnded(j protocol.Job, notify bool) {
+// is not in front. Cancelled tasks notify nobody: someone chose that.
+func (d *desktop) taskEnded(j protocol.Task, notify bool) {
 	if d.watching(j.ID) {
 		return
 	}
@@ -87,37 +87,37 @@ func (d *desktop) markRead(id string) {
 
 // unreadChanged saves the list and sets the badge.
 func (d *desktop) unreadChanged() {
-	d.notes.badge(d.countJobs(func(j protocol.Job) bool { return j.State == "failed" && d.unread[j.ID] }))
+	d.notes.badge(d.countTasks(func(j protocol.Task) bool { return j.State == "failed" && d.unread[j.ID] }))
 	d.savePrefs()
 }
 
-// setJobs takes the jobs of a full reload. On the first load it marks
+// setTasks takes the tasks of a full reload. On the first load it marks
 // what ended since the app last ran; later (after a reconnect) what ended
-// while the stream was down. Unread IDs of jobs gone from the list go.
-func (d *desktop) setJobs(jobs []protocol.Job) {
+// while the stream was down. Unread IDs of tasks gone from the list go.
+func (d *desktop) setTasks(tasks []protocol.Task) {
 	old := map[string]string{}
-	for _, j := range d.jobs {
+	for _, j := range d.tasks {
 		old[j.ID] = j.State
 	}
 	first := !d.loaded
-	d.jobs, d.loaded = jobs, true
-	for _, j := range jobs {
-		if jobLive(j.State) {
+	d.tasks, d.loaded = tasks, true
+	for _, j := range tasks {
+		if taskLive(j.State) {
 			continue
 		}
 		if first {
 			if seen := d.prefs.SeenAt; !seen.IsZero() && j.UpdatedAt.After(seen) {
-				d.jobEnded(j, false)
+				d.taskEnded(j, false)
 			}
 			continue
 		}
-		if prev, ok := old[j.ID]; !ok || jobLive(prev) {
-			d.jobEnded(j, true)
+		if prev, ok := old[j.ID]; !ok || taskLive(prev) {
+			d.taskEnded(j, true)
 		}
 	}
 	gone := false
 	for id := range d.unread {
-		if !slices.ContainsFunc(jobs, func(j protocol.Job) bool { return j.ID == id }) {
+		if !slices.ContainsFunc(tasks, func(j protocol.Task) bool { return j.ID == id }) {
 			delete(d.unread, id)
 			gone = true
 		}
@@ -137,8 +137,8 @@ func (d *desktop) unreadIDs() []string {
 	return ids
 }
 
-// seenNow is the time saved as SeenAt: now once the jobs are loaded;
-// before that the old time stays, or jobs that ended while the app was
+// seenNow is the time saved as SeenAt: now once the tasks are loaded;
+// before that the old time stays, or tasks that ended while the app was
 // closed would never be marked.
 func (d *desktop) seenNow() time.Time {
 	if d.loaded {

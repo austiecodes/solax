@@ -38,20 +38,20 @@ func SessionStateChanged(ctx context.Context, machineID model.ID, r protocol.Ses
 	return err
 }
 
-// SessionEvent stores a reliable IR event, moves the session and its job,
+// SessionEvent stores a reliable IR event, moves the session and its task,
 // and pushes the event to the clients. Deltas are only pushed.
 func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEvent) error {
 	ev := se.Event
 	var (
 		owner   model.ID
 		note    protocol.SessionEventNote
-		job     *model.Job
+		task    *model.Task
 		agentNm string
 		fresh   = true
 		post    afterCommit
 	)
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
-		post, job = nil, nil
+		post, task = nil, nil
 		ses, err := sessionOn(ctx, tx, machineID, model.ID(ev.SessionID))
 		if err != nil {
 			return err
@@ -65,7 +65,7 @@ func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEv
 			return err
 		}
 		owner, agentNm = m.OwnerID, ag.Name
-		note = protocol.SessionEventNote{SessionID: string(ses.ID), Agent: ag.Name, JobID: string(ses.JobID), Super: ag.Role == model.RoleSuper, Event: ev}
+		note = protocol.SessionEventNote{SessionID: string(ses.ID), Agent: ag.Name, TaskID: string(ses.TaskID), Super: ag.Role == model.RoleSuper, Event: ev}
 		if !ev.Type.Reliable() {
 			return nil
 		}
@@ -92,23 +92,23 @@ func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEv
 		if err := model.SaveSession(ctx, tx, ses); err != nil {
 			return err
 		}
-		if ses.JobID == "" {
+		if ses.TaskID == "" {
 			return superEvent(ctx, tx, ses, ev, &post)
 		}
-		j, err := model.GetJob(ctx, tx, ses.JobID)
+		j, err := model.GetTask(ctx, tx, ses.TaskID)
 		if err != nil {
 			return err
 		}
-		if changed := applyJobEvent(&j, ev); !changed {
+		if changed := applyTaskEvent(&j, ev); !changed {
 			return nil
 		}
 		j.UpdatedAt = now
-		if err := model.SaveJob(ctx, tx, j); err != nil {
+		if err := model.SaveTask(ctx, tx, j); err != nil {
 			return err
 		}
-		job = &j
+		task = &j
 		if j.State.Terminal() {
-			return jobFinished(ctx, tx, j, ag, &post)
+			return taskFinished(ctx, tx, j, ag, &post)
 		}
 		return nil
 	})
@@ -119,9 +119,9 @@ func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEv
 	if fresh {
 		Publish(ctx, owner, PushSession, note)
 	}
-	if job != nil {
-		Publish(ctx, owner, PushJob, model.WireJob(*job, agentNm))
-		if job.State.Terminal() {
+	if task != nil {
+		Publish(ctx, owner, PushTask, model.WireTask(*task, agentNm))
+		if task.State.Terminal() {
 			Wake()
 		}
 	}

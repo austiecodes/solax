@@ -67,7 +67,7 @@ type Heartbeat struct {
 }
 
 // SessionRole is the role of the agent in this session. The server decides
-// it: a job session is a worker, and the Super Agent has its own session.
+// it: a task session is a worker, and the Super Agent has its own session.
 // The daemon loads prompts/<role>.md for it.
 type SessionRole string
 
@@ -83,7 +83,7 @@ type SessionEnsure struct {
 	SessionID  string         `json:"session_id"`
 	Agent      string         `json:"agent"` // agent name
 	Role       SessionRole    `json:"role"`
-	Job        string         `json:"job,omitempty"` // empty for the Super Agent
+	Task       string         `json:"task,omitempty"` // empty for the Super Agent
 	AgentToken string         `json:"agent_token"`
 	Resume     *ir.SessionRef `json:"resume,omitempty"`
 	Runtime    ir.Kind        `json:"runtime"`

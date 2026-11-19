@@ -141,7 +141,7 @@ func UpdateAgent(ctx context.Context, a model.Actor, ref string, p AgentPatch) (
 	return ag, err
 }
 
-// DeleteAgent removes an agent. Its jobs and session history stay.
+// DeleteAgent removes an agent. Its tasks and session history stay.
 func DeleteAgent(ctx context.Context, a model.Actor, ref string) error {
 	if err := requireHuman(a); err != nil {
 		return err
@@ -267,12 +267,12 @@ type AgentView struct {
 	// a working runtime for the agent.
 	Online bool
 	// SessionID is the conversation session of the Super Agent, once it
-	// has one. It is empty for other agents: their sessions are per job.
+	// has one. It is empty for other agents: their sessions are per task.
 	SessionID model.ID
 }
 
 // Agents lists the live agents of the owner. The Super Agent uses it to
-// choose where a job goes.
+// choose where a task goes.
 func Agents(ctx context.Context, a model.Actor) ([]AgentView, error) {
 	var out []AgentView
 	err := model.Snapshot(ctx, func(tx *sql.Tx) error {

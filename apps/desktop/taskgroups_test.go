@@ -6,15 +6,15 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// Jobs group by the work folder of their agent, or by agent, in the order
-// of their newest job; a job whose agent is gone goes to "Other".
-func TestGroupJobs(t *testing.T) {
+// Tasks group by the work folder of their agent, or by agent, in the order
+// of their newest task; a task whose agent is gone goes to "Other".
+func TestGroupTasks(t *testing.T) {
 	agents := []protocol.Agent{
 		{ID: "a1", Name: "coder", Machine: "mac", Dir: "~/codes"},
 		{ID: "a2", Name: "helper", Machine: "mac", Dir: "~/codes/"},
 		{ID: "a3", Name: "reviewer", Machine: "box", Dir: "~/src/app"},
 	}
-	jobs := []protocol.Job{
+	tasks := []protocol.Task{
 		{ID: "j1", Agent: "reviewer", AgentID: "a3"},
 		{ID: "j2", Agent: "coder", AgentID: "a1"},
 		{ID: "j3", Agent: "gone"},
@@ -27,13 +27,13 @@ func TestGroupJobs(t *testing.T) {
 	}
 	check := func(by string, w []want) {
 		t.Helper()
-		gs := groupJobs(jobs, agents, by)
+		gs := groupTasks(tasks, agents, by)
 		if len(gs) != len(w) {
 			t.Fatalf("%s: %d groups, want %d: %+v", by, len(gs), len(w), gs)
 		}
 		for i, g := range gs {
 			var ids []string
-			for _, j := range g.jobs {
+			for _, j := range g.tasks {
 				ids = append(ids, j.ID)
 			}
 			if g.title != w[i].title || len(ids) != len(w[i].ids) {
@@ -50,11 +50,11 @@ func TestGroupJobs(t *testing.T) {
 	check("agent", []want{{"reviewer", []string{"j1", "j5"}}, {"coder", []string{"j2"}}, {"gone", []string{"j3"}}, {"helper", []string{"j4"}}})
 	check("none", []want{{"", []string{"j1", "j2", "j3", "j4", "j5"}}})
 
-	order := sidebarJobs(groupJobs(jobs, agents, "project"))
+	order := sidebarTasks(groupTasks(tasks, agents, "project"))
 	if order[1].ID != "j5" {
 		t.Fatalf("sidebar order = %v", order)
 	}
-	if loadPrefs("").JobGroups != defaultGrouping {
+	if loadPrefs("").TaskGroups != defaultGrouping {
 		t.Fatal("the default grouping is not set")
 	}
 }

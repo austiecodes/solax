@@ -65,8 +65,8 @@ func (d *desktop) view(c *ui.Context) {
 // pageView is the page in view.
 func (d *desktop) pageView(c *ui.Context) {
 	switch d.page {
-	case pageJobs:
-		d.jobsPage(c)
+	case pageTasks:
+		d.tasksPage(c)
 	case pageAgents:
 		d.agentsPage(c)
 	case pageMachines:

@@ -17,7 +17,7 @@ type TokenRequest struct {
 	OwnerID   ID
 	AgentID   ID
 	SessionID ID
-	Job       ID // empty for the Super Agent
+	Task      ID // empty for the Super Agent
 	Super     bool
 	TTL       time.Duration
 }

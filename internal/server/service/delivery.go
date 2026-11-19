@@ -90,12 +90,12 @@ func ensureFor(ctx context.Context, ses model.Session, ag model.Agent, m model.M
 		role = protocol.RoleSuper
 	}
 	ens := protocol.SessionEnsure{
-		SessionID: string(ses.ID), Agent: ag.Name, Role: role, Job: string(ses.JobID),
+		SessionID: string(ses.ID), Agent: ag.Name, Role: role, Task: string(ses.TaskID),
 		Runtime: ag.Runtime, Dir: ag.Dir, Model: ag.Model, Options: ag.Options, Resume: ses.Ref,
 		Instructions: ag.Instructions,
 		LastSeq:      uint64(ses.LastSeq),
 	}
-	tok, err := IssueToken(ctx, model.TokenRequest{OwnerID: m.OwnerID, AgentID: ag.ID, SessionID: ses.ID, Job: ses.JobID, Super: ag.Role == model.RoleSuper})
+	tok, err := IssueToken(ctx, model.TokenRequest{OwnerID: m.OwnerID, AgentID: ag.ID, SessionID: ses.ID, Task: ses.TaskID, Super: ag.Role == model.RoleSuper})
 	if err != nil {
 		return ens, err
 	}
@@ -131,22 +131,22 @@ func SessionLost(ctx context.Context, sessionID model.ID) error {
 	})
 }
 
-// DeliveryFailed records that a session could not start. Its job fails;
+// DeliveryFailed records that a session could not start. Its task fails;
 // the inputs stay pending for the Super Agent session, which retries.
 func DeliveryFailed(ctx context.Context, sessionID model.ID, reason string) error {
-	var job *model.Job
+	var task *model.Task
 	var name string
 	var post afterCommit
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
-		post, job = nil, nil
+		post, task = nil, nil
 		ses, err := model.GetSession(ctx, tx, sessionID)
 		if err != nil {
 			return err
 		}
-		if ses.JobID == "" {
+		if ses.TaskID == "" {
 			return nil
 		}
-		j, err := model.GetJob(ctx, tx, ses.JobID)
+		j, err := model.GetTask(ctx, tx, ses.TaskID)
 		if err != nil {
 			return err
 		}
@@ -165,16 +165,16 @@ func DeliveryFailed(ctx context.Context, sessionID model.ID, reason string) erro
 		if err != nil {
 			return err
 		}
-		j.State, j.Error, j.UpdatedAt = model.JobFailed, reason, clock()
-		job, name = &j, ag.Name
-		if err := model.SaveJob(ctx, tx, j); err != nil {
+		j.State, j.Error, j.UpdatedAt = model.TaskFailed, reason, clock()
+		task, name = &j, ag.Name
+		if err := model.SaveTask(ctx, tx, j); err != nil {
 			return err
 		}
-		return jobFinished(ctx, tx, j, ag, &post)
+		return taskFinished(ctx, tx, j, ag, &post)
 	})
 	post.run()
-	if job != nil {
-		Publish(ctx, job.OwnerID, PushJob, model.WireJob(*job, name))
+	if task != nil {
+		Publish(ctx, task.OwnerID, PushTask, model.WireTask(*task, name))
 		Wake()
 	}
 	return err

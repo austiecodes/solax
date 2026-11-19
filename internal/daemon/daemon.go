@@ -137,7 +137,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 }
 
 // sessionEnv is the environment of one session. The agent calls the
-// solax CLI with it: the server URL, its own agent token and its job.
+// solax CLI with it: the server URL, its own agent token and its task.
 func (d *Daemon) sessionEnv(e protocol.SessionEnsure) map[string]string {
 	env := map[string]string{
 		"SOLAX_SERVER":  d.config().Backend.URL,
@@ -148,8 +148,8 @@ func (d *Daemon) sessionEnv(e protocol.SessionEnsure) map[string]string {
 		// back from the solax CLI, whatever the language of this machine.
 		locale.EnvLang: locale.English,
 	}
-	if e.Job != "" {
-		env["SOLAX_JOB"] = e.Job
+	if e.Task != "" {
+		env["SOLAX_TASK"] = e.Task
 	}
 	if d.bin != "" {
 		env["PATH"] = d.bin + string(os.PathListSeparator) + os.Getenv("PATH")

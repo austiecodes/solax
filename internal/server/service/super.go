@@ -15,9 +15,9 @@ import (
 // The Super Agent conversation.
 //
 // The user talks only to the Super Agent. Its session has an inbox like
-// every session: user messages and the results of the jobs that it
+// every session: user messages and the results of the tasks that it
 // dispatched go there, and the delivery loop sends them as input. The
-// Super Agent never waits for a job: it dispatches, ends its turn, and the
+// Super Agent never waits for a task: it dispatches, ends its turn, and the
 // result wakes it later.
 //
 // Every agent message of the Super Agent session becomes a reply in the
@@ -75,7 +75,7 @@ func SuperReply(ctx context.Context, a model.Actor, text string) (model.Message,
 }
 
 // superSession returns the session of the Super Agent, and creates it on
-// first use. It has no job.
+// first use. It has no task.
 func superSession(ctx context.Context, tx *sql.Tx) (model.Session, error) {
 	ag, err := superAgent(ctx, tx)
 	if err != nil {
@@ -125,20 +125,20 @@ func superEvent(ctx context.Context, tx *sql.Tx, ses model.Session, ev ir.Event,
 	return nil
 }
 
-// jobFinished reports a finished job of the Super Agent back to it: a
+// taskFinished reports a finished task of the Super Agent back to it: a
 // system note in the conversation, and an input in its inbox.
-func jobFinished(ctx context.Context, tx *sql.Tx, j model.Job, ag model.Agent, post *afterCommit) error {
+func taskFinished(ctx context.Context, tx *sql.Tx, j model.Task, ag model.Agent, post *afterCommit) error {
 	if j.RequestedBy != model.AuthorSuper {
 		return nil
 	}
 	ses, err := superSession(ctx, tx)
 	if errors.Is(err, errs.ErrNotFound) {
-		return nil // the Super Agent was removed; the job result stays on the job
+		return nil // the Super Agent was removed; the task result stays on the task
 	}
 	if err != nil {
 		return err
 	}
-	head := fmt.Sprintf("[job %s] agent %s: %s", j.ID, ag.Name, j.State)
+	head := fmt.Sprintf("[task %s] agent %s: %s", j.ID, ag.Name, j.State)
 	var b strings.Builder
 	b.WriteString(head)
 	if j.Error != "" {

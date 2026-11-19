@@ -24,7 +24,7 @@ import (
 // Pages of the sidebar.
 const (
 	pageChat     = "chat"
-	pageJobs     = "jobs"
+	pageTasks    = "tasks"
 	pageAgents   = "agents"
 	pageMachines = "machines"
 	pageSettings = "settings"
@@ -40,7 +40,7 @@ type navPage struct {
 
 var navPages = []navPage{
 	{pageChat, "nav.chat", sparklesIcon},
-	{pageJobs, "nav.jobs", jobsIcon},
+	{pageTasks, "nav.tasks", tasksIcon},
 	{pageAgents, "nav.agents", agentIcon},
 	{pageMachines, "nav.machines", machineIcon},
 }
@@ -67,7 +67,7 @@ type desktop struct {
 	shown     float32 // how far the sidebar shows, 0 to 1, as last drawn
 	focused   bool    // the window is in front
 	notes     notifier
-	loaded    bool // the jobs of this server came at least once
+	loaded    bool // the tasks of this server came at least once
 
 	// Over the page: the command palette and a pending question.
 	pal     paletteState
@@ -94,15 +94,15 @@ type desktop struct {
 	superWaiting bool
 	superSes     string // its session: its events fill the chat with steps
 
-	// Jobs.
-	jobs        []protocol.Job
-	jobSel      string
-	unread      map[string]bool                 // jobs that ended while the user was not on them
+	// Tasks.
+	tasks       []protocol.Task
+	taskSel     string
+	unread      map[string]bool                 // tasks that ended while the user was not on them
 	events      map[string][]ir.Event           // session ID → stored and live events
 	live        map[string]map[string]*liveText // session ID → item ID → streamed text
 	folds       map[string]*fold                // block or step key → open or closed (transcript_view.go)
 	followDraft string
-	jobList     ui.ListState
+	taskList    ui.ListState
 
 	// Agents and machines.
 	agents     []protocol.Agent
@@ -154,16 +154,16 @@ func newDesktop(profiles *profile.Store, prefsPath string) *desktop {
 	}
 	return &desktop{
 		profiles: profiles, prefs: p, prefsPath: prefsPath, notes: noNotifier{},
-		page: p.Page, jobSel: p.Job,
+		page: p.Page, taskSel: p.Task,
 		conn: connState{State: "disconnected"}, focused: true, unread: unread,
 		events: map[string][]ir.Event{}, live: map[string]map[string]*liveText{}, folds: map[string]*fold{},
 		localErr: profile.ErrNoLocal, // until checkLocal runs
 	}
 }
 
-// savePrefs writes the prefs with the page and job in view.
+// savePrefs writes the prefs with the page and task in view.
 func (d *desktop) savePrefs() {
-	d.prefs.Page, d.prefs.Job = d.page, d.jobSel
+	d.prefs.Page, d.prefs.Task = d.page, d.taskSel
 	d.prefs.Unread, d.prefs.SeenAt = d.unreadIDs(), d.seenNow()
 	if err := d.prefs.save(d.prefsPath); err != nil {
 		log.Printf("solax: save prefs: %v", err)
@@ -249,11 +249,11 @@ func (d *desktop) connect() {
 	d.mu.Unlock()
 	d.update(func() {
 		d.setName, d.setServer = p.Name, p.Server
-		d.messages, d.jobs, d.agents, d.machines = nil, nil, nil, nil
+		d.messages, d.tasks, d.agents, d.machines = nil, nil, nil, nil
 		d.loaded = false // the first load of this server marks what ended since SeenAt
-		// jobSel stays: after a restart it names the job last open, and
-		// reloadAll loads its events. A job of another server shows as
-		// "Choose a job".
+		// taskSel stays: after a restart it names the task last open, and
+		// reloadAll loads its events. A task of another server shows as
+		// "Choose a task".
 		d.events, d.live, d.superSes = map[string][]ir.Event{}, map[string]map[string]*liveText{}, ""
 	})
 	go d.feed(ctx, c, p.Server)
@@ -321,14 +321,14 @@ func (d *desktop) feed(ctx context.Context, c *client.Client, server string) {
 	}
 }
 
-// reloadAll reads the conversation, jobs, agents and machines.
+// reloadAll reads the conversation, tasks, agents and machines.
 func (d *desktop) reloadAll() {
 	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 		msgs, err := c.SuperMessages(ctx, 0)
 		if err != nil {
 			return nil, err
 		}
-		jobs, err := c.Jobs(ctx, 100)
+		tasks, err := c.Tasks(ctx, 100)
 		if err != nil {
 			return nil, err
 		}
@@ -339,13 +339,13 @@ func (d *desktop) reloadAll() {
 		machines, err := c.Machines(ctx)
 		return func() {
 			d.messages, d.agents, d.machines = msgs, agents, machines
-			d.setJobs(jobs)
+			d.setTasks(tasks)
 			if sa := d.superAgent(); sa != nil && sa.SessionID != "" {
 				d.superSes = sa.SessionID
 				d.loadSession(sa.SessionID)
 			}
-			if d.jobSel != "" {
-				d.loadEvents(d.jobSel)
+			if d.taskSel != "" {
+				d.loadEvents(d.taskSel)
 			}
 		}, err
 	})
@@ -370,10 +370,10 @@ func (d *desktop) apply(p protocol.Push) {
 		if json.Unmarshal(p.Payload, &m) == nil {
 			d.addMessage(m)
 		}
-	case "job":
-		var j protocol.Job
+	case "task":
+		var j protocol.Task
 		if json.Unmarshal(p.Payload, &j) == nil {
-			d.upsertJob(j)
+			d.upsertTask(j)
 		}
 	case "session.event":
 		var n protocol.SessionEventNote
@@ -395,38 +395,38 @@ func (d *desktop) addMessage(m protocol.Message) {
 	sort.SliceStable(d.messages, func(i, j int) bool { return d.messages[i].Seq < d.messages[j].Seq })
 }
 
-// upsertJob adds or replaces a job. A job that comes to an end goes to
-// jobEnded (unread.go).
-func (d *desktop) upsertJob(j protocol.Job) {
-	for i := range d.jobs {
-		if d.jobs[i].ID == j.ID {
-			ended := jobLive(d.jobs[i].State) && !jobLive(j.State)
-			d.jobs[i] = j
+// upsertTask adds or replaces a task. A task that comes to an end goes to
+// taskEnded (unread.go).
+func (d *desktop) upsertTask(j protocol.Task) {
+	for i := range d.tasks {
+		if d.tasks[i].ID == j.ID {
+			ended := taskLive(d.tasks[i].State) && !taskLive(j.State)
+			d.tasks[i] = j
 			if ended {
-				d.jobEnded(j, true)
+				d.taskEnded(j, true)
 			}
 			return
 		}
 	}
-	d.jobs = append([]protocol.Job{j}, d.jobs...)
+	d.tasks = append([]protocol.Task{j}, d.tasks...)
 }
 
-// watching tells whether the user sees a job now.
+// watching tells whether the user sees a task now.
 func (d *desktop) watching(id string) bool {
-	return d.focused && d.page == pageJobs && d.jobSel == id
+	return d.focused && d.page == pageTasks && d.taskSel == id
 }
 
-func (d *desktop) job(id string) (protocol.Job, bool) {
-	for _, j := range d.jobs {
+func (d *desktop) task(id string) (protocol.Task, bool) {
+	for _, j := range d.tasks {
 		if j.ID == id {
 			return j, true
 		}
 	}
-	return protocol.Job{}, false
+	return protocol.Task{}, false
 }
 
 // sessionEvent keeps the events of the sessions in view: the Super
-// Agent's, for the chat, and those of jobs. Deltas stream text in until
+// Agent's, for the chat, and those of tasks. Deltas stream text in until
 // their item completes.
 func (d *desktop) sessionEvent(n protocol.SessionEventNote) {
 	e := n.Event
@@ -467,9 +467,9 @@ func (d *desktop) sessionEvent(n protocol.SessionEventNote) {
 	d.events[n.SessionID] = append(evs, e)
 }
 
-// loadEvents reads the stored events of the session of a job.
-func (d *desktop) loadEvents(jobID string) {
-	if j, ok := d.job(jobID); ok {
+// loadEvents reads the stored events of the session of a task.
+func (d *desktop) loadEvents(taskID string) {
+	if j, ok := d.task(taskID); ok {
 		d.loadSession(j.SessionID)
 	}
 }

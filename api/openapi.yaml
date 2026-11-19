@@ -6,7 +6,7 @@ info:
     REST API of the Solax server. The Go source of truth for the shapes is
     pkg/protocol. Schemas are added with the implementation.
 
-    Job routes need a client token or the Super Agent token; a plain worker
+    Task routes need a client token or the Super Agent token; a plain worker
     agent token gets 403.
 paths:
   /v1/machines:
@@ -28,12 +28,12 @@ paths:
   /v1/agents/{agent}:
     patch: { summary: Change an agent (client token) }
     delete: { summary: Delete an agent (client token) }
-  /v1/jobs:
-    get: { summary: List jobs, newest first }
-    post: { summary: Give a job to an agent; returns at once }
-  /v1/jobs/{job}: { get: { summary: Show a job } }
-  /v1/jobs/{job}/messages: { post: { summary: Send more input to the session of a job } }
-  /v1/jobs/{job}/cancel: { post: { summary: Cancel a job } }
+  /v1/tasks:
+    get: { summary: List tasks, newest first }
+    post: { summary: Give a task to an agent; returns at once }
+  /v1/tasks/{task}: { get: { summary: Show a task } }
+  /v1/tasks/{task}/messages: { post: { summary: Send more input to the session of a task } }
+  /v1/tasks/{task}/cancel: { post: { summary: Cancel a task } }
   /v1/sessions/{session}/events: { get: { summary: Read the stored IR events of a session } }
   /v1/super/messages:
     get: { summary: Read the Super Agent conversation }

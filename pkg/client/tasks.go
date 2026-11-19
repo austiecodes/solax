@@ -31,37 +31,37 @@ func (c *Client) DeleteAgent(ctx context.Context, agent string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/agents/"+esc(agent), nil, nil, nil)
 }
 
-// Jobs.
+// Tasks.
 
-// Dispatch gives a job to an agent. It returns at once with the queued job.
-func (c *Client) Dispatch(ctx context.Context, agent, prompt string) (protocol.Job, error) {
-	var out protocol.Job
-	return out, c.do(ctx, http.MethodPost, "/v1/jobs", nil, protocol.DispatchRequest{Agent: agent, Prompt: prompt}, &out)
+// Dispatch gives a task to an agent. It returns at once with the queued task.
+func (c *Client) Dispatch(ctx context.Context, agent, prompt string) (protocol.Task, error) {
+	var out protocol.Task
+	return out, c.do(ctx, http.MethodPost, "/v1/tasks", nil, protocol.DispatchRequest{Agent: agent, Prompt: prompt}, &out)
 }
 
-func (c *Client) Jobs(ctx context.Context, limit int) ([]protocol.Job, error) {
+func (c *Client) Tasks(ctx context.Context, limit int) ([]protocol.Task, error) {
 	v := url.Values{}
 	if limit > 0 {
 		v.Set("limit", strconv.Itoa(limit))
 	}
-	var out []protocol.Job
-	return out, c.do(ctx, http.MethodGet, "/v1/jobs", v, nil, &out)
+	var out []protocol.Task
+	return out, c.do(ctx, http.MethodGet, "/v1/tasks", v, nil, &out)
 }
 
-func (c *Client) Job(ctx context.Context, id string) (protocol.Job, error) {
-	var out protocol.Job
-	return out, c.do(ctx, http.MethodGet, "/v1/jobs/"+esc(id), nil, nil, &out)
+func (c *Client) Task(ctx context.Context, id string) (protocol.Task, error) {
+	var out protocol.Task
+	return out, c.do(ctx, http.MethodGet, "/v1/tasks/"+esc(id), nil, nil, &out)
 }
 
-// FollowUp sends more input to the session of a job.
-func (c *Client) FollowUp(ctx context.Context, id, text string) (protocol.Job, error) {
-	var out protocol.Job
-	return out, c.do(ctx, http.MethodPost, "/v1/jobs/"+esc(id)+"/messages", nil, protocol.TextRequest{Text: text}, &out)
+// FollowUp sends more input to the session of a task.
+func (c *Client) FollowUp(ctx context.Context, id, text string) (protocol.Task, error) {
+	var out protocol.Task
+	return out, c.do(ctx, http.MethodPost, "/v1/tasks/"+esc(id)+"/messages", nil, protocol.TextRequest{Text: text}, &out)
 }
 
-func (c *Client) CancelJob(ctx context.Context, id string) (protocol.Job, error) {
-	var out protocol.Job
-	return out, c.do(ctx, http.MethodPost, "/v1/jobs/"+esc(id)+"/cancel", nil, nil, &out)
+func (c *Client) CancelTask(ctx context.Context, id string) (protocol.Task, error) {
+	var out protocol.Task
+	return out, c.do(ctx, http.MethodPost, "/v1/tasks/"+esc(id)+"/cancel", nil, nil, &out)
 }
 
 // SessionEvents returns the stored IR events of a session with seq > after.

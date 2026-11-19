@@ -1,5 +1,5 @@
 // Command desktop is the Solax desktop client for macOS: the conversation
-// with the Super Agent, the jobs it gives to agents with their live
+// with the Super Agent, the tasks it gives to agents with their live
 // events, and the setup of agents and machines. The UI is native Go
 // (mygo/ui), with no webview.
 package main
@@ -38,7 +38,7 @@ func main() {
 	mygo.App.OnSecondInstance(func([]string, string) { d.showWindow() })
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { d.savePrefs() })
 	// Back in the app, the notifications have done their work: the
-	// sidebar shows the same jobs as unread.
+	// sidebar shows the same tasks as unread.
 	mygo.App.OnDidBecomeActive(mygo.ClearNotifications)
 	mygo.App.OnLocaleChanged(func(string) { d.localeChanged() })
 	mygo.App.WhenReady(func() {
@@ -75,10 +75,10 @@ func (d *desktop) showWindow() {
 }
 
 // setFocused tracks whether the window is in front. Coming back reads the
-// job in view, which may have ended while the user was away.
+// task in view, which may have ended while the user was away.
 func (d *desktop) setFocused(f bool) {
 	d.focused = f
-	if f && d.page == pageJobs {
-		d.markRead(d.jobSel)
+	if f && d.page == pageTasks {
+		d.markRead(d.taskSel)
 	}
 }

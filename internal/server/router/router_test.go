@@ -119,7 +119,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	}
 
 	// A worker agent token reads, but cannot dispatch or manage.
-	agentToken, err := auth.IssueToken(ctx, model.TokenRequest{OwnerID: owner.ID, AgentID: model.ID(agents[0].ID), Job: "job_1"})
+	agentToken, err := auth.IssueToken(ctx, model.TokenRequest{OwnerID: owner.ID, AgentID: model.ID(agents[0].ID), Task: "tsk_1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +130,8 @@ func TestTopologyOverHTTP(t *testing.T) {
 	if _, err := worker.Dispatch(ctx, "infra", "x"); status(t, err) != http.StatusForbidden {
 		t.Fatalf("worker dispatch: %v", err)
 	}
-	if _, err := worker.Jobs(ctx, 0); status(t, err) != http.StatusForbidden {
-		t.Fatalf("worker jobs: %v", err)
+	if _, err := worker.Tasks(ctx, 0); status(t, err) != http.StatusForbidden {
+		t.Fatalf("worker tasks: %v", err)
 	}
 
 	// A bad body is a 400, not a 500.

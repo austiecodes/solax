@@ -11,50 +11,50 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-// openJob shows a job on the jobs page, marks it read and loads its
+// openTask shows a task on the tasks page, marks it read and loads its
 // events.
-func (d *desktop) openJob(id string) {
-	d.page, d.jobSel, d.followDraft, d.status = pageJobs, id, "", ""
+func (d *desktop) openTask(id string) {
+	d.page, d.taskSel, d.followDraft, d.status = pageTasks, id, "", ""
 	d.markRead(id)
 	d.openGroupOf(id)
 	d.loadEvents(id)
 }
 
-// jobsPage shows the open job, or the list of all jobs when none is
-// open. The sidebar lists the recent jobs too, so the job takes the
+// tasksPage shows the open task, or the list of all tasks when none is
+// open. The sidebar lists the recent tasks too, so the task takes the
 // whole card.
-func (d *desktop) jobsPage(c *ui.Context) {
-	if j, ok := d.job(d.jobSel); ok {
-		d.jobDetail(c, j)
+func (d *desktop) tasksPage(c *ui.Context) {
+	if j, ok := d.task(d.taskSel); ok {
+		d.taskDetail(c, j)
 		return
 	}
 	pal := paletteFor(c)
-	live := d.countJobs(func(j protocol.Job) bool { return jobLive(j.State) })
-	spec := pageSpec{icon: jobsIcon, title: locales.NavJobs()}
-	if len(d.jobs) > 0 {
-		spec.sub = locales.JobsCount(len(d.jobs), live)
+	live := d.countTasks(func(j protocol.Task) bool { return taskLive(j.State) })
+	spec := pageSpec{icon: tasksIcon, title: locales.NavTasks()}
+	if len(d.tasks) > 0 {
+		spec.sub = locales.TasksCount(len(d.tasks), live)
 	}
-	if len(d.jobs) == 0 {
+	if len(d.tasks) == 0 {
 		d.header(c, spec)
 		emptyState(c, pal, emptySpec{
-			icon: jobsIcon, title: locales.JobsEmptyTitle(),
-			detail:  locales.JobsEmptyDetail(),
-			command: `solax job send coder "add a README"`,
+			icon: tasksIcon, title: locales.TasksEmptyTitle(),
+			detail:  locales.TasksEmptyDetail(),
+			command: `solax task send coder "add a README"`,
 			action:  locales.ChatPlaceholder(), run: func() { d.goTo(pageChat) },
 		})
 		return
 	}
 	d.showPage(c, spec, func() {
-		section(c, "jobs", sectionSpec{title: locales.AllJobs(), count: countText(len(d.jobs)), rows: listRows}, func() {
-			for _, j := range d.jobs {
-				d.jobListRow(c, pal, j)
+		section(c, "tasks", sectionSpec{title: locales.AllTasks(), count: countText(len(d.tasks)), rows: listRows}, func() {
+			for _, j := range d.tasks {
+				d.taskListRow(c, pal, j)
 			}
 		})
 	})
 }
 
-// jobListRow is a job in the list of all jobs, on one line.
-func (d *desktop) jobListRow(c *ui.Context, pal *palette, j protocol.Job) {
+// taskListRow is a task in the list of all tasks, on one line.
+func (d *desktop) taskListRow(c *ui.Context, pal *palette, j protocol.Task) {
 	row := listItem(c, j.ID, false, j.Title, func() {
 		statusIcon(c, pal, j.State, d.unread[j.ID], 15)
 		t := ui.Text(c, j.Title).FontSize(13.5).TextColor(pal.text).SingleLine().Ellipsis("…").Grow(1).MinWidth(0)
@@ -65,29 +65,29 @@ func (d *desktop) jobListRow(c *ui.Context, pal *palette, j protocol.Job) {
 		ui.Text(c, ago(j.CreatedAt)).FontSize(12).TextColor(pal.textFaint).FontFeatures("tnum").SingleLine().TextAlign(ui.End).Width(80).Shrink(0)
 	})
 	if row.Clicked() {
-		d.openJob(j.ID)
+		d.openTask(j.ID)
 	}
 }
 
-func (d *desktop) jobDetail(c *ui.Context, j protocol.Job) {
+func (d *desktop) taskDetail(c *ui.Context, j protocol.Task) {
 	pal := paletteFor(c)
 	d.header(c, pageSpec{title: j.Title, sub: j.Agent + " · " + stateWord(j.State), actions: func() {
-		if jobLive(j.State) && button(c, "cancel", locales.JobCancel(), plainButton, false) {
+		if taskLive(j.State) && button(c, "cancel", locales.TaskCancel(), plainButton, false) {
 			id := j.ID
-			d.ask(locales.JobCancelQuestion(), locales.JobCancelDetail(j.Agent, j.Title), locales.JobCancel(), true, func() {
+			d.ask(locales.TaskCancelQuestion(), locales.TaskCancelDetail(j.Agent, j.Title), locales.TaskCancel(), true, func() {
 				d.do(func(ctx context.Context, c *client.Client) (func(), error) {
-					nj, err := c.CancelJob(ctx, id)
-					return func() { d.upsertJob(nj) }, err
+					nj, err := c.CancelTask(ctx, id)
+					return func() { d.upsertTask(nj) }, err
 				})
-			}).keep = locales.JobKeep()
+			}).keep = locales.TaskKeep()
 		}
 	}})
-	blocks := withWorking(jobBlocks(j, d.events[j.SessionID], d.live[j.SessionID]), jobLive(j.State))
-	d.transcriptView(c, pal, &d.jobList, blocks, nil)
+	blocks := withWorking(taskBlocks(j, d.events[j.SessionID], d.live[j.SessionID]), taskLive(j.State))
+	d.transcriptView(c, pal, &d.taskList, blocks, nil)
 	closed := j.State == "cancelled"
-	placeholder := locales.JobFollowUp(j.Agent)
+	placeholder := locales.TaskFollowUp(j.Agent)
 	if closed {
-		placeholder = locales.JobWasCancelled()
+		placeholder = locales.TaskWasCancelled()
 	}
 	composer{
 		key: "follow-up", placeholder: placeholder, draft: &d.followDraft, disabled: closed,
@@ -102,7 +102,7 @@ func (d *desktop) jobDetail(c *ui.Context, j protocol.Job) {
 			d.followDraft = ""
 			d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 				nj, err := c.FollowUp(ctx, id, text)
-				return func() { d.upsertJob(nj) }, err
+				return func() { d.upsertTask(nj) }, err
 			})
 		},
 	}.view(c, pal)

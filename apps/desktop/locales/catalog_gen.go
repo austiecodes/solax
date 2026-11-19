@@ -76,14 +76,14 @@ func (msgs Messages) NavChat() string {
 	return Catalog.Format(msgs.locale, "navChat", nil)
 }
 
-// NavJobs says "Jobs"
+// NavTasks says "Tasks"
 // in the language the app shows.
-func NavJobs() string { return In(i18n.Locale()).NavJobs() }
+func NavTasks() string { return In(i18n.Locale()).NavTasks() }
 
-// NavJobs says "Jobs"
+// NavTasks says "Tasks"
 // in the language of msgs.
-func (msgs Messages) NavJobs() string {
-	return Catalog.Format(msgs.locale, "navJobs", nil)
+func (msgs Messages) NavTasks() string {
+	return Catalog.Format(msgs.locale, "navTasks", nil)
 }
 
 // NavAgents says "Agents"
@@ -218,14 +218,14 @@ func (msgs Messages) GoTo() string {
 	return Catalog.Format(msgs.locale, "goTo", nil)
 }
 
-// RecentJobs says "Recent jobs"
+// RecentTasks says "Recent tasks"
 // in the language the app shows.
-func RecentJobs() string { return In(i18n.Locale()).RecentJobs() }
+func RecentTasks() string { return In(i18n.Locale()).RecentTasks() }
 
-// RecentJobs says "Recent jobs"
+// RecentTasks says "Recent tasks"
 // in the language of msgs.
-func (msgs Messages) RecentJobs() string {
-	return Catalog.Format(msgs.locale, "recentJobs", nil)
+func (msgs Messages) RecentTasks() string {
+	return Catalog.Format(msgs.locale, "recentTasks", nil)
 }
 
 // FooterLive says "{count} queued or running"
@@ -321,13 +321,13 @@ func (msgs Messages) ErrNoProfile() string {
 // StateQueued says "queued"
 // in the language the app shows.
 //
-// A job state.
+// A task state.
 func StateQueued() string { return In(i18n.Locale()).StateQueued() }
 
 // StateQueued says "queued"
 // in the language of msgs.
 //
-// A job state.
+// A task state.
 func (msgs Messages) StateQueued() string {
 	return Catalog.Format(msgs.locale, "stateQueued", nil)
 }
@@ -335,13 +335,13 @@ func (msgs Messages) StateQueued() string {
 // StateRunning says "running"
 // in the language the app shows.
 //
-// A job state.
+// A task state.
 func StateRunning() string { return In(i18n.Locale()).StateRunning() }
 
 // StateRunning says "running"
 // in the language of msgs.
 //
-// A job state.
+// A task state.
 func (msgs Messages) StateRunning() string {
 	return Catalog.Format(msgs.locale, "stateRunning", nil)
 }
@@ -349,13 +349,13 @@ func (msgs Messages) StateRunning() string {
 // StateDone says "done"
 // in the language the app shows.
 //
-// A job state.
+// A task state.
 func StateDone() string { return In(i18n.Locale()).StateDone() }
 
 // StateDone says "done"
 // in the language of msgs.
 //
-// A job state.
+// A task state.
 func (msgs Messages) StateDone() string {
 	return Catalog.Format(msgs.locale, "stateDone", nil)
 }
@@ -363,13 +363,13 @@ func (msgs Messages) StateDone() string {
 // StateFailed says "failed"
 // in the language the app shows.
 //
-// A job state, and a failed tool call.
+// A task state, and a failed tool call.
 func StateFailed() string { return In(i18n.Locale()).StateFailed() }
 
 // StateFailed says "failed"
 // in the language of msgs.
 //
-// A job state, and a failed tool call.
+// A task state, and a failed tool call.
 func (msgs Messages) StateFailed() string {
 	return Catalog.Format(msgs.locale, "stateFailed", nil)
 }
@@ -377,13 +377,13 @@ func (msgs Messages) StateFailed() string {
 // StateCancelled says "cancelled"
 // in the language the app shows.
 //
-// A job state.
+// A task state.
 func StateCancelled() string { return In(i18n.Locale()).StateCancelled() }
 
 // StateCancelled says "cancelled"
 // in the language of msgs.
 //
-// A job state.
+// A task state.
 func (msgs Messages) StateCancelled() string {
 	return Catalog.Format(msgs.locale, "stateCancelled", nil)
 }
@@ -530,13 +530,13 @@ func (msgs Messages) ChatSuggestionDoing() string {
 	return Catalog.Format(msgs.locale, "chatSuggestionDoing", nil)
 }
 
-// ChatSuggestionFailed says "Which jobs failed today?"
+// ChatSuggestionFailed says "Which tasks failed today?"
 // in the language the app shows.
 //
 // Sent to Solax as is when clicked.
 func ChatSuggestionFailed() string { return In(i18n.Locale()).ChatSuggestionFailed() }
 
-// ChatSuggestionFailed says "Which jobs failed today?"
+// ChatSuggestionFailed says "Which tasks failed today?"
 // in the language of msgs.
 //
 // Sent to Solax as is when clicked.
@@ -554,11 +554,11 @@ func (msgs Messages) ChatNoSolaxTitle() string {
 	return Catalog.Format(msgs.locale, "chatNoSolaxTitle", nil)
 }
 
-// ChatNoSolaxDetail says "Solax is the agent you talk to. It gives jobs to your other agents. On the Agents page, add the agents found on your …"
+// ChatNoSolaxDetail says "Solax is the agent you talk to. It gives tasks to your other agents. On the Agents page, add the agents found on your…"
 // in the language the app shows.
 func ChatNoSolaxDetail() string { return In(i18n.Locale()).ChatNoSolaxDetail() }
 
-// ChatNoSolaxDetail says "Solax is the agent you talk to. It gives jobs to your other agents. On the Agents page, add the agents found on your …"
+// ChatNoSolaxDetail says "Solax is the agent you talk to. It gives tasks to your other agents. On the Agents page, add the agents found on your…"
 // in the language of msgs.
 func (msgs Messages) ChatNoSolaxDetail() string {
 	return Catalog.Format(msgs.locale, "chatNoSolaxDetail", nil)
@@ -574,106 +574,106 @@ func (msgs Messages) ChatEmptyTitle() string {
 	return Catalog.Format(msgs.locale, "chatEmptyTitle", nil)
 }
 
-// ChatEmptyDetail says "Solax gives jobs to your agents and tells you when they are done."
+// ChatEmptyDetail says "Solax gives tasks to your agents and tells you when they are done."
 // in the language the app shows.
 func ChatEmptyDetail() string { return In(i18n.Locale()).ChatEmptyDetail() }
 
-// ChatEmptyDetail says "Solax gives jobs to your agents and tells you when they are done."
+// ChatEmptyDetail says "Solax gives tasks to your agents and tells you when they are done."
 // in the language of msgs.
 func (msgs Messages) ChatEmptyDetail() string {
 	return Catalog.Format(msgs.locale, "chatEmptyDetail", nil)
 }
 
-// JobsCount says "{count, plural, one {# job} other {# jobs}}, {running} running"
+// TasksCount says "{count, plural, one {# task} other {# tasks}}, {running} running"
 // in the language the app shows.
-func JobsCount(count int, running int) string { return In(i18n.Locale()).JobsCount(count, running) }
+func TasksCount(count int, running int) string { return In(i18n.Locale()).TasksCount(count, running) }
 
-// JobsCount says "{count, plural, one {# job} other {# jobs}}, {running} running"
+// TasksCount says "{count, plural, one {# task} other {# tasks}}, {running} running"
 // in the language of msgs.
-func (msgs Messages) JobsCount(count int, running int) string {
-	return Catalog.Format(msgs.locale, "jobsCount", map[string]any{"count": count, "running": running})
+func (msgs Messages) TasksCount(count int, running int) string {
+	return Catalog.Format(msgs.locale, "tasksCount", map[string]any{"count": count, "running": running})
 }
 
-// JobsEmptyTitle says "No jobs yet"
+// TasksEmptyTitle says "No tasks yet"
 // in the language the app shows.
-func JobsEmptyTitle() string { return In(i18n.Locale()).JobsEmptyTitle() }
+func TasksEmptyTitle() string { return In(i18n.Locale()).TasksEmptyTitle() }
 
-// JobsEmptyTitle says "No jobs yet"
+// TasksEmptyTitle says "No tasks yet"
 // in the language of msgs.
-func (msgs Messages) JobsEmptyTitle() string {
-	return Catalog.Format(msgs.locale, "jobsEmptyTitle", nil)
+func (msgs Messages) TasksEmptyTitle() string {
+	return Catalog.Format(msgs.locale, "tasksEmptyTitle", nil)
 }
 
-// JobsEmptyDetail says "Ask Solax for work, and it gives jobs to your agents. You can also send a job from a shell:"
+// TasksEmptyDetail says "Ask Solax for work, and it gives tasks to your agents. You can also send a task from a shell:"
 // in the language the app shows.
-func JobsEmptyDetail() string { return In(i18n.Locale()).JobsEmptyDetail() }
+func TasksEmptyDetail() string { return In(i18n.Locale()).TasksEmptyDetail() }
 
-// JobsEmptyDetail says "Ask Solax for work, and it gives jobs to your agents. You can also send a job from a shell:"
+// TasksEmptyDetail says "Ask Solax for work, and it gives tasks to your agents. You can also send a task from a shell:"
 // in the language of msgs.
-func (msgs Messages) JobsEmptyDetail() string {
-	return Catalog.Format(msgs.locale, "jobsEmptyDetail", nil)
+func (msgs Messages) TasksEmptyDetail() string {
+	return Catalog.Format(msgs.locale, "tasksEmptyDetail", nil)
 }
 
-// JobCancel says "Cancel job"
+// TaskCancel says "Cancel task"
 // in the language the app shows.
-func JobCancel() string { return In(i18n.Locale()).JobCancel() }
+func TaskCancel() string { return In(i18n.Locale()).TaskCancel() }
 
-// JobCancel says "Cancel job"
+// TaskCancel says "Cancel task"
 // in the language of msgs.
-func (msgs Messages) JobCancel() string {
-	return Catalog.Format(msgs.locale, "jobCancel", nil)
+func (msgs Messages) TaskCancel() string {
+	return Catalog.Format(msgs.locale, "taskCancel", nil)
 }
 
-// JobCancelQuestion says "Cancel this job?"
+// TaskCancelQuestion says "Cancel this task?"
 // in the language the app shows.
-func JobCancelQuestion() string { return In(i18n.Locale()).JobCancelQuestion() }
+func TaskCancelQuestion() string { return In(i18n.Locale()).TaskCancelQuestion() }
 
-// JobCancelQuestion says "Cancel this job?"
+// TaskCancelQuestion says "Cancel this task?"
 // in the language of msgs.
-func (msgs Messages) JobCancelQuestion() string {
-	return Catalog.Format(msgs.locale, "jobCancelQuestion", nil)
+func (msgs Messages) TaskCancelQuestion() string {
+	return Catalog.Format(msgs.locale, "taskCancelQuestion", nil)
 }
 
-// JobCancelDetail says "{agent} stops work on \"{title}\". You cannot resume it."
+// TaskCancelDetail says "{agent} stops work on \"{title}\". You cannot resume it."
 // in the language the app shows.
-func JobCancelDetail(agent string, title string) string {
-	return In(i18n.Locale()).JobCancelDetail(agent, title)
+func TaskCancelDetail(agent string, title string) string {
+	return In(i18n.Locale()).TaskCancelDetail(agent, title)
 }
 
-// JobCancelDetail says "{agent} stops work on \"{title}\". You cannot resume it."
+// TaskCancelDetail says "{agent} stops work on \"{title}\". You cannot resume it."
 // in the language of msgs.
-func (msgs Messages) JobCancelDetail(agent string, title string) string {
-	return Catalog.Format(msgs.locale, "jobCancelDetail", map[string]any{"agent": agent, "title": title})
+func (msgs Messages) TaskCancelDetail(agent string, title string) string {
+	return Catalog.Format(msgs.locale, "taskCancelDetail", map[string]any{"agent": agent, "title": title})
 }
 
-// JobKeep says "Keep job"
+// TaskKeep says "Keep task"
 // in the language the app shows.
-func JobKeep() string { return In(i18n.Locale()).JobKeep() }
+func TaskKeep() string { return In(i18n.Locale()).TaskKeep() }
 
-// JobKeep says "Keep job"
+// TaskKeep says "Keep task"
 // in the language of msgs.
-func (msgs Messages) JobKeep() string {
-	return Catalog.Format(msgs.locale, "jobKeep", nil)
+func (msgs Messages) TaskKeep() string {
+	return Catalog.Format(msgs.locale, "taskKeep", nil)
 }
 
-// JobFollowUp says "Send more input to {agent}"
+// TaskFollowUp says "Send more input to {agent}"
 // in the language the app shows.
-func JobFollowUp(agent string) string { return In(i18n.Locale()).JobFollowUp(agent) }
+func TaskFollowUp(agent string) string { return In(i18n.Locale()).TaskFollowUp(agent) }
 
-// JobFollowUp says "Send more input to {agent}"
+// TaskFollowUp says "Send more input to {agent}"
 // in the language of msgs.
-func (msgs Messages) JobFollowUp(agent string) string {
-	return Catalog.Format(msgs.locale, "jobFollowUp", map[string]any{"agent": agent})
+func (msgs Messages) TaskFollowUp(agent string) string {
+	return Catalog.Format(msgs.locale, "taskFollowUp", map[string]any{"agent": agent})
 }
 
-// JobWasCancelled says "The job was cancelled"
+// TaskWasCancelled says "The task was cancelled"
 // in the language the app shows.
-func JobWasCancelled() string { return In(i18n.Locale()).JobWasCancelled() }
+func TaskWasCancelled() string { return In(i18n.Locale()).TaskWasCancelled() }
 
-// JobWasCancelled says "The job was cancelled"
+// TaskWasCancelled says "The task was cancelled"
 // in the language of msgs.
-func (msgs Messages) JobWasCancelled() string {
-	return Catalog.Format(msgs.locale, "jobWasCancelled", nil)
+func (msgs Messages) TaskWasCancelled() string {
+	return Catalog.Format(msgs.locale, "taskWasCancelled", nil)
 }
 
 // AgoNow says "just now"
@@ -792,11 +792,11 @@ func (msgs Messages) AgentRemoveQuestion(name string) string {
 	return Catalog.Format(msgs.locale, "agentRemoveQuestion", map[string]any{"name": name})
 }
 
-// AgentRemoveDetail says "Solax can no longer give jobs to {name}. Its past jobs stay."
+// AgentRemoveDetail says "Solax can no longer give tasks to {name}. Its past tasks stay."
 // in the language the app shows.
 func AgentRemoveDetail(name string) string { return In(i18n.Locale()).AgentRemoveDetail(name) }
 
-// AgentRemoveDetail says "Solax can no longer give jobs to {name}. Its past jobs stay."
+// AgentRemoveDetail says "Solax can no longer give tasks to {name}. Its past tasks stay."
 // in the language of msgs.
 func (msgs Messages) AgentRemoveDetail(name string) string {
 	return Catalog.Format(msgs.locale, "agentRemoveDetail", map[string]any{"name": name})
@@ -1340,11 +1340,11 @@ func (msgs Messages) PaletteActions() string {
 	return Catalog.Format(msgs.locale, "paletteActions", nil)
 }
 
-// PalettePlaceholder says "Search jobs, agents and actions"
+// PalettePlaceholder says "Search tasks, agents and actions"
 // in the language the app shows.
 func PalettePlaceholder() string { return In(i18n.Locale()).PalettePlaceholder() }
 
-// PalettePlaceholder says "Search jobs, agents and actions"
+// PalettePlaceholder says "Search tasks, agents and actions"
 // in the language of msgs.
 func (msgs Messages) PalettePlaceholder() string {
 	return Catalog.Format(msgs.locale, "palettePlaceholder", nil)
@@ -1662,14 +1662,14 @@ func (msgs Messages) DurationMinutesSeconds(m int, s int) string {
 	return Catalog.Format(msgs.locale, "durationMinutesSeconds", map[string]any{"m": m, "s": s})
 }
 
-// OpenJob says "Open job"
+// OpenTask says "Open task"
 // in the language the app shows.
-func OpenJob() string { return In(i18n.Locale()).OpenJob() }
+func OpenTask() string { return In(i18n.Locale()).OpenTask() }
 
-// OpenJob says "Open job"
+// OpenTask says "Open task"
 // in the language of msgs.
-func (msgs Messages) OpenJob() string {
-	return Catalog.Format(msgs.locale, "openJob", nil)
+func (msgs Messages) OpenTask() string {
+	return Catalog.Format(msgs.locale, "openTask", nil)
 }
 
 // ScrollToEnd says "Scroll to the end"
@@ -1736,21 +1736,21 @@ func (msgs Messages) AgentDirHelp() string {
 	return Catalog.Format(msgs.locale, "agentDirHelp", nil)
 }
 
-// AgentNoDesc says "No description. Solax routes by the description, so it does not give jobs to this agent by itself."
+// AgentNoDesc says "No description. Solax routes by the description, so it does not give tasks to this agent by itself."
 // in the language the app shows.
 func AgentNoDesc() string { return In(i18n.Locale()).AgentNoDesc() }
 
-// AgentNoDesc says "No description. Solax routes by the description, so it does not give jobs to this agent by itself."
+// AgentNoDesc says "No description. Solax routes by the description, so it does not give tasks to this agent by itself."
 // in the language of msgs.
 func (msgs Messages) AgentNoDesc() string {
 	return Catalog.Format(msgs.locale, "agentNoDesc", nil)
 }
 
-// AgentRoleHelp says "You talk to this agent. It gives jobs to the others."
+// AgentRoleHelp says "You talk to this agent. It gives tasks to the others."
 // in the language the app shows.
 func AgentRoleHelp() string { return In(i18n.Locale()).AgentRoleHelp() }
 
-// AgentRoleHelp says "You talk to this agent. It gives jobs to the others."
+// AgentRoleHelp says "You talk to this agent. It gives tasks to the others."
 // in the language of msgs.
 func (msgs Messages) AgentRoleHelp() string {
 	return Catalog.Format(msgs.locale, "agentRoleHelp", nil)
@@ -1766,14 +1766,14 @@ func (msgs Messages) AgentStatusHelp() string {
 	return Catalog.Format(msgs.locale, "agentStatusHelp", nil)
 }
 
-// AllJobs says "All jobs"
+// AllTasks says "All tasks"
 // in the language the app shows.
-func AllJobs() string { return In(i18n.Locale()).AllJobs() }
+func AllTasks() string { return In(i18n.Locale()).AllTasks() }
 
-// AllJobs says "All jobs"
+// AllTasks says "All tasks"
 // in the language of msgs.
-func (msgs Messages) AllJobs() string {
-	return Catalog.Format(msgs.locale, "allJobs", nil)
+func (msgs Messages) AllTasks() string {
+	return Catalog.Format(msgs.locale, "allTasks", nil)
 }
 
 // AnotherHost says "Another host"
@@ -1976,44 +1976,44 @@ func (msgs Messages) FieldStatus() string {
 	return Catalog.Format(msgs.locale, "fieldStatus", nil)
 }
 
-// FieldSuperHelp says "You talk to Solax. It gives jobs to the other agents."
+// FieldSuperHelp says "You talk to Solax. It gives tasks to the other agents."
 // in the language the app shows.
 func FieldSuperHelp() string { return In(i18n.Locale()).FieldSuperHelp() }
 
-// FieldSuperHelp says "You talk to Solax. It gives jobs to the other agents."
+// FieldSuperHelp says "You talk to Solax. It gives tasks to the other agents."
 // in the language of msgs.
 func (msgs Messages) FieldSuperHelp() string {
 	return Catalog.Format(msgs.locale, "fieldSuperHelp", nil)
 }
 
-// GroupJobs says "Group jobs"
+// GroupTasks says "Group tasks"
 // in the language the app shows.
-func GroupJobs() string { return In(i18n.Locale()).GroupJobs() }
+func GroupTasks() string { return In(i18n.Locale()).GroupTasks() }
 
-// GroupJobs says "Group jobs"
+// GroupTasks says "Group tasks"
 // in the language of msgs.
-func (msgs Messages) GroupJobs() string {
-	return Catalog.Format(msgs.locale, "groupJobs", nil)
+func (msgs Messages) GroupTasks() string {
+	return Catalog.Format(msgs.locale, "groupTasks", nil)
 }
 
-// GroupJobsBy says "Group jobs by"
+// GroupTasksBy says "Group tasks by"
 // in the language the app shows.
-func GroupJobsBy() string { return In(i18n.Locale()).GroupJobsBy() }
+func GroupTasksBy() string { return In(i18n.Locale()).GroupTasksBy() }
 
-// GroupJobsBy says "Group jobs by"
+// GroupTasksBy says "Group tasks by"
 // in the language of msgs.
-func (msgs Messages) GroupJobsBy() string {
-	return Catalog.Format(msgs.locale, "groupJobsBy", nil)
+func (msgs Messages) GroupTasksBy() string {
+	return Catalog.Format(msgs.locale, "groupTasksBy", nil)
 }
 
-// GroupJobsHelp says "How the sidebar lists the recent jobs. A project is the work folder of the job's agent."
+// GroupTasksHelp says "How the sidebar lists the recent tasks. A project is the work folder of the task's agent."
 // in the language the app shows.
-func GroupJobsHelp() string { return In(i18n.Locale()).GroupJobsHelp() }
+func GroupTasksHelp() string { return In(i18n.Locale()).GroupTasksHelp() }
 
-// GroupJobsHelp says "How the sidebar lists the recent jobs. A project is the work folder of the job's agent."
+// GroupTasksHelp says "How the sidebar lists the recent tasks. A project is the work folder of the task's agent."
 // in the language of msgs.
-func (msgs Messages) GroupJobsHelp() string {
-	return Catalog.Format(msgs.locale, "groupJobsHelp", nil)
+func (msgs Messages) GroupTasksHelp() string {
+	return Catalog.Format(msgs.locale, "groupTasksHelp", nil)
 }
 
 // GroupProject says "Project"
@@ -2086,11 +2086,11 @@ func (msgs Messages) GroupOther() string {
 	return Catalog.Format(msgs.locale, "groupOther", nil)
 }
 
-// GroupOtherTip says "Jobs of agents that were removed"
+// GroupOtherTip says "Tasks of agents that were removed"
 // in the language the app shows.
 func GroupOtherTip() string { return In(i18n.Locale()).GroupOtherTip() }
 
-// GroupOtherTip says "Jobs of agents that were removed"
+// GroupOtherTip says "Tasks of agents that were removed"
 // in the language of msgs.
 func (msgs Messages) GroupOtherTip() string {
 	return Catalog.Format(msgs.locale, "groupOtherTip", nil)
@@ -2156,11 +2156,11 @@ func (msgs Messages) NewAgent() string {
 	return Catalog.Format(msgs.locale, "newAgent", nil)
 }
 
-// NewAgentHelp says "Solax reads the description to choose the agent for a job."
+// NewAgentHelp says "Solax reads the description to choose the agent for a task."
 // in the language the app shows.
 func NewAgentHelp() string { return In(i18n.Locale()).NewAgentHelp() }
 
-// NewAgentHelp says "Solax reads the description to choose the agent for a job."
+// NewAgentHelp says "Solax reads the description to choose the agent for a task."
 // in the language of msgs.
 func (msgs Messages) NewAgentHelp() string {
 	return Catalog.Format(msgs.locale, "newAgentHelp", nil)
@@ -2266,11 +2266,11 @@ func (msgs Messages) Roster() string {
 	return Catalog.Format(msgs.locale, "roster", nil)
 }
 
-// RosterHelp says "Solax gives each job to the agent whose description fits it best."
+// RosterHelp says "Solax gives each task to the agent whose description fits it best."
 // in the language the app shows.
 func RosterHelp() string { return In(i18n.Locale()).RosterHelp() }
 
-// RosterHelp says "Solax gives each job to the agent whose description fits it best."
+// RosterHelp says "Solax gives each task to the agent whose description fits it best."
 // in the language of msgs.
 func (msgs Messages) RosterHelp() string {
 	return Catalog.Format(msgs.locale, "rosterHelp", nil)

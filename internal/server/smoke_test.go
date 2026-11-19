@@ -91,7 +91,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 	sup = supervisor.New(ctx, supervisor.Config{
 		Runtimes: []agent.Runtime{r.fake},
 		Env: func(e protocol.SessionEnsure) map[string]string {
-			return map[string]string{"SOLAX_SERVER": srv.URL, "SOLAX_TOKEN": e.AgentToken, "SOLAX_JOB": e.Job}
+			return map[string]string{"SOLAX_SERVER": srv.URL, "SOLAX_TOKEN": e.AgentToken, "SOLAX_TASK": e.Task}
 		},
 		MaxSlots: 4, Send: cn.Send, Log: log,
 	})
@@ -139,10 +139,10 @@ func waitFor(t *testing.T, what string, ok func() bool) {
 	}
 }
 
-// A person dispatches a job: the call returns at once, the daemon starts
-// a session, the agent answers, and the job is done with the answer. A
+// A person dispatches a task: the call returns at once, the daemon starts
+// a session, the agent answers, and the task is done with the answer. A
 // follow-up runs the same session again.
-func TestJobRoundTrip(t *testing.T) {
+func TestTaskRoundTrip(t *testing.T) {
 	r := newRig(t, func(_ *rig, _ agent.SessionSpec, text string) string { return "echo: " + text })
 	r.addAgent(t, "coder", false)
 	ctx := context.Background()
@@ -154,16 +154,16 @@ func TestJobRoundTrip(t *testing.T) {
 	if j.State != "queued" {
 		t.Fatalf("dispatch returned state %q, want queued (it must not wait)", j.State)
 	}
-	var got protocol.Job
-	waitFor(t, "job done", func() bool {
-		got, _ = r.client.Job(ctx, j.ID)
+	var got protocol.Task
+	waitFor(t, "task done", func() bool {
+		got, _ = r.client.Task(ctx, j.ID)
 		return got.State == "done"
 	})
 	if got.Result != "echo: fix the bug" {
 		t.Fatalf("result = %q", got.Result)
 	}
 	starts := r.fake.Starts()
-	if len(starts) != 1 || starts[0].Env["SOLAX_TOKEN"] == "" || starts[0].Env["SOLAX_JOB"] != j.ID {
+	if len(starts) != 1 || starts[0].Env["SOLAX_TOKEN"] == "" || starts[0].Env["SOLAX_TASK"] != j.ID {
 		t.Fatalf("session spec = %+v", starts)
 	}
 
@@ -172,7 +172,7 @@ func TestJobRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, "follow-up done", func() bool {
-		got, _ = r.client.Job(ctx, j.ID)
+		got, _ = r.client.Task(ctx, j.ID)
 		return got.State == "done" && got.Result == "echo: and add a test"
 	})
 	if n := len(r.fake.Starts()); n != 1 {
@@ -184,15 +184,15 @@ func TestJobRoundTrip(t *testing.T) {
 	if err != nil || len(evs) < 8 {
 		t.Fatalf("stored events = %d, %v", len(evs), err)
 	}
-	waitFor(t, "stream pushes", func() bool { return r.pushCount("session.event") >= 8 && r.pushCount("job") >= 2 })
+	waitFor(t, "stream pushes", func() bool { return r.pushCount("session.event") >= 8 && r.pushCount("task") >= 2 })
 }
 
 // The Super Agent routes asynchronously: the user message wakes it, it
-// dispatches a job with its own agent token and ends its turn at once.
-// The job result wakes it again, and its summary reaches the user.
+// dispatches a task with its own agent token and ends its turn at once.
+// The task result wakes it again, and its summary reaches the user.
 func TestSuperAgentRoutesAsync(t *testing.T) {
 	r := newRig(t, func(r *rig, spec agent.SessionSpec, text string) string {
-		if spec.Env["SOLAX_JOB"] != "" {
+		if spec.Env["SOLAX_TASK"] != "" {
 			return "worker did: " + text // a worker
 		}
 		// The Super Agent, acting with its own token, as the solax CLI would.
@@ -204,7 +204,7 @@ func TestSuperAgentRoutesAsync(t *testing.T) {
 				return "dispatch failed: " + err.Error()
 			}
 			return "I gave it to coder as " + j.ID + "."
-		case strings.HasPrefix(text, "[job"):
+		case strings.HasPrefix(text, "[task"):
 			return "Done. " + text[strings.Index(text, "result:"):]
 		}
 		return "?"
@@ -226,7 +226,7 @@ func TestSuperAgentRoutesAsync(t *testing.T) {
 		}
 		return false
 	})
-	// you → super (dispatched) → system note (job done) → super (summary).
+	// you → super (dispatched) → system note (task done) → super (summary).
 	kinds := []string{}
 	for _, m := range msgs {
 		kinds = append(kinds, m.Author.Kind)
@@ -234,9 +234,9 @@ func TestSuperAgentRoutesAsync(t *testing.T) {
 	if strings.Join(kinds, ",") != "human,super,system,super" {
 		t.Fatalf("conversation = %v", kinds)
 	}
-	jobs, _ := r.client.Jobs(ctx, 10)
-	if len(jobs) != 1 || jobs[0].RequestedBy != "super" || jobs[0].State != "done" {
-		t.Fatalf("jobs = %+v", jobs)
+	tasks, _ := r.client.Tasks(ctx, 10)
+	if len(tasks) != 1 || tasks[0].RequestedBy != "super" || tasks[0].State != "done" {
+		t.Fatalf("tasks = %+v", tasks)
 	}
 }
 
@@ -268,8 +268,8 @@ func TestAgentInstructionsReachSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "job done", func() bool {
-		got, _ := r.client.Job(ctx, j.ID)
+	waitFor(t, "task done", func() bool {
+		got, _ := r.client.Task(ctx, j.ID)
 		return got.State == "done"
 	})
 	// The rig has no role prompt, so the system prompt is the instructions.

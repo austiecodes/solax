@@ -109,15 +109,15 @@ func (d *desktop) blockView(c *ui.Context, pal *palette, b block) {
 	}
 }
 
-// noteView is a line between messages: a job that ended, with a link to
+// noteView is a line between messages: a task that ended, with a link to
 // it, or an error.
 func (d *desktop) noteView(c *ui.Context, pal *palette, b block) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		switch {
 		case b.warn:
 			statusIcon(c, pal, "failed", true, 14)
-		case b.job != "":
-			if j, ok := d.job(b.job); ok {
+		case b.task != "":
+			if j, ok := d.task(b.task); ok {
 				statusIcon(c, pal, j.State, d.unread[j.ID], 14)
 			}
 		}
@@ -126,14 +126,14 @@ func (d *desktop) noteView(c *ui.Context, pal *palette, b block) {
 			col = pal.danger
 		}
 		ui.Text(c, b.text).FontSize(12.5).TextColor(col).MinWidth(0).Selectable()
-		if b.job != "" {
-			l := ui.ButtonBase(c.Key("open")).Label(locales.OpenJob()).Padding(2, 6).Radius(6).TextColor(pal.textMuted)
+		if b.task != "" {
+			l := ui.ButtonBase(c.Key("open")).Label(locales.OpenTask()).Padding(2, 6).Radius(6).TextColor(pal.textMuted)
 			if l.Hovered() {
 				l.Background(pal.rowHover).TextColor(pal.text)
 			}
-			l.Children(func() { ui.Text(c, locales.OpenJob()).FontSize(12.5).FontWeight(500) })
+			l.Children(func() { ui.Text(c, locales.OpenTask()).FontSize(12.5).FontWeight(500) })
 			if l.Clicked() {
-				d.openJob(b.job)
+				d.openTask(b.task)
 			}
 		}
 	})

@@ -79,7 +79,7 @@ type Claims struct {
 	Subject   model.ID // client token ID, machine ID or agent ID
 	OwnerID   model.ID
 	Super     bool     // agent token of the Super Agent
-	Job       model.ID // agent tokens of a job session only
+	Task      model.ID // agent tokens of a task session only
 	SessionID model.ID // agent tokens only
 	Expires   time.Time
 }
@@ -195,7 +195,7 @@ func IssueToken(ctx context.Context, r model.TokenRequest) (string, error) {
 		Subject:   r.AgentID,
 		OwnerID:   r.OwnerID,
 		Super:     r.Super,
-		Job:       r.Job,
+		Task:      r.Task,
 		SessionID: r.SessionID,
 		Expires:   time.Now().Add(ttl),
 	})
@@ -207,7 +207,7 @@ type agentClaims struct {
 	AgentID   model.ID  `json:"a"`
 	OwnerID   model.ID  `json:"o"`
 	Super     bool      `json:"s,omitempty"`
-	Job       model.ID  `json:"j,omitempty"`
+	Task      model.ID  `json:"j,omitempty"`
 	SessionID model.ID  `json:"e,omitempty"`
 	Expires   time.Time `json:"x"`
 }
@@ -220,7 +220,7 @@ func signAgent(c Claims) (string, error) {
 	}
 	body, err := json.Marshal(agentClaims{
 		AgentID: c.Subject, OwnerID: c.OwnerID, Super: c.Super,
-		Job: c.Job, SessionID: c.SessionID, Expires: c.Expires,
+		Task: c.Task, SessionID: c.SessionID, Expires: c.Expires,
 	})
 	if err != nil {
 		return "", err
@@ -300,6 +300,6 @@ func verifyAgent(token string) (Claims, error) {
 	}
 	return Claims{
 		Kind: KindAgent, Subject: c.AgentID, OwnerID: c.OwnerID, Super: c.Super,
-		Job: c.Job, SessionID: c.SessionID, Expires: c.Expires,
+		Task: c.Task, SessionID: c.SessionID, Expires: c.Expires,
 	}, nil
 }

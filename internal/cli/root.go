@@ -67,7 +67,7 @@ func NewRoot() *cobra.Command {
 	add("config", setupCmd(g), setCmd(), configCmd(g))
 	add("daemon", daemonCmd(g), tryCmd(g))
 	add("server", serverCmd(g))
-	add("client", chatCmd(g), agentCmd(g), jobCmd(g), watchCmd(g), machineCmd(g), recallCmd(g))
+	add("client", chatCmd(g), agentCmd(g), taskCmd(g), watchCmd(g), machineCmd(g), recallCmd(g))
 	localizeCobra(root)
 	return root
 }

@@ -2,8 +2,8 @@
 
 Solax is an app for super-agent workflows.
 
-You talk to one agent, the **Super Agent**. It gives jobs to coding agents
-(Claude Code, Codex and pi) that run on your machines. When a job is done,
+You talk to one agent, the **Super Agent**. It gives tasks to coding agents
+(Claude Code, Codex and pi) that run on your machines. When a task is done,
 the result comes back to the Super Agent, and it replies to you.
 
 Solax takes ideas from [Multica](https://multica.ai), [Alma](https://alma.now),
@@ -63,7 +63,7 @@ solax agent add reviewer --runtime claude --dir ~/src/app \
     --instructions-file review.md
 ```
 
-The Super Agent uses `--desc` to choose an agent for a job, so write it
+The Super Agent uses `--desc` to choose an agent for a task, so write it
 clearly. The instructions (`--instructions` or `--instructions-file`)
 are the system prompt of the agent: its sessions get them after the
 Solax role prompt. They are optional. Change them with
@@ -76,12 +76,12 @@ Talk to the Super Agent:
 solax chat "Review the auth package in ~/src/app"
 ```
 
-Or give a job to an agent yourself:
+Or give a task to an agent yourself:
 
 ```sh
-solax job send reviewer "Find bugs in internal/auth"
-solax job list
-solax job show <job-id>
+solax task send reviewer "Find bugs in internal/auth"
+solax task list
+solax task show <task-id>
 ```
 
 To follow everything live, run `solax watch`.
@@ -127,7 +127,7 @@ solax machine approve <code>
 
 ## Desktop app
 
-The desktop app shows the chat with the Super Agent, all jobs as live
+The desktop app shows the chat with the Super Agent, all tasks as live
 transcripts, your agents and your machines. See
 [`apps/desktop/README.md`](apps/desktop/README.md).
 
@@ -141,7 +141,7 @@ go run .
 | Path               | Contents                                                      |
 | ------------------ | ------------------------------------------------------------- |
 | `cmd/solax`        | The `solax` binary                                            |
-| `internal/`        | Server, daemon, CLI, store, agent runtimes                    |
+| `internal/`        | Server, daemon, CLI, auth, agent runtimes                     |
 | `pkg/`             | Public packages: API client, event format (IR), wire protocol |
 | `api/openapi.yaml` | REST API                                                      |
 | `apps/desktop`     | macOS desktop app                                             |
