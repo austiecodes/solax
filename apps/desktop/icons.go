@@ -28,12 +28,20 @@ var (
 	reloadIcon   = glyph("f7-arrow-clockwise")
 	sparklesIcon = glyph("f7-sparkles")
 	tasksIcon    = glyph("f7-list-bullet-indent")
+	workflowIcon = glyph("f7-flowchart")
 	agentIcon    = glyph("meteor-terminal")
 	machineIcon  = glyph("f7-desktopcomputer")
 	plusIcon     = glyph("f7-plus")
 	closeIcon    = glyph("f7-xmark")
 	folderIcon   = glyph("f7-folder")
 	organizeIcon = glyph("f7-line-horizontal-3-decrease")
+
+	// The kinds of a workflow step.
+	questionIcon = glyph("f7-question-circle")
+	clockIcon    = glyph("f7-clock")
+	peopleIcon   = glyph("f7-person-2")
+	bookIcon     = glyph("f7-book")
+	replyIcon    = glyph("f7-arrowshape-turn-up-left")
 
 	// The steps of a transcript.
 	thoughtIcon   = glyph("f7-lightbulb")

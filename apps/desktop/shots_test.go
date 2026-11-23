@@ -50,7 +50,32 @@ func TestShots(t *testing.T) {
 				d.page, d.taskSel = pageTasks, "tsk_1"
 				d.ask("Cancel this task?", `coder stops work on "Add a README to the repo". You cannot resume it.`, "Cancel task", true, func() {}).keep = "Keep task"
 			},
-			"tasks-flat": func(d *desktop) { d.page, d.prefs.TaskGroups = pageTasks, "none" },
+			"tasks-flat":    func(d *desktop) { d.page, d.prefs.TaskGroups = pageTasks, "none" },
+			"workflows":     func(d *desktop) { d.page = pageWorkflows },
+			"workflow-run":  func(d *desktop) { d.page, d.wf.sel, d.wf.item = pageWorkflows, "wfl_1", sampleRun(time.Now()) },
+			"workflow-done": func(d *desktop) { d.page, d.wf.sel, d.wf.item = pageWorkflows, "wfl_2", sampleDoneRun(time.Now()) },
+			"workflow-live": func(d *desktop) {
+				d.page, d.wf.sel, d.wf.item = pageWorkflows, "wfl_3", sampleLiveRun(time.Now())
+				followSample(d)
+			},
+			"workflow-live-rail": func(d *desktop) {
+				d.page, d.wf.sel, d.wf.item, d.prefs.WorkflowView = pageWorkflows, "wfl_3", sampleLiveRun(time.Now()), viewRail
+				followSample(d)
+			},
+			"workflow-run-rail": func(d *desktop) {
+				d.page, d.wf.sel, d.wf.item, d.prefs.WorkflowView = pageWorkflows, "wfl_1", sampleRun(time.Now()), viewRail
+			},
+			"workflow-failed-rail": func(d *desktop) {
+				d.page, d.wf.sel, d.wf.item, d.prefs.WorkflowView = pageWorkflows, "wfl_4", sampleFailedRun(time.Now()), viewRail
+			},
+			"workflow-failed": func(d *desktop) {
+				d.page, d.wf.sel, d.wf.item = pageWorkflows, "wfl_4", sampleFailedRun(time.Now())
+			},
+			"workflow-saved": func(d *desktop) {
+				d.page, d.wf.sel = pageWorkflows, "fix-until-pass"
+				d.wf.item = protocol.WorkflowItem{Saved: &d.wf.list.Saved[0], Runs: d.wf.list.Runs[:1]}
+				d.wf.item.Saved.Source = sampleSource
+			},
 		}
 		for page, setup := range shots {
 			d := sampleDesktop(t)
@@ -108,6 +133,7 @@ func sampleDesktop(t *testing.T) *desktop {
 			Prompt: "Read the repo and write a short README."},
 	}
 	d.unread["tsk_2"] = true
+	d.wf.list = sampleWorkflows(now)
 	d.messages = []protocol.Message{
 		{ID: "m1", Seq: 1, Author: protocol.Author{Kind: "human"}, Text: "hello", CreatedAt: now},
 		{ID: "m2", Seq: 2, Author: protocol.Author{Kind: "super"}, Text: "Hi! I'm the Solax router. I dispatch work to your coding agents on your machines. What would you like done today?", CreatedAt: now},

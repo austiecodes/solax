@@ -27,6 +27,9 @@ type prefs struct {
 	// closed, is unread too (unread.go).
 	Unread []string  `json:"unread,omitempty"`
 	SeenAt time.Time `json:"seenAt,omitzero"`
+	// WorkflowView is how a run shows its steps: "graph" or "rail"
+	// (run_view.go).
+	WorkflowView string `json:"workflowView,omitempty"`
 }
 
 const (

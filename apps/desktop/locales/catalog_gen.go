@@ -2375,3 +2375,561 @@ func SinceMinutes(n int) string { return In(i18n.Locale()).SinceMinutes(n) }
 func (msgs Messages) SinceMinutes(n int) string {
 	return Catalog.Format(msgs.locale, "sinceMinutes", map[string]any{"n": n})
 }
+
+// NavWorkflows says "Workflows"
+// in the language the app shows.
+//
+// The page of workflow runs and saved workflow scripts.
+func NavWorkflows() string { return In(i18n.Locale()).NavWorkflows() }
+
+// NavWorkflows says "Workflows"
+// in the language of msgs.
+//
+// The page of workflow runs and saved workflow scripts.
+func (msgs Messages) NavWorkflows() string {
+	return Catalog.Format(msgs.locale, "navWorkflows", nil)
+}
+
+// StateWaiting says "waiting"
+// in the language the app shows.
+func StateWaiting() string { return In(i18n.Locale()).StateWaiting() }
+
+// StateWaiting says "waiting"
+// in the language of msgs.
+func (msgs Messages) StateWaiting() string {
+	return Catalog.Format(msgs.locale, "stateWaiting", nil)
+}
+
+// WorkflowsSubtitle says "Scripts that the server runs across your agents"
+// in the language the app shows.
+func WorkflowsSubtitle() string { return In(i18n.Locale()).WorkflowsSubtitle() }
+
+// WorkflowsSubtitle says "Scripts that the server runs across your agents"
+// in the language of msgs.
+func (msgs Messages) WorkflowsSubtitle() string {
+	return Catalog.Format(msgs.locale, "workflowsSubtitle", nil)
+}
+
+// WorkflowsEmptyTitle says "No workflows yet"
+// in the language the app shows.
+func WorkflowsEmptyTitle() string { return In(i18n.Locale()).WorkflowsEmptyTitle() }
+
+// WorkflowsEmptyTitle says "No workflows yet"
+// in the language of msgs.
+func (msgs Messages) WorkflowsEmptyTitle() string {
+	return Catalog.Format(msgs.locale, "workflowsEmptyTitle", nil)
+}
+
+// WorkflowsEmptyDetail says "Ask Solax for work that needs more than one task, such as code then review until it passes. Solax writes a workflow a…"
+// in the language the app shows.
+func WorkflowsEmptyDetail() string { return In(i18n.Locale()).WorkflowsEmptyDetail() }
+
+// WorkflowsEmptyDetail says "Ask Solax for work that needs more than one task, such as code then review until it passes. Solax writes a workflow a…"
+// in the language of msgs.
+func (msgs Messages) WorkflowsEmptyDetail() string {
+	return Catalog.Format(msgs.locale, "workflowsEmptyDetail", nil)
+}
+
+// WorkflowRuns says "Runs"
+// in the language the app shows.
+func WorkflowRuns() string { return In(i18n.Locale()).WorkflowRuns() }
+
+// WorkflowRuns says "Runs"
+// in the language of msgs.
+func (msgs Messages) WorkflowRuns() string {
+	return Catalog.Format(msgs.locale, "workflowRuns", nil)
+}
+
+// WorkflowRunsEmpty says "No runs yet."
+// in the language the app shows.
+func WorkflowRunsEmpty() string { return In(i18n.Locale()).WorkflowRunsEmpty() }
+
+// WorkflowRunsEmpty says "No runs yet."
+// in the language of msgs.
+func (msgs Messages) WorkflowRunsEmpty() string {
+	return Catalog.Format(msgs.locale, "workflowRunsEmpty", nil)
+}
+
+// WorkflowSaved says "Saved"
+// in the language the app shows.
+func WorkflowSaved() string { return In(i18n.Locale()).WorkflowSaved() }
+
+// WorkflowSaved says "Saved"
+// in the language of msgs.
+func (msgs Messages) WorkflowSaved() string {
+	return Catalog.Format(msgs.locale, "workflowSaved", nil)
+}
+
+// WorkflowSavedHelp says "Scripts kept by name. Solax looks here first."
+// in the language the app shows.
+func WorkflowSavedHelp() string { return In(i18n.Locale()).WorkflowSavedHelp() }
+
+// WorkflowSavedHelp says "Scripts kept by name. Solax looks here first."
+// in the language of msgs.
+func (msgs Messages) WorkflowSavedHelp() string {
+	return Catalog.Format(msgs.locale, "workflowSavedHelp", nil)
+}
+
+// WorkflowSavedEmpty says "No saved workflows. Save one with: solax workflow save <file>"
+// in the language the app shows.
+func WorkflowSavedEmpty() string { return In(i18n.Locale()).WorkflowSavedEmpty() }
+
+// WorkflowSavedEmpty says "No saved workflows. Save one with: solax workflow save <file>"
+// in the language of msgs.
+func (msgs Messages) WorkflowSavedEmpty() string {
+	return Catalog.Format(msgs.locale, "workflowSavedEmpty", nil)
+}
+
+// WorkflowAsks says "asks"
+// in the language the app shows.
+//
+// A chip on a run that waits for an answer to its question.
+func WorkflowAsks() string { return In(i18n.Locale()).WorkflowAsks() }
+
+// WorkflowAsks says "asks"
+// in the language of msgs.
+//
+// A chip on a run that waits for an answer to its question.
+func (msgs Messages) WorkflowAsks() string {
+	return Catalog.Format(msgs.locale, "workflowAsks", nil)
+}
+
+// WorkflowCancel says "Cancel workflow"
+// in the language the app shows.
+func WorkflowCancel() string { return In(i18n.Locale()).WorkflowCancel() }
+
+// WorkflowCancel says "Cancel workflow"
+// in the language of msgs.
+func (msgs Messages) WorkflowCancel() string {
+	return Catalog.Format(msgs.locale, "workflowCancel", nil)
+}
+
+// WorkflowCancelQuestion says "Cancel this workflow?"
+// in the language the app shows.
+func WorkflowCancelQuestion() string { return In(i18n.Locale()).WorkflowCancelQuestion() }
+
+// WorkflowCancelQuestion says "Cancel this workflow?"
+// in the language of msgs.
+func (msgs Messages) WorkflowCancelQuestion() string {
+	return Catalog.Format(msgs.locale, "workflowCancelQuestion", nil)
+}
+
+// WorkflowCancelDetail says "The script stops and its running tasks are cancelled. Its finished steps stay, so a new run can resume from it."
+// in the language the app shows.
+func WorkflowCancelDetail() string { return In(i18n.Locale()).WorkflowCancelDetail() }
+
+// WorkflowCancelDetail says "The script stops and its running tasks are cancelled. Its finished steps stay, so a new run can resume from it."
+// in the language of msgs.
+func (msgs Messages) WorkflowCancelDetail() string {
+	return Catalog.Format(msgs.locale, "workflowCancelDetail", nil)
+}
+
+// WorkflowKeep says "Keep running"
+// in the language the app shows.
+func WorkflowKeep() string { return In(i18n.Locale()).WorkflowKeep() }
+
+// WorkflowKeep says "Keep running"
+// in the language of msgs.
+func (msgs Messages) WorkflowKeep() string {
+	return Catalog.Format(msgs.locale, "workflowKeep", nil)
+}
+
+// WorkflowID says "Workflow ID"
+// in the language the app shows.
+func WorkflowID() string { return In(i18n.Locale()).WorkflowID() }
+
+// WorkflowID says "Workflow ID"
+// in the language of msgs.
+func (msgs Messages) WorkflowID() string {
+	return Catalog.Format(msgs.locale, "workflowID", nil)
+}
+
+// WorkflowStartedBy says "Started by"
+// in the language the app shows.
+func WorkflowStartedBy() string { return In(i18n.Locale()).WorkflowStartedBy() }
+
+// WorkflowStartedBy says "Started by"
+// in the language of msgs.
+func (msgs Messages) WorkflowStartedBy() string {
+	return Catalog.Format(msgs.locale, "workflowStartedBy", nil)
+}
+
+// WorkflowByYou says "You"
+// in the language the app shows.
+func WorkflowByYou() string { return In(i18n.Locale()).WorkflowByYou() }
+
+// WorkflowByYou says "You"
+// in the language of msgs.
+func (msgs Messages) WorkflowByYou() string {
+	return Catalog.Format(msgs.locale, "workflowByYou", nil)
+}
+
+// WorkflowResumes says "Resumes"
+// in the language the app shows.
+func WorkflowResumes() string { return In(i18n.Locale()).WorkflowResumes() }
+
+// WorkflowResumes says "Resumes"
+// in the language of msgs.
+func (msgs Messages) WorkflowResumes() string {
+	return Catalog.Format(msgs.locale, "workflowResumes", nil)
+}
+
+// WorkflowResumesHelp says "This run reuses the finished steps of that run."
+// in the language the app shows.
+func WorkflowResumesHelp() string { return In(i18n.Locale()).WorkflowResumesHelp() }
+
+// WorkflowResumesHelp says "This run reuses the finished steps of that run."
+// in the language of msgs.
+func (msgs Messages) WorkflowResumesHelp() string {
+	return Catalog.Format(msgs.locale, "workflowResumesHelp", nil)
+}
+
+// WorkflowError says "Error"
+// in the language the app shows.
+func WorkflowError() string { return In(i18n.Locale()).WorkflowError() }
+
+// WorkflowError says "Error"
+// in the language of msgs.
+func (msgs Messages) WorkflowError() string {
+	return Catalog.Format(msgs.locale, "workflowError", nil)
+}
+
+// WorkflowResult says "Result"
+// in the language the app shows.
+func WorkflowResult() string { return In(i18n.Locale()).WorkflowResult() }
+
+// WorkflowResult says "Result"
+// in the language of msgs.
+func (msgs Messages) WorkflowResult() string {
+	return Catalog.Format(msgs.locale, "workflowResult", nil)
+}
+
+// WorkflowLog says "Log"
+// in the language the app shows.
+func WorkflowLog() string { return In(i18n.Locale()).WorkflowLog() }
+
+// WorkflowLog says "Log"
+// in the language of msgs.
+func (msgs Messages) WorkflowLog() string {
+	return Catalog.Format(msgs.locale, "workflowLog", nil)
+}
+
+// WorkflowScript says "Script"
+// in the language the app shows.
+func WorkflowScript() string { return In(i18n.Locale()).WorkflowScript() }
+
+// WorkflowScript says "Script"
+// in the language of msgs.
+func (msgs Messages) WorkflowScript() string {
+	return Catalog.Format(msgs.locale, "workflowScript", nil)
+}
+
+// WorkflowCopy says "Copy"
+// in the language the app shows.
+func WorkflowCopy() string { return In(i18n.Locale()).WorkflowCopy() }
+
+// WorkflowCopy says "Copy"
+// in the language of msgs.
+func (msgs Messages) WorkflowCopy() string {
+	return Catalog.Format(msgs.locale, "workflowCopy", nil)
+}
+
+// WorkflowQuestion says "The workflow asks"
+// in the language the app shows.
+func WorkflowQuestion() string { return In(i18n.Locale()).WorkflowQuestion() }
+
+// WorkflowQuestion says "The workflow asks"
+// in the language of msgs.
+func (msgs Messages) WorkflowQuestion() string {
+	return Catalog.Format(msgs.locale, "workflowQuestion", nil)
+}
+
+// WorkflowAnswer says "Answer"
+// in the language the app shows.
+func WorkflowAnswer() string { return In(i18n.Locale()).WorkflowAnswer() }
+
+// WorkflowAnswer says "Answer"
+// in the language of msgs.
+func (msgs Messages) WorkflowAnswer() string {
+	return Catalog.Format(msgs.locale, "workflowAnswer", nil)
+}
+
+// WorkflowAnswerHelp says "Your answer"
+// in the language the app shows.
+func WorkflowAnswerHelp() string { return In(i18n.Locale()).WorkflowAnswerHelp() }
+
+// WorkflowAnswerHelp says "Your answer"
+// in the language of msgs.
+func (msgs Messages) WorkflowAnswerHelp() string {
+	return Catalog.Format(msgs.locale, "workflowAnswerHelp", nil)
+}
+
+// WorkflowNoteHelp says "A note with your choice (optional)"
+// in the language the app shows.
+func WorkflowNoteHelp() string { return In(i18n.Locale()).WorkflowNoteHelp() }
+
+// WorkflowNoteHelp says "A note with your choice (optional)"
+// in the language of msgs.
+func (msgs Messages) WorkflowNoteHelp() string {
+	return Catalog.Format(msgs.locale, "workflowNoteHelp", nil)
+}
+
+// WorkflowRunTitle says "Run it"
+// in the language the app shows.
+func WorkflowRunTitle() string { return In(i18n.Locale()).WorkflowRunTitle() }
+
+// WorkflowRunTitle says "Run it"
+// in the language of msgs.
+func (msgs Messages) WorkflowRunTitle() string {
+	return Catalog.Format(msgs.locale, "workflowRunTitle", nil)
+}
+
+// WorkflowRunHelp says "Starts a new run on the server. You can close this window: the run goes on."
+// in the language the app shows.
+func WorkflowRunHelp() string { return In(i18n.Locale()).WorkflowRunHelp() }
+
+// WorkflowRunHelp says "Starts a new run on the server. You can close this window: the run goes on."
+// in the language of msgs.
+func (msgs Messages) WorkflowRunHelp() string {
+	return Catalog.Format(msgs.locale, "workflowRunHelp", nil)
+}
+
+// WorkflowRun says "Run"
+// in the language the app shows.
+func WorkflowRun() string { return In(i18n.Locale()).WorkflowRun() }
+
+// WorkflowRun says "Run"
+// in the language of msgs.
+func (msgs Messages) WorkflowRun() string {
+	return Catalog.Format(msgs.locale, "workflowRun", nil)
+}
+
+// WorkflowWhen says "When to use"
+// in the language the app shows.
+func WorkflowWhen() string { return In(i18n.Locale()).WorkflowWhen() }
+
+// WorkflowWhen says "When to use"
+// in the language of msgs.
+func (msgs Messages) WorkflowWhen() string {
+	return Catalog.Format(msgs.locale, "workflowWhen", nil)
+}
+
+// WorkflowArgs says "Arguments"
+// in the language the app shows.
+func WorkflowArgs() string { return In(i18n.Locale()).WorkflowArgs() }
+
+// WorkflowArgs says "Arguments"
+// in the language of msgs.
+func (msgs Messages) WorkflowArgs() string {
+	return Catalog.Format(msgs.locale, "workflowArgs", nil)
+}
+
+// WorkflowArgsHelp says "Optional. A JSON value; the script gets it as args."
+// in the language the app shows.
+func WorkflowArgsHelp() string { return In(i18n.Locale()).WorkflowArgsHelp() }
+
+// WorkflowArgsHelp says "Optional. A JSON value; the script gets it as args."
+// in the language of msgs.
+func (msgs Messages) WorkflowArgsHelp() string {
+	return Catalog.Format(msgs.locale, "workflowArgsHelp", nil)
+}
+
+// WorkflowArgsInvalid says "The arguments are not valid JSON."
+// in the language the app shows.
+func WorkflowArgsInvalid() string { return In(i18n.Locale()).WorkflowArgsInvalid() }
+
+// WorkflowArgsInvalid says "The arguments are not valid JSON."
+// in the language of msgs.
+func (msgs Messages) WorkflowArgsInvalid() string {
+	return Catalog.Format(msgs.locale, "workflowArgsInvalid", nil)
+}
+
+// WorkflowPlanned says "planned"
+// in the language the app shows.
+func WorkflowPlanned() string { return In(i18n.Locale()).WorkflowPlanned() }
+
+// WorkflowPlanned says "planned"
+// in the language of msgs.
+func (msgs Messages) WorkflowPlanned() string {
+	return Catalog.Format(msgs.locale, "workflowPlanned", nil)
+}
+
+// WorkflowNotReached says "not reached"
+// in the language the app shows.
+func WorkflowNotReached() string { return In(i18n.Locale()).WorkflowNotReached() }
+
+// WorkflowNotReached says "not reached"
+// in the language of msgs.
+func (msgs Messages) WorkflowNotReached() string {
+	return Catalog.Format(msgs.locale, "workflowNotReached", nil)
+}
+
+// WorkflowRounds says "Rounds"
+// in the language the app shows.
+//
+// The name of a loop that the script did not name: its rounds are the
+// replies to one task.
+func WorkflowRounds() string { return In(i18n.Locale()).WorkflowRounds() }
+
+// WorkflowRounds says "Rounds"
+// in the language of msgs.
+//
+// The name of a loop that the script did not name: its rounds are the
+// replies to one task.
+func (msgs Messages) WorkflowRounds() string {
+	return Catalog.Format(msgs.locale, "workflowRounds", nil)
+}
+
+// WorkflowProgress says "Progress"
+// in the language the app shows.
+func WorkflowProgress() string { return In(i18n.Locale()).WorkflowProgress() }
+
+// WorkflowProgress says "Progress"
+// in the language of msgs.
+func (msgs Messages) WorkflowProgress() string {
+	return Catalog.Format(msgs.locale, "workflowProgress", nil)
+}
+
+// WorkflowGraph says "Graph"
+// in the language the app shows.
+//
+// A view of a workflow run: its steps as nodes joined by edges.
+func WorkflowGraph() string { return In(i18n.Locale()).WorkflowGraph() }
+
+// WorkflowGraph says "Graph"
+// in the language of msgs.
+//
+// A view of a workflow run: its steps as nodes joined by edges.
+func (msgs Messages) WorkflowGraph() string {
+	return Catalog.Format(msgs.locale, "workflowGraph", nil)
+}
+
+// WorkflowRail says "Rail"
+// in the language the app shows.
+//
+// A view of a workflow run: its phases and steps down a line.
+func WorkflowRail() string { return In(i18n.Locale()).WorkflowRail() }
+
+// WorkflowRail says "Rail"
+// in the language of msgs.
+//
+// A view of a workflow run: its phases and steps down a line.
+func (msgs Messages) WorkflowRail() string {
+	return Catalog.Format(msgs.locale, "workflowRail", nil)
+}
+
+// WorkflowParallel says "In parallel · {n}"
+// in the language the app shows.
+func WorkflowParallel(n int) string { return In(i18n.Locale()).WorkflowParallel(n) }
+
+// WorkflowParallel says "In parallel · {n}"
+// in the language of msgs.
+func (msgs Messages) WorkflowParallel(n int) string {
+	return Catalog.Format(msgs.locale, "workflowParallel", map[string]any{"n": n})
+}
+
+// WorkflowWaitsForAnswer says "Waits for your answer"
+// in the language the app shows.
+func WorkflowWaitsForAnswer() string { return In(i18n.Locale()).WorkflowWaitsForAnswer() }
+
+// WorkflowWaitsForAnswer says "Waits for your answer"
+// in the language of msgs.
+func (msgs Messages) WorkflowWaitsForAnswer() string {
+	return Catalog.Format(msgs.locale, "workflowWaitsForAnswer", nil)
+}
+
+// WorkflowOpenTask says "Open task"
+// in the language the app shows.
+func WorkflowOpenTask() string { return In(i18n.Locale()).WorkflowOpenTask() }
+
+// WorkflowOpenTask says "Open task"
+// in the language of msgs.
+func (msgs Messages) WorkflowOpenTask() string {
+	return Catalog.Format(msgs.locale, "workflowOpenTask", nil)
+}
+
+// WorkflowStepCount says "{n, plural, one {# step} other {# steps}}"
+// in the language the app shows.
+func WorkflowStepCount(n int) string { return In(i18n.Locale()).WorkflowStepCount(n) }
+
+// WorkflowStepCount says "{n, plural, one {# step} other {# steps}}"
+// in the language of msgs.
+func (msgs Messages) WorkflowStepCount(n int) string {
+	return Catalog.Format(msgs.locale, "workflowStepCount", map[string]any{"n": n})
+}
+
+// WorkflowRoundOf says "round {n} of {most}"
+// in the language the app shows.
+func WorkflowRoundOf(n int, most int) string { return In(i18n.Locale()).WorkflowRoundOf(n, most) }
+
+// WorkflowRoundOf says "round {n} of {most}"
+// in the language of msgs.
+func (msgs Messages) WorkflowRoundOf(n int, most int) string {
+	return Catalog.Format(msgs.locale, "workflowRoundOf", map[string]any{"n": n, "most": most})
+}
+
+// WorkflowRoundN says "round {n}"
+// in the language the app shows.
+func WorkflowRoundN(n int) string { return In(i18n.Locale()).WorkflowRoundN(n) }
+
+// WorkflowRoundN says "round {n}"
+// in the language of msgs.
+func (msgs Messages) WorkflowRoundN(n int) string {
+	return Catalog.Format(msgs.locale, "workflowRoundN", map[string]any{"n": n})
+}
+
+// WorkflowRoundsDone says "{n, plural, one {# round} other {# rounds}}"
+// in the language the app shows.
+func WorkflowRoundsDone(n int) string { return In(i18n.Locale()).WorkflowRoundsDone(n) }
+
+// WorkflowRoundsDone says "{n, plural, one {# round} other {# rounds}}"
+// in the language of msgs.
+func (msgs Messages) WorkflowRoundsDone(n int) string {
+	return Catalog.Format(msgs.locale, "workflowRoundsDone", map[string]any{"n": n})
+}
+
+// WorkflowRoundsOf says "{n} of {most} rounds"
+// in the language the app shows.
+func WorkflowRoundsOf(n int, most int) string { return In(i18n.Locale()).WorkflowRoundsOf(n, most) }
+
+// WorkflowRoundsOf says "{n} of {most} rounds"
+// in the language of msgs.
+func (msgs Messages) WorkflowRoundsOf(n int, most int) string {
+	return Catalog.Format(msgs.locale, "workflowRoundsOf", map[string]any{"n": n, "most": most})
+}
+
+// WorkflowStoppedIn says "stopped in round {n}"
+// in the language the app shows.
+func WorkflowStoppedIn(n int) string { return In(i18n.Locale()).WorkflowStoppedIn(n) }
+
+// WorkflowStoppedIn says "stopped in round {n}"
+// in the language of msgs.
+func (msgs Messages) WorkflowStoppedIn(n int) string {
+	return Catalog.Format(msgs.locale, "workflowStoppedIn", map[string]any{"n": n})
+}
+
+// WorkflowResumeRun says "Run again from here"
+// in the language the app shows.
+//
+// Starts a new run of the same script that reuses the finished steps of
+// this run.
+func WorkflowResumeRun() string { return In(i18n.Locale()).WorkflowResumeRun() }
+
+// WorkflowResumeRun says "Run again from here"
+// in the language of msgs.
+//
+// Starts a new run of the same script that reuses the finished steps of
+// this run.
+func (msgs Messages) WorkflowResumeRun() string {
+	return Catalog.Format(msgs.locale, "workflowResumeRun", nil)
+}
+
+// WorkflowPhase says "Phase {n}: {title}"
+// in the language the app shows.
+func WorkflowPhase(n int, title string) string { return In(i18n.Locale()).WorkflowPhase(n, title) }
+
+// WorkflowPhase says "Phase {n}: {title}"
+// in the language of msgs.
+func (msgs Messages) WorkflowPhase(n int, title string) string {
+	return Catalog.Format(msgs.locale, "workflowPhase", map[string]any{"n": n, "title": title})
+}

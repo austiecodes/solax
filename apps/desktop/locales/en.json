@@ -391,5 +391,138 @@
         "type": "int"
       }
     }
+  },
+  "navWorkflows": "Workflows",
+  "stateWaiting": "waiting",
+  "workflowsSubtitle": "Scripts that the server runs across your agents",
+  "workflowsEmptyTitle": "No workflows yet",
+  "workflowsEmptyDetail": "Ask Solax for work that needs more than one task, such as code then review until it passes. Solax writes a workflow and the server runs it. You can also start one from the CLI.",
+  "workflowRuns": "Runs",
+  "workflowRunsEmpty": "No runs yet.",
+  "workflowSaved": "Saved",
+  "workflowSavedHelp": "Scripts kept by name. Solax looks here first.",
+  "workflowSavedEmpty": "No saved workflows. Save one with: solax workflow save <file>",
+  "workflowAsks": "asks",
+  "workflowCancel": "Cancel workflow",
+  "workflowCancelQuestion": "Cancel this workflow?",
+  "workflowCancelDetail": "The script stops and its running tasks are cancelled. Its finished steps stay, so a new run can resume from it.",
+  "workflowKeep": "Keep running",
+  "workflowID": "Workflow ID",
+  "workflowStartedBy": "Started by",
+  "workflowByYou": "You",
+  "workflowResumes": "Resumes",
+  "workflowResumesHelp": "This run reuses the finished steps of that run.",
+  "workflowError": "Error",
+  "workflowResult": "Result",
+  "workflowLog": "Log",
+  "workflowScript": "Script",
+  "workflowCopy": "Copy",
+  "workflowQuestion": "The workflow asks",
+  "workflowAnswer": "Answer",
+  "workflowAnswerHelp": "Your answer",
+  "workflowNoteHelp": "A note with your choice (optional)",
+  "workflowRunTitle": "Run it",
+  "workflowRunHelp": "Starts a new run on the server. You can close this window: the run goes on.",
+  "workflowRun": "Run",
+  "workflowWhen": "When to use",
+  "workflowArgs": "Arguments",
+  "workflowArgsHelp": "Optional. A JSON value; the script gets it as args.",
+  "workflowArgsInvalid": "The arguments are not valid JSON.",
+  "workflowPlanned": "planned",
+  "workflowNotReached": "not reached",
+  "workflowRounds": "Rounds",
+  "workflowProgress": "Progress",
+  "workflowGraph": "Graph",
+  "workflowRail": "Rail",
+  "workflowParallel": "In parallel · {n}",
+  "workflowWaitsForAnswer": "Waits for your answer",
+  "workflowOpenTask": "Open task",
+  "workflowStepCount": "{n, plural, one {# step} other {# steps}}",
+  "workflowRoundOf": "round {n} of {most}",
+  "workflowRoundN": "round {n}",
+  "workflowRoundsDone": "{n, plural, one {# round} other {# rounds}}",
+  "workflowRoundsOf": "{n} of {most} rounds",
+  "workflowStoppedIn": "stopped in round {n}",
+  "workflowResumeRun": "Run again from here",
+  "workflowPhase": "Phase {n}: {title}",
+  "@workflowPhase": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@navWorkflows": {
+    "description": "The page of workflow runs and saved workflow scripts."
+  },
+  "@workflowAsks": {
+    "description": "A chip on a run that waits for an answer to its question."
+  },
+  "@workflowRounds": {
+    "description": "The name of a loop that the script did not name: its rounds are the replies to one task."
+  },
+  "@workflowRoundOf": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "most": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowRoundN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowRoundsDone": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowRoundsOf": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "most": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowStoppedIn": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowParallel": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowStepCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowRail": {
+    "description": "A view of a workflow run: its phases and steps down a line."
+  },
+  "@workflowGraph": {
+    "description": "A view of a workflow run: its steps as nodes joined by edges."
+  },
+  "@workflowResumeRun": {
+    "description": "Starts a new run of the same script that reuses the finished steps of this run."
   }
 }

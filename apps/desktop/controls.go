@@ -140,8 +140,9 @@ func selectField(c *ui.Context, key string, value *string, options []string) ui.
 func taskLive(state string) bool { return state == "queued" || state == "running" }
 
 // statusIcon draws a task state, as the sidebar shows it: a faint ring
-// while queued, a turning ring while it runs, a check when done (filled
-// while unread), a red disc when failed, a crossed ring when cancelled.
+// while queued, a turning ring while it runs, a ring with a dot while a
+// workflow waits for an answer, a check when done (filled while unread),
+// a red disc when failed, a crossed ring when cancelled.
 func statusIcon(c *ui.Context, pal *palette, state string, unread bool, size float32) ui.Element {
 	box := ui.Box(c).Size(size, size).Shrink(0).Label(stateWord(state))
 	box.Draw(func(p *ui.Painter, r ui.Rect) {
@@ -160,6 +161,11 @@ func statusIcon(c *ui.Context, pal *palette, state string, unread bool, size flo
 		switch state {
 		case "queued":
 			ring(1.5, pal.textFaint)
+		case "waiting": // a workflow waits for an answer
+			ring(1.5, pal.attention)
+			var dot ui.Path
+			dot.Circle(cx, cy, rad*0.32)
+			p.FillPath(&dot, pal.attention)
 		case "running":
 			ring(1.7, pal.text.Alpha(0.13))
 			p.AnimationFrame()
@@ -196,4 +202,34 @@ func statusIcon(c *ui.Context, pal *palette, state string, unread bool, size flo
 		}
 	})
 	return box
+}
+
+// segment is one choice of a segmented control.
+type segment struct{ value, label string }
+
+// segmented is a row of choices in a pill, as the Codex app's: the chosen
+// one is a raised chip. It returns the value chosen in this frame, and
+// whether the user changed it.
+func segmented(c *ui.Context, key, value string, segs []segment) (string, bool) {
+	pal := paletteFor(c)
+	chosen, changed := value, false
+	ui.Row(c.Key(key)).Padding(3).Gap(2).Radius(9).Background(pal.chip).Shrink(0).Role(ui.RoleTabList).Children(func() {
+		for _, s := range segs {
+			on := s.value == value
+			b := ui.ButtonBase(c.Key(s.value)).Padding(4, 12).Radius(7).Label(s.label).Role(ui.RoleTab).Selected(on)
+			ink := pal.textMuted
+			switch {
+			case on:
+				b.Background(pal.card).Shadow(0, 1, 2, 0, pal.rowShadow)
+				ink = pal.text
+			case b.Hovered():
+				ink = pal.text
+			}
+			b.Children(func() { ui.Text(c, s.label).FontSize(12.5).FontWeight(500).TextColor(ink).SingleLine() })
+			if b.Clicked() && !on {
+				chosen, changed = s.value, true
+			}
+		}
+	})
+	return chosen, changed
 }

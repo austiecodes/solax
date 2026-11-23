@@ -52,13 +52,19 @@ Code map:
 - `taskgroups.go`: how the sidebar groups the tasks: by project (the work
   folder of the task's agent), by agent, or not at all. The menu next to
   "Recent tasks" and Settings › Sidebar choose it.
-- `controls.go`: the app's buttons, text field, text area, select and task status icon. Pages
-  use these, not the stock `ui.Button`/`ui.TextInput`.
+- `controls.go`: the app's buttons, text field, text area, select,
+  segmented control and task status icon. Pages use these, not the stock
+  `ui.Button`/`ui.TextInput`.
 - `transcript.go`: turns IR events (and, for the chat, the messages) into
   blocks: user messages, replies, groups of steps, notes. No UI, so the
   tests cover the rules. `transcript_view.go` draws the blocks, the
   folds and the composer.
-- `chat.go`, `tasks.go`, `agents.go`, `settings.go`: the pages.
+- `chat.go`, `tasks.go`, `workflows.go`, `agents.go`, `settings.go`: the pages.
+- `timeline.go`: turns the steps of a workflow run into phases, loops
+  with their rounds, and stages of steps that ran at the same time. No
+  UI, so the tests cover the rules. `run_view.go` shows it in the view
+  the user picks: `graph_view.go` (nodes and edges, a frame for each
+  loop) or `rail_view.go` (phase stations and a line down the steps).
 - `palette.go`: the ⌘K palette. Each kind of item (tasks, actions,
   agents) comes from one source function in `paletteItems`.
 - `unread.go`: unread tasks, notifications and the Dock badge, all in one

@@ -67,6 +67,8 @@ func (d *desktop) pageView(c *ui.Context) {
 	switch d.page {
 	case pageTasks:
 		d.tasksPage(c)
+	case pageWorkflows:
+		d.workflowsPage(c)
 	case pageAgents:
 		d.agentsPage(c)
 	case pageMachines:

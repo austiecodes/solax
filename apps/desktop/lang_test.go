@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
@@ -61,7 +62,7 @@ func TestCatalogsComplete(t *testing.T) {
 	if got := locales.In("en").ToolsUsed(1); got != "1 tool used" {
 		t.Errorf("ToolsUsed(1) = %q", got)
 	}
-	for _, id := range []string{"settings.open", "palette.open", "nav.chat", "nav.tasks", "nav.agents", "nav.machines", "sidebar.toggle", "theme.toggle", "data.reload"} {
+	for _, id := range []string{"settings.open", "palette.open", "nav.chat", "nav.tasks", "nav.workflows", "nav.agents", "nav.machines", "sidebar.toggle", "theme.toggle", "data.reload"} {
 		if _, ok := actionTitles[id]; !ok {
 			t.Errorf("action %q has no title", id)
 		}
@@ -72,11 +73,12 @@ func TestCatalogsComplete(t *testing.T) {
 func TestPagesInChinese(t *testing.T) {
 	inLocale(t, "zh-Hans")
 	for page, want := range map[string][]string{
-		pageChat:     {"Solax 尚未设置", "任务", "机器"},
-		pageTasks:    {"还没有任务", "给 Solax 发消息"},
-		pageAgents:   {"还没有 Agent。在下方添加一个。", "添加 Agent", "工作目录"},
-		pageMachines: {"审批机器", "刷新"},
-		pageSettings: {"外观", "语言", "跟随系统", "保存并连接"},
+		pageChat:      {"Solax 尚未设置", "任务", "机器"},
+		pageTasks:     {"还没有任务", "给 Solax 发消息"},
+		pageWorkflows: {"还没有工作流", "工作流"},
+		pageAgents:    {"还没有 Agent。在下方添加一个。", "添加 Agent", "工作目录"},
+		pageMachines:  {"审批机器", "刷新"},
+		pageSettings:  {"外观", "语言", "跟随系统", "保存并连接"},
 	} {
 		t.Run(page, func(t *testing.T) {
 			d := testDesktop(t)
@@ -138,6 +140,8 @@ func TestPopulatedPagesInChinese(t *testing.T) {
 		{"tasks", func(d *desktop) { d.page = pageTasks }, []string{"所有任务", "3 个任务，1 个运行中", "最近的任务", "任务分组"}},
 		{"agent", func(d *desktop) { d.page = pageAgents }, []string{"Agent 列表", "状态", "在线", "运行时默认值", "设为 Solax", "指令"}},
 		{"new-agent", func(d *desktop) { d.page, d.form.open = pageAgents, true }, []string{"新建 Agent", "名称", "运行时", "描述", "指令", "添加 Agent"}},
+		{"workflows", func(d *desktop) { d.page = pageWorkflows }, []string{"运行记录", "已保存", "提问", "等待中"}},
+		{"workflow-run", func(d *desktop) { d.page, d.wf.sel, d.wf.item = pageWorkflows, "wfl_1", sampleRun(time.Now()) }, []string{"工作流提问", "进度", "图", "轨道", "2/3 轮", "日志", "脚本", "取消工作流"}},
 		{"machines", func(d *desktop) { d.page = pageMachines }, []string{"配对码", "最近在线", "机器 ID", "就绪", "不可用"}},
 		{"settings", func(d *desktop) { d.page = pageSettings }, []string{"外观", "语言", "侧边栏", "任务分组方式", "项目", "保存并连接"}},
 		{"palette", func(d *desktop) { d.openPalette() }, []string{"搜索", "移动", "打开", "关闭"}},

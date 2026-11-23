@@ -45,7 +45,7 @@ func (d *desktop) sidebar(c *ui.Context, pal *palette, bar ui.TitleBar) {
 // to say (a count, or that it works).
 func (d *desktop) navRow(c *ui.Context, pal *palette, p navPage) {
 	label := title(p.action)
-	selected := d.page == p.id && (p.id != pageTasks || d.taskSel == "")
+	selected := d.page == p.id && (p.id != pageTasks || d.taskSel == "") && (p.id != pageWorkflows || d.wf.sel == "")
 	row := sideRow(c, pal, p.id, selected).Label(label).Tooltip(tip(label, p.action))
 	fg := pal.textMuted
 	if selected {
@@ -63,6 +63,8 @@ func (d *desktop) navRow(c *ui.Context, pal *palette, p navPage) {
 			if n := d.countTasks(func(j protocol.Task) bool { return taskLive(j.State) }); n > 0 {
 				ui.Textf(c, "%d", n).FontSize(12).TextColor(pal.textFaint).FontFeatures("tnum")
 			}
+		case pageWorkflows:
+			d.workflowCount(c, pal)
 		}
 	})
 	if row.Clicked() && !selected {

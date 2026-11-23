@@ -23,11 +23,12 @@ import (
 
 // Pages of the sidebar.
 const (
-	pageChat     = "chat"
-	pageTasks    = "tasks"
-	pageAgents   = "agents"
-	pageMachines = "machines"
-	pageSettings = "settings"
+	pageChat      = "chat"
+	pageTasks     = "tasks"
+	pageWorkflows = "workflows"
+	pageAgents    = "agents"
+	pageMachines  = "machines"
+	pageSettings  = "settings"
 )
 
 // navPage is one page of the sidebar: the action that opens it and the
@@ -41,6 +42,7 @@ type navPage struct {
 var navPages = []navPage{
 	{pageChat, "nav.chat", sparklesIcon},
 	{pageTasks, "nav.tasks", tasksIcon},
+	{pageWorkflows, "nav.workflows", workflowIcon},
 	{pageAgents, "nav.agents", agentIcon},
 	{pageMachines, "nav.machines", machineIcon},
 }
@@ -103,6 +105,9 @@ type desktop struct {
 	folds       map[string]*fold                // block or step key → open or closed (transcript_view.go)
 	followDraft string
 	taskList    ui.ListState
+
+	// Workflows (workflows.go).
+	wf wfState
 
 	// Agents and machines.
 	agents     []protocol.Agent
@@ -250,6 +255,7 @@ func (d *desktop) connect() {
 	d.update(func() {
 		d.setName, d.setServer = p.Name, p.Server
 		d.messages, d.tasks, d.agents, d.machines = nil, nil, nil, nil
+		d.wf.list, d.wf.item = protocol.WorkflowList{}, protocol.WorkflowItem{}
 		d.loaded = false // the first load of this server marks what ended since SeenAt
 		// taskSel stays: after a restart it names the task last open, and
 		// reloadAll loads its events. A task of another server shows as
@@ -321,7 +327,7 @@ func (d *desktop) feed(ctx context.Context, c *client.Client, server string) {
 	}
 }
 
-// reloadAll reads the conversation, tasks, agents and machines.
+// reloadAll reads the conversation, tasks, workflows, agents and machines.
 func (d *desktop) reloadAll() {
 	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 		msgs, err := c.SuperMessages(ctx, 0)
@@ -337,8 +343,12 @@ func (d *desktop) reloadAll() {
 			return nil, err
 		}
 		machines, err := c.Machines(ctx)
+		if err != nil {
+			return nil, err
+		}
+		wfs, err := c.Workflows(ctx)
 		return func() {
-			d.messages, d.agents, d.machines = msgs, agents, machines
+			d.messages, d.agents, d.machines, d.wf.list = msgs, agents, machines, wfs
 			d.setTasks(tasks)
 			if sa := d.superAgent(); sa != nil && sa.SessionID != "" {
 				d.superSes = sa.SessionID
@@ -346,6 +356,9 @@ func (d *desktop) reloadAll() {
 			}
 			if d.taskSel != "" {
 				d.loadEvents(d.taskSel)
+			}
+			if d.wf.sel != "" {
+				d.loadWorkflow(d.wf.sel)
 			}
 		}, err
 	})
@@ -374,6 +387,12 @@ func (d *desktop) apply(p protocol.Push) {
 		var j protocol.Task
 		if json.Unmarshal(p.Payload, &j) == nil {
 			d.upsertTask(j)
+			d.workflowTask(j)
+		}
+	case "workflow":
+		var w protocol.Workflow
+		if json.Unmarshal(p.Payload, &w) == nil {
+			d.upsertWorkflow(w)
 		}
 	case "session.event":
 		var n protocol.SessionEventNote

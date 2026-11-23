@@ -15,11 +15,12 @@ import (
 // spacing is the same on all pages and changes in one place.
 
 const (
-	gutter     = 20  // the inset of a page's header and content from the page's edge
-	pageW      = 760 // the widest that a page's column grows
-	sectionPad = 16  // the inset of a row in a section's box
-	fieldW     = 260 // the width of a control in a row
-	itemH      = 44  // a row of a list in a section
+	gutter     = 20   // the inset of a page's header and content from the page's edge
+	pageW      = 760  // the widest that a page's column grows
+	wideW      = 1040 // the same, on a page with a wide view: a timeline
+	sectionPad = 16   // the inset of a row in a section's box
+	fieldW     = 260  // the width of a control in a row
+	itemH      = 44   // a row of a list in a section
 )
 
 // pageSpec is the header of a page.
@@ -28,6 +29,7 @@ type pageSpec struct {
 	title   string
 	sub     string // muted, after the title
 	actions func() // the buttons at the right
+	wide    bool   // the column grows to wideW, not pageW
 }
 
 // showPage draws the header and, under it, body: the sections of the page in
@@ -36,7 +38,11 @@ func (d *desktop) showPage(c *ui.Context, p pageSpec, body func()) {
 	d.header(c, p)
 	ui.Scroll(c.Key("page")).Grow(1).MinHeight(0).Children(func() {
 		ui.Row(c).Justify(ui.Center).Padding(8, gutter, 32, gutter).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).MaxWidth(pageW).Gap(28).Children(body)
+			w := float32(pageW)
+			if p.wide {
+				w = wideW
+			}
+			ui.Column(c).Grow(1).MinWidth(0).MaxWidth(w).Gap(28).Children(body)
 		})
 	})
 }

@@ -39,7 +39,7 @@ func push(t *testing.T, event string, v any) protocol.Push {
 // Every page renders without a server, and a click on an empty form
 // starts no request.
 func TestPagesRender(t *testing.T) {
-	for _, page := range []string{pageChat, pageTasks, pageAgents, pageMachines, pageSettings} {
+	for _, page := range []string{pageChat, pageTasks, pageWorkflows, pageAgents, pageMachines, pageSettings} {
 		t.Run(page, func(t *testing.T) {
 			d := testDesktop(t)
 			d.page = page

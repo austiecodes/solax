@@ -24,6 +24,9 @@ func (d *desktop) run(id string) {
 	case "nav.tasks":
 		d.taskSel = "" // the list of all tasks; a task opens from the sidebar
 		d.goTo(pageTasks)
+	case "nav.workflows":
+		d.wf.sel = "" // the list; a run opens from it
+		d.goTo(pageWorkflows)
 	default:
 		for _, p := range navPages {
 			if p.action == id {
@@ -42,6 +45,9 @@ func (d *desktop) goTo(page string) {
 	d.page, d.status = page, ""
 	if page == pageTasks && d.taskSel != "" {
 		d.loadEvents(d.taskSel)
+	}
+	if page == pageWorkflows {
+		d.reloadWorkflows()
 	}
 }
 

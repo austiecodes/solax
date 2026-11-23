@@ -24,6 +24,7 @@ var actionTitles = map[string]func() string{
 	"palette.open":   locales.ActionGoTo,
 	"nav.chat":       locales.NavChat,
 	"nav.tasks":      locales.NavTasks,
+	"nav.workflows":  locales.NavWorkflows,
 	"nav.agents":     locales.NavAgents,
 	"nav.machines":   locales.NavMachines,
 	"sidebar.toggle": locales.ActionToggleSidebar,
@@ -42,13 +43,16 @@ func menuTitle(menu string) string {
 	return menu
 }
 
-// stateWord says a task or machine state, or the state of the stream.
+// stateWord says a task, workflow or machine state, or the state of the
+// stream.
 func stateWord(state string) string {
 	switch state {
 	case "queued":
 		return locales.StateQueued()
 	case "running":
 		return locales.StateRunning()
+	case "waiting":
+		return locales.StateWaiting()
 	case "done":
 		return locales.StateDone()
 	case "failed":
