@@ -1,3 +1,7 @@
+github.com/MoeForge/moego v0.1.0-alpha.5 h1:/pFyEhm0GYdOGfwawNjzLx+DoDQVoCI0dLsu8Sbpac8=
+github.com/MoeForge/moego v0.1.0-alpha.5/go.mod h1:SBNiQjCpWC3IEBMKFBOwOyhhQ3jywMrISqCwJTdr4aA=
+github.com/MoeForge/moejs v0.1.1 h1:JwZrwHU9kOzUguJiQ9xJULfDnMXxxarhgb3ADyjfkoQ=
+github.com/MoeForge/moejs v0.1.1/go.mod h1:pSDJ4TPDgzTiTYIe9qXRPdUceGZ0vdwgQwSvGl7fJD0=
 github.com/bytedance/gopkg v0.1.4 h1:oZnQwnX82KAIWb7033bEwtxvTqXcYMxDBaQxo5JJHWM=
 github.com/bytedance/gopkg v0.1.4/go.mod h1:v1zWfPm21Fb+OsyXN2VAHdL6TBb2L88anLQgdyje6R4=
 github.com/bytedance/sonic v1.15.5 h1:gKWTBfYCIQpQHZ7LpwGf9Gj3N88ZN0G/GaB3EQhiGXE=

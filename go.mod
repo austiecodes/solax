@@ -3,6 +3,7 @@ module github.com/austiecodes/solax
 go 1.27.4
 
 require (
+	github.com/MoeForge/moejs v0.1.1
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
@@ -11,6 +12,7 @@ require (
 )
 
 require (
+	github.com/MoeForge/moego v0.1.0-alpha.5 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
 	github.com/bytedance/sonic v1.15.5 // indirect
 	github.com/bytedance/sonic/loader v0.5.3 // indirect
