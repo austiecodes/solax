@@ -405,6 +405,9 @@ func (d *desktop) loopHead(c *ui.Context, pal *palette, l gLoop, shown int, x, y
 
 // phaseLabel is the name of a phase and its time, over its first column.
 func phaseLabel(c *ui.Context, pal *palette, tl timeline, i int, ph tlPhase, x float32) {
+	if ph.title == "" {
+		return // a script with no phases
+	}
 	st := phaseState(tl, ph)
 	ink := pal.textMuted
 	if st == "planned" || st == "skipped" {

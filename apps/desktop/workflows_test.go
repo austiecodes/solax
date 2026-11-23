@@ -199,3 +199,23 @@ func TestSavedWorkflow(t *testing.T) {
 		t.Fatalf("status = %q, busy = %v", d.status, d.wf.busy)
 	}
 }
+
+// A run shows its facts in a strip; a failed run says what failed and
+// offers to run again from it.
+func TestRunSummary(t *testing.T) {
+	d := sampleDesktop(t)
+	d.page, d.wf.sel, d.wf.item = pageWorkflows, "wfl_2", sampleDoneRun(time.Now())
+	tt := ui.NewTester(d.view, 1240, 820)
+	for _, want := range []string{"Status", "Done", "Duration", "Steps", "1 task", "Started by", "You", "wfl_2", "Resumes", "wfl_0"} {
+		if !tt.HasText(want) {
+			t.Errorf("done: no %q in %q", want, tt.Texts())
+		}
+	}
+	d.wf.sel, d.wf.item = "wfl_4", sampleFailedRun(time.Now())
+	tt = ui.NewTester(d.view, 1240, 820)
+	for _, want := range []string{"“review again” failed in round 2", "go test: 3 failures", "Open task", "Run again from here", "stopped in round 2", "1 failed"} {
+		if !tt.HasText(want) {
+			t.Errorf("failed: no %q in %q", want, tt.Texts())
+		}
+	}
+}

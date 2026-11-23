@@ -188,7 +188,6 @@ func (d *desktop) savedItem(c *ui.Context, pal *palette, s protocol.SavedWorkflo
 // runDetail shows a run: its open question, its state, its steps, its
 // result, its log and its script.
 func (d *desktop) runDetail(c *ui.Context, w protocol.Workflow) {
-	pal := paletteFor(c)
 	tl := buildTimeline(w, d.phasesOf(w))
 	sub := stateWord(w.State)
 	if w.Name != "" && w.Name != w.Title {
@@ -198,12 +197,9 @@ func (d *desktop) runDetail(c *ui.Context, w protocol.Workflow) {
 		sub += " · " + r
 	}
 	d.showPage(c, pageSpec{icon: workflowIcon, title: w.Title, sub: sub, wide: true, actions: func() {
-		if (w.State == "failed" || w.State == "cancelled") && button(c, "resume", locales.WorkflowResumeRun(), plainButton, d.wf.busy) {
-			req := protocol.StartWorkflowRequest{Source: w.Source, Resume: w.ID}
-			if req.Source == "" {
-				req.Name = w.Name
-			}
-			d.startWorkflow(req)
+		// A failed run offers this in its callout.
+		if w.State == "cancelled" && button(c, "resume", locales.WorkflowResumeRun(), plainButton, d.wf.busy) {
+			d.resumeWorkflow(w)
 		}
 		if workflowLive(w.State) && button(c, "cancel", locales.WorkflowCancel(), plainButton, false) {
 			id := w.ID
@@ -219,31 +215,13 @@ func (d *desktop) runDetail(c *ui.Context, w protocol.Workflow) {
 		if q, ok := openQuestion(w); ok && w.State == "waiting" {
 			d.questionView(c, w.ID, q)
 		}
+		if w.State == "failed" {
+			d.failureCallout(c, w, tl)
+		}
+		d.runSummary(c, w, tl)
 		if len(w.Steps) > 0 {
 			d.runView(c, tl)
 		}
-		section(c, "run", sectionSpec{}, func() {
-			row(c, "status", locales.FieldStatus(), "", func() {
-				statusIcon(c, pal, w.State, false, 14)
-				valueText(c, stateWord(w.State), false)
-			})
-			row(c, "id", locales.WorkflowID(), "", func() { valueText(c, w.ID, true) })
-			by := locales.WorkflowByYou()
-			if w.RequestedBy == "super" {
-				by = locales.NavChat()
-			}
-			row(c, "by", locales.WorkflowStartedBy(), "", func() { valueText(c, by+" · "+ago(w.CreatedAt), false) })
-			if w.ResumeFrom != "" {
-				row(c, "resume", locales.WorkflowResumes(), locales.WorkflowResumesHelp(), func() {
-					if button(c, "resume-from", w.ResumeFrom, plainButton, false) {
-						d.openWorkflow(w.ResumeFrom)
-					}
-				})
-			}
-			if w.Error != "" {
-				stackRow(c, "error", locales.WorkflowError(), "", func() { monoText(c, w.Error).TextColor(pal.danger) })
-			}
-		})
 		d.outputView(c, w)
 	})
 }

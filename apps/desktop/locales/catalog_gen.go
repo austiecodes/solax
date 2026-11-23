@@ -2534,16 +2534,6 @@ func (msgs Messages) WorkflowKeep() string {
 	return Catalog.Format(msgs.locale, "workflowKeep", nil)
 }
 
-// WorkflowID says "Workflow ID"
-// in the language the app shows.
-func WorkflowID() string { return In(i18n.Locale()).WorkflowID() }
-
-// WorkflowID says "Workflow ID"
-// in the language of msgs.
-func (msgs Messages) WorkflowID() string {
-	return Catalog.Format(msgs.locale, "workflowID", nil)
-}
-
 // WorkflowStartedBy says "Started by"
 // in the language the app shows.
 func WorkflowStartedBy() string { return In(i18n.Locale()).WorkflowStartedBy() }
@@ -2572,26 +2562,6 @@ func WorkflowResumes() string { return In(i18n.Locale()).WorkflowResumes() }
 // in the language of msgs.
 func (msgs Messages) WorkflowResumes() string {
 	return Catalog.Format(msgs.locale, "workflowResumes", nil)
-}
-
-// WorkflowResumesHelp says "This run reuses the finished steps of that run."
-// in the language the app shows.
-func WorkflowResumesHelp() string { return In(i18n.Locale()).WorkflowResumesHelp() }
-
-// WorkflowResumesHelp says "This run reuses the finished steps of that run."
-// in the language of msgs.
-func (msgs Messages) WorkflowResumesHelp() string {
-	return Catalog.Format(msgs.locale, "workflowResumesHelp", nil)
-}
-
-// WorkflowError says "Error"
-// in the language the app shows.
-func WorkflowError() string { return In(i18n.Locale()).WorkflowError() }
-
-// WorkflowError says "Error"
-// in the language of msgs.
-func (msgs Messages) WorkflowError() string {
-	return Catalog.Format(msgs.locale, "workflowError", nil)
 }
 
 // WorkflowResult says "Result"
@@ -2778,6 +2748,108 @@ func WorkflowRounds() string { return In(i18n.Locale()).WorkflowRounds() }
 // replies to one task.
 func (msgs Messages) WorkflowRounds() string {
 	return Catalog.Format(msgs.locale, "workflowRounds", nil)
+}
+
+// WorkflowDuration says "Duration"
+// in the language the app shows.
+func WorkflowDuration() string { return In(i18n.Locale()).WorkflowDuration() }
+
+// WorkflowDuration says "Duration"
+// in the language of msgs.
+func (msgs Messages) WorkflowDuration() string {
+	return Catalog.Format(msgs.locale, "workflowDuration", nil)
+}
+
+// WorkflowStepsLabel says "Steps"
+// in the language the app shows.
+func WorkflowStepsLabel() string { return In(i18n.Locale()).WorkflowStepsLabel() }
+
+// WorkflowStepsLabel says "Steps"
+// in the language of msgs.
+func (msgs Messages) WorkflowStepsLabel() string {
+	return Catalog.Format(msgs.locale, "workflowStepsLabel", nil)
+}
+
+// WorkflowSince says "since {time}"
+// in the language the app shows.
+func WorkflowSince(time_ string) string { return In(i18n.Locale()).WorkflowSince(time_) }
+
+// WorkflowSince says "since {time}"
+// in the language of msgs.
+func (msgs Messages) WorkflowSince(time_ string) string {
+	return Catalog.Format(msgs.locale, "workflowSince", map[string]any{"time": time_})
+}
+
+// WorkflowTaskCount says "{n, plural, one {# task} other {# tasks}}"
+// in the language the app shows.
+func WorkflowTaskCount(n int) string { return In(i18n.Locale()).WorkflowTaskCount(n) }
+
+// WorkflowTaskCount says "{n, plural, one {# task} other {# tasks}}"
+// in the language of msgs.
+func (msgs Messages) WorkflowTaskCount(n int) string {
+	return Catalog.Format(msgs.locale, "workflowTaskCount", map[string]any{"n": n})
+}
+
+// WorkflowFailedCount says "{n} failed"
+// in the language the app shows.
+func WorkflowFailedCount(n int) string { return In(i18n.Locale()).WorkflowFailedCount(n) }
+
+// WorkflowFailedCount says "{n} failed"
+// in the language of msgs.
+func (msgs Messages) WorkflowFailedCount(n int) string {
+	return Catalog.Format(msgs.locale, "workflowFailedCount", map[string]any{"n": n})
+}
+
+// WorkflowWorkingCount says "{n} working"
+// in the language the app shows.
+func WorkflowWorkingCount(n int) string { return In(i18n.Locale()).WorkflowWorkingCount(n) }
+
+// WorkflowWorkingCount says "{n} working"
+// in the language of msgs.
+func (msgs Messages) WorkflowWorkingCount(n int) string {
+	return Catalog.Format(msgs.locale, "workflowWorkingCount", map[string]any{"n": n})
+}
+
+// WorkflowPhaseCount says "{n, plural, one {# phase} other {# phases}}"
+// in the language the app shows.
+func WorkflowPhaseCount(n int) string { return In(i18n.Locale()).WorkflowPhaseCount(n) }
+
+// WorkflowPhaseCount says "{n, plural, one {# phase} other {# phases}}"
+// in the language of msgs.
+func (msgs Messages) WorkflowPhaseCount(n int) string {
+	return Catalog.Format(msgs.locale, "workflowPhaseCount", map[string]any{"n": n})
+}
+
+// WorkflowRunFailed says "The run failed"
+// in the language the app shows.
+func WorkflowRunFailed() string { return In(i18n.Locale()).WorkflowRunFailed() }
+
+// WorkflowRunFailed says "The run failed"
+// in the language of msgs.
+func (msgs Messages) WorkflowRunFailed() string {
+	return Catalog.Format(msgs.locale, "workflowRunFailed", nil)
+}
+
+// WorkflowStepFailed says "“{step}” failed"
+// in the language the app shows.
+func WorkflowStepFailed(step string) string { return In(i18n.Locale()).WorkflowStepFailed(step) }
+
+// WorkflowStepFailed says "“{step}” failed"
+// in the language of msgs.
+func (msgs Messages) WorkflowStepFailed(step string) string {
+	return Catalog.Format(msgs.locale, "workflowStepFailed", map[string]any{"step": step})
+}
+
+// WorkflowStepFailedIn says "“{step}” failed in round {n}"
+// in the language the app shows.
+func WorkflowStepFailedIn(n int, step string) string {
+	return In(i18n.Locale()).WorkflowStepFailedIn(n, step)
+}
+
+// WorkflowStepFailedIn says "“{step}” failed in round {n}"
+// in the language of msgs.
+func (msgs Messages) WorkflowStepFailedIn(n int, step string) string {
+	return Catalog.Format(msgs.locale, "workflowStepFailedIn", map[string]any{"n": n, "step": step})
 }
 
 // WorkflowProgress says "Progress"

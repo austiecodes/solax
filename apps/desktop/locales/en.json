@@ -407,12 +407,9 @@
   "workflowCancelQuestion": "Cancel this workflow?",
   "workflowCancelDetail": "The script stops and its running tasks are cancelled. Its finished steps stay, so a new run can resume from it.",
   "workflowKeep": "Keep running",
-  "workflowID": "Workflow ID",
   "workflowStartedBy": "Started by",
   "workflowByYou": "You",
   "workflowResumes": "Resumes",
-  "workflowResumesHelp": "This run reuses the finished steps of that run.",
-  "workflowError": "Error",
   "workflowResult": "Result",
   "workflowLog": "Log",
   "workflowScript": "Script",
@@ -431,6 +428,16 @@
   "workflowPlanned": "planned",
   "workflowNotReached": "not reached",
   "workflowRounds": "Rounds",
+  "workflowDuration": "Duration",
+  "workflowStepsLabel": "Steps",
+  "workflowSince": "since {time}",
+  "workflowTaskCount": "{n, plural, one {# task} other {# tasks}}",
+  "workflowFailedCount": "{n} failed",
+  "workflowWorkingCount": "{n} working",
+  "workflowPhaseCount": "{n, plural, one {# phase} other {# phases}}",
+  "workflowRunFailed": "The run failed",
+  "workflowStepFailed": "“{step}” failed",
+  "workflowStepFailedIn": "“{step}” failed in round {n}",
   "workflowProgress": "Progress",
   "workflowGraph": "Graph",
   "workflowRail": "Rail",
@@ -524,5 +531,40 @@
   },
   "@workflowResumeRun": {
     "description": "Starts a new run of the same script that reuses the finished steps of this run."
+  },
+  "@workflowTaskCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowFailedCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowPhaseCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowStepFailedIn": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "@workflowWorkingCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
   }
 }
