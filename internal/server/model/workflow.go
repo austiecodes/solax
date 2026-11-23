@@ -103,21 +103,25 @@ type WorkflowStep struct {
 	TargetID    string // tsk_ ID, or the wake time of a sleep
 	Phase       string
 	Label       string
+	Loop        string // the loop of wf.round; "" outside a loop
+	Round       int    // the round in Loop, from 1
+	MaxRounds   int    // the most rounds of Loop; 0 when not given
 	State       StepState
 	OutputJSON  string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
 
-const stepCols = `workflow_id, step_key, seq, kind, fingerprint, target_id, phase, label, state, output_json, created_at, updated_at`
+const stepCols = `workflow_id, step_key, seq, kind, fingerprint, target_id, phase, label, loop, round, max_rounds, state,
+	output_json, created_at, updated_at`
 
 // SaveStep inserts or updates a step by workflow and key.
 func SaveStep(ctx context.Context, db Executor, s WorkflowStep) error {
-	_, err := exec(ctx, db, `INSERT INTO workflow_steps(`+stepCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := exec(ctx, db, `INSERT INTO workflow_steps(`+stepCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(workflow_id, step_key) DO UPDATE SET target_id = excluded.target_id, state = excluded.state,
 			output_json = excluded.output_json, updated_at = excluded.updated_at`,
-		s.WorkflowID, s.Key, s.Seq, s.Kind, s.Fingerprint, s.TargetID, s.Phase, s.Label, s.State, s.OutputJSON,
-		ms(s.CreatedAt), ms(s.UpdatedAt))
+		s.WorkflowID, s.Key, s.Seq, s.Kind, s.Fingerprint, s.TargetID, s.Phase, s.Label, s.Loop, s.Round, s.MaxRounds,
+		s.State, s.OutputJSON, ms(s.CreatedAt), ms(s.UpdatedAt))
 	return err
 }
 
@@ -136,8 +140,8 @@ func scanStep(sc scanner) (WorkflowStep, error) {
 	var s WorkflowStep
 	var state string
 	var created, updated int64
-	if err := sc.Scan(&s.WorkflowID, &s.Key, &s.Seq, &s.Kind, &s.Fingerprint, &s.TargetID, &s.Phase, &s.Label, &state,
-		&s.OutputJSON, &created, &updated); err != nil {
+	if err := sc.Scan(&s.WorkflowID, &s.Key, &s.Seq, &s.Kind, &s.Fingerprint, &s.TargetID, &s.Phase, &s.Label,
+		&s.Loop, &s.Round, &s.MaxRounds, &state, &s.OutputJSON, &created, &updated); err != nil {
 		return s, mapErr(err)
 	}
 	s.State, s.CreatedAt, s.UpdatedAt = StepState(state), tm(created), tm(updated)

@@ -34,6 +34,13 @@ paths:
   /v1/tasks/{task}: { get: { summary: Show a task } }
   /v1/tasks/{task}/messages: { post: { summary: "Send more input to a task: {text, mode: follow_up (default) | steer}" } }
   /v1/tasks/{task}/cancel: { post: { summary: Cancel a task } }
+  /v1/workflows:
+    get: { summary: List the saved workflows and the recent runs }
+    post: { summary: "Start a workflow: {source | name, args, resume}; returns at once" }
+  /v1/workflows/saved: { post: { summary: "Save a workflow script under its meta.name: {source}" } }
+  /v1/workflows/{workflow}: { get: { summary: "Show a run (wfl_ ID) with its steps, or a saved workflow (name) with its runs" } }
+  /v1/workflows/{workflow}/cancel: { post: { summary: Cancel a run and its active tasks } }
+  /v1/workflows/{workflow}/answer: { post: { summary: "Answer the open question (wf.ask) of a run: {choice, text}" } }
   /v1/sessions/{session}/events: { get: { summary: Read the stored IR events of a session } }
   /v1/super/messages:
     get: { summary: Read the Super Agent conversation }

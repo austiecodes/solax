@@ -233,13 +233,13 @@ func printRun(w io.Writer, r protocol.Workflow) {
 	if len(r.Steps) > 0 {
 		fmt.Fprintln(w)
 		tw := table(w)
-		fmt.Fprintln(tw, T("STEP\tKIND\tSTATE\tPHASE\tTARGET"))
+		fmt.Fprintln(tw, T("STEP\tKIND\tSTATE\tPHASE\tROUND\tTARGET"))
 		for _, s := range r.Steps {
 			target := s.Target
 			if s.Kind == "ask" {
 				target = ""
 			}
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", first(s.Label, s.Key), s.Kind, T(s.State), s.Phase, target)
+			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", first(s.Label, s.Key), s.Kind, T(s.State), s.Phase, roundText(s), target)
 		}
 		tw.Flush()
 	}
@@ -291,4 +291,15 @@ func printSaved(w io.Writer, s protocol.SavedWorkflow, runs []protocol.Workflow)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, T("source:"))
 	fmt.Fprintln(w, s.Source)
+}
+
+// roundText is the loop round of a step, as "fix 2/5"; "" outside a loop.
+func roundText(s protocol.WorkflowStep) string {
+	switch {
+	case s.Loop == "":
+		return ""
+	case s.MaxRounds > 0:
+		return fmt.Sprintf("%s %d/%d", s.Loop, s.Round, s.MaxRounds)
+	}
+	return fmt.Sprintf("%s %d", s.Loop, s.Round)
 }

@@ -13,7 +13,7 @@ import (
 func WireTask(j Task, agentName string) protocol.Task {
 	return protocol.Task{
 		ID: string(j.ID), Agent: agentName, AgentID: string(j.AgentID), SessionID: string(j.SessionID),
-		RequestedBy: string(j.RequestedBy), TurnBy: string(j.TurnBy), Title: j.Title, Prompt: j.Prompt, State: string(j.State),
+		RequestedBy: string(j.RequestedBy), TurnBy: string(j.TurnBy), WorkflowID: string(j.WorkflowID), Title: j.Title, Prompt: j.Prompt, State: string(j.State),
 		Result: j.Result, Error: j.Error, CreatedAt: j.CreatedAt, UpdatedAt: j.UpdatedAt,
 	}
 }
@@ -39,7 +39,11 @@ func WireWorkflow(w Workflow, steps []WorkflowStep, full bool) protocol.Workflow
 	if full {
 		out.Source = w.Source
 		for _, s := range steps {
-			ws := protocol.WorkflowStep{Key: s.Key, Kind: s.Kind, Target: s.TargetID, Phase: s.Phase, Label: s.Label, State: string(s.State)}
+			ws := protocol.WorkflowStep{
+				Key: s.Key, Seq: s.Seq, Kind: s.Kind, Target: s.TargetID, Phase: s.Phase, Label: s.Label,
+				Loop: s.Loop, Round: s.Round, MaxRounds: s.MaxRounds, State: string(s.State),
+				CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+			}
 			if s.OutputJSON != "" {
 				ws.Output = json.RawMessage(s.OutputJSON)
 			}

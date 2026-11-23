@@ -124,6 +124,9 @@ type stepSpec struct {
 	key         string // opts.stepKey
 	phase       string
 	label       string
+	loop        string
+	round       int
+	maxRounds   int
 }
 
 // step returns the output of a step: saved, copied from the run that this
@@ -163,7 +166,10 @@ func (rn *run) step(ctx context.Context, sp stepSpec, seq int, do func(model.Wor
 			return saved(old)
 		}
 	}
-	st = model.WorkflowStep{WorkflowID: rn.id, Key: key, Seq: seq, Kind: sp.kind, Fingerprint: fp, Phase: sp.phase, Label: sp.label}
+	st = model.WorkflowStep{
+		WorkflowID: rn.id, Key: key, Seq: seq, Kind: sp.kind, Fingerprint: fp, Phase: sp.phase, Label: sp.label,
+		Loop: sp.loop, Round: sp.round, MaxRounds: sp.maxRounds,
+	}
 	out, err := do(st)
 	if err != nil && ctx.Err() == nil {
 		st.State, st.OutputJSON = model.StepFailed, jsonString(err.Error())
@@ -203,12 +209,27 @@ func fingerprint(kind, ident string) string {
 // The host functions. Each step call gets its arguments, then the ident
 // and n from the prelude (prelude.js).
 
+// taskOpts is TaskOpts in workflow.d.ts. The prelude fills phase, loop,
+// round and maxRounds from wf.phase and wf.round when the script does not
+// set them. The other steps get only those four, in the same type.
 type taskOpts struct {
 	Schema      json.RawMessage `json:"schema"`
 	Phase       string          `json:"phase"`
 	Label       string          `json:"label"`
+	Loop        string          `json:"loop"`
+	Round       int             `json:"round"`
+	MaxRounds   int             `json:"maxRounds"`
 	StepKey     string          `json:"stepKey"`
 	FailOnError *bool           `json:"failOnError"`
+}
+
+// spec names a step of this kind with these opts.
+func (o taskOpts) spec(kind, ident string, n int) stepSpec {
+	sp := stepSpec{kind: kind, ident: ident, n: n, key: o.StepKey, phase: o.Phase, label: o.Label}
+	if o.Loop != "" {
+		sp.loop, sp.round, sp.maxRounds = o.Loop, max(o.Round, 1), max(o.MaxRounds, 0)
+	}
+	return sp
 }
 
 // outcome is TaskOutcome in workflow.d.ts.
@@ -236,7 +257,7 @@ func (rn *run) task(ctx context.Context, c js.Call) (any, error) {
 			return nil, err
 		}
 	}
-	sp := stepSpec{kind: "task", ident: ident, n: n, key: o.StepKey, phase: o.Phase, label: o.Label}
+	sp := o.spec("task", ident, n)
 	out, err := rn.step(ctx, sp, c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
 		release, err := rn.slot(ctx)
 		if err != nil {
@@ -271,7 +292,7 @@ func (rn *run) reply(ctx context.Context, c js.Call) (any, error) {
 			return nil, err
 		}
 	}
-	sp := stepSpec{kind: "reply", ident: ident, n: n, key: o.StepKey, phase: o.Phase, label: o.Label}
+	sp := o.spec("reply", ident, n)
 	out, err := rn.step(ctx, sp, c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
 		release, err := rn.slot(ctx)
 		if err != nil {
@@ -376,11 +397,12 @@ func (rn *run) slot(ctx context.Context) (release func(), err error) {
 func (rn *run) ask(ctx context.Context, c js.Call) (any, error) {
 	var prompt, ident string
 	var options []string
+	var o taskOpts
 	var n int
-	if err := args(c, &prompt, &options, &ident, &n); err != nil {
+	if err := args(c, &prompt, &options, &o, &ident, &n); err != nil {
 		return nil, err
 	}
-	return rn.step(ctx, stepSpec{kind: "ask", ident: ident, n: n}, c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
+	return rn.step(ctx, o.spec("ask", ident, n), c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
 		if st.State == "" {
 			if err := service.StepAsk(ctx, rn.w, st, prompt, options); err != nil {
 				return nil, err
@@ -402,11 +424,12 @@ func (rn *run) ask(ctx context.Context, c js.Call) (any, error) {
 func (rn *run) sleep(ctx context.Context, c js.Call) (any, error) {
 	var ms float64
 	var ident string
+	var o taskOpts
 	var n int
-	if err := args(c, &ms, &ident, &n); err != nil {
+	if err := args(c, &ms, &o, &ident, &n); err != nil {
 		return nil, err
 	}
-	return rn.step(ctx, stepSpec{kind: "sleep", ident: ident, n: n}, c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
+	return rn.step(ctx, o.spec("sleep", ident, n), c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
 		if st.State == "" {
 			d := min(time.Duration(max(ms, 0))*time.Millisecond, maxWall)
 			st.TargetID, st.State = strconv.FormatInt(time.Now().Add(d).UnixMilli(), 10), model.StepPending
@@ -440,11 +463,12 @@ type agentInfo struct {
 
 func (rn *run) agents(ctx context.Context, c js.Call) (any, error) {
 	var ident string
+	var o taskOpts
 	var n int
-	if err := args(c, &ident, &n); err != nil {
+	if err := args(c, &o, &ident, &n); err != nil {
 		return nil, err
 	}
-	return rn.step(ctx, stepSpec{kind: "agents", ident: ident, n: n}, c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
+	return rn.step(ctx, o.spec("agents", ident, n), c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
 		views, err := service.Agents(ctx, service.WorkflowActor(rn.w))
 		if err != nil {
 			return nil, err
@@ -462,11 +486,12 @@ func (rn *run) agents(ctx context.Context, c js.Call) (any, error) {
 
 func (rn *run) recall(ctx context.Context, c js.Call) (any, error) {
 	var id, ident string
+	var o taskOpts
 	var n int
-	if err := args(c, &id, &ident, &n); err != nil {
+	if err := args(c, &id, &o, &ident, &n); err != nil {
 		return nil, err
 	}
-	return rn.step(ctx, stepSpec{kind: "recall", ident: ident, n: n}, c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
+	return rn.step(ctx, o.spec("recall", ident, n), c.Seq, func(st model.WorkflowStep) (json.RawMessage, error) {
 		obj, err := service.Recall(ctx, service.WorkflowActor(rn.w), model.ID(id))
 		if err != nil {
 			return nil, err

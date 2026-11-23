@@ -1,6 +1,6 @@
 // The prelude builds the wf object of a workflow script from the host
-// functions that Go gives. It adds phase, parallel and pipeline, which need
-// no Go code.
+// functions that Go gives. It adds phase, round, parallel and pipeline,
+// which need no Go code.
 //
 // Each step call passes an ident (the JSON of the arguments that name the
 // step) and n (how many earlier calls had the same kind and ident). Go keys
@@ -10,6 +10,7 @@
 
 export function makeWf(host) {
   let phase = undefined;
+  let round = undefined; // { loop, round, maxRounds } from wf.round
   const counts = new Map();
 
   const occurrence = (kind, ident) => {
@@ -19,9 +20,12 @@ export function makeWf(host) {
     return n;
   };
 
-  const withPhase = (opts) => {
+  // scoped adds the current phase and loop round to the opts of a step,
+  // where the script did not set them.
+  const scoped = (opts) => {
     const out = Object.assign({}, opts || {});
     if (out.phase === undefined && phase !== undefined) out.phase = phase;
+    if (out.loop === undefined && round !== undefined) Object.assign(out, round);
     return out;
   };
 
@@ -33,34 +37,46 @@ export function makeWf(host) {
   const message = (e) => (e && e.message) || String(e);
 
   const wf = {
-    agents: () => step("agents", [], (ident, n) => host.agents(ident, n)),
+    agents: () => step("agents", [], (ident, n) => host.agents(scoped(), ident, n)),
 
-    recall: (id) => step("recall", [String(id)], (ident, n) => host.recall(String(id), ident, n)),
+    recall: (id) => step("recall", [String(id)], (ident, n) => host.recall(String(id), scoped(), ident, n)),
 
     task: (agent, prompt, opts) => {
-      const o = withPhase(opts);
+      const o = scoped(opts);
       return step("task", [String(agent), String(prompt), o.schema ?? null, o.stepKey ?? null],
         (ident, n) => host.task(String(agent), String(prompt), o, ident, n));
     },
 
     reply: (taskId, text, opts) => {
-      const o = withPhase(opts);
+      const o = scoped(opts);
       return step("reply", [String(taskId), String(text), o.schema ?? null, o.stepKey ?? null],
         (ident, n) => host.reply(String(taskId), String(text), o, ident, n));
     },
 
     ask: (prompt, options) => {
       const opts = (options || []).map(String);
-      return step("ask", [String(prompt), opts], (ident, n) => host.ask(String(prompt), opts, ident, n));
+      return step("ask", [String(prompt), opts], (ident, n) => host.ask(String(prompt), opts, scoped(), ident, n));
     },
 
-    sleep: (ms) => step("sleep", [Number(ms)], (ident, n) => host.sleep(Number(ms), ident, n)),
+    sleep: (ms) => step("sleep", [Number(ms)], (ident, n) => host.sleep(Number(ms), scoped(), ident, n)),
 
     log: (msg) => { host.log(String(msg)); },
 
     phase: (title) => {
       phase = String(title);
       host.log("phase: " + phase);
+    },
+
+    round: (loop, n, maxRounds) => {
+      if (loop === null || loop === undefined) {
+        round = undefined;
+        return;
+      }
+      const r = Math.trunc(Number(n));
+      if (!(r >= 1)) throw new Error("wf.round: round must be a number from 1");
+      round = { loop: String(loop), round: r };
+      if (maxRounds !== undefined) round.maxRounds = Math.trunc(Number(maxRounds));
+      host.log("round: " + round.loop + " " + r + (round.maxRounds ? "/" + round.maxRounds : ""));
     },
 
     parallel: (thunks) =>

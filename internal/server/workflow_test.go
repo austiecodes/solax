@@ -190,6 +190,70 @@ export async function run(wf: any) {
 	}
 }
 
+// wf.round puts the later steps in a round of a loop, until
+// wf.round(null). Every kind of step gets the current phase, and each step
+// has the times of its wait.
+func TestWorkflowRounds(t *testing.T) {
+	reply, _ := workers(t)
+	r := newRig(t, reply)
+	r.addAgent(t, "coder", false)
+	ctx := context.Background()
+	w, err := r.client.StartWorkflow(ctx, protocol.StartWorkflowRequest{Source: `
+export async function run(wf: any) {
+  wf.phase("Fix");
+  for (let n = 1; n <= 2; n++) {
+    wf.round("fix", n, 2);
+    await wf.task("coder", "update round " + n);
+  }
+  wf.round(null);
+  const a = await wf.ask("Ship it?", ["yes", "no"]);
+  return a.choice;
+}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wait := waitWorkflow(t, r, w.ID, "waiting")
+	if len(wait.Steps) != 3 {
+		t.Fatalf("steps = %+v", wait.Steps)
+	}
+	for i, st := range wait.Steps[:2] {
+		if st.Loop != "fix" || st.Round != i+1 || st.MaxRounds != 2 || st.Phase != "Fix" {
+			t.Errorf("step %d = %+v, want round %d/2 of fix in Fix", i, st, i+1)
+		}
+		if st.CreatedAt.IsZero() || st.UpdatedAt.Before(st.CreatedAt) {
+			t.Errorf("step %d times = %v .. %v", i, st.CreatedAt, st.UpdatedAt)
+		}
+	}
+	ask := wait.Steps[2]
+	if ask.Kind != "ask" || ask.Loop != "" || ask.Round != 0 || ask.Phase != "Fix" || ask.State != "pending" {
+		t.Errorf("ask = %+v, want a pending ask in Fix, out of the loop", ask)
+	}
+	if !(wait.Steps[0].Seq < wait.Steps[1].Seq && wait.Steps[1].Seq < ask.Seq) {
+		t.Errorf("seqs = %d %d %d, want call order", wait.Steps[0].Seq, wait.Steps[1].Seq, ask.Seq)
+	}
+	if !strings.Contains(wait.Logs, "round: fix 2/2") {
+		t.Errorf("logs = %q", wait.Logs)
+	}
+	if _, err := r.client.AnswerWorkflow(ctx, w.ID, "yes", ""); err != nil {
+		t.Fatal(err)
+	}
+	waitWorkflow(t, r, w.ID, "done")
+}
+
+// A round below 1 is a script error.
+func TestWorkflowBadRound(t *testing.T) {
+	reply, _ := workers(t)
+	r := newRig(t, reply)
+	w, err := r.client.StartWorkflow(context.Background(), protocol.StartWorkflowRequest{Source: `
+export async function run(wf: any) { wf.round("fix", 0); }`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := waitWorkflow(t, r, w.ID, "failed"); !strings.Contains(f.Error, "round must be a number from 1") {
+		t.Fatalf("error = %q", f.Error)
+	}
+}
+
 // A failed run can resume with a fixed script: the finished task step is
 // reused, not run again.
 func TestWorkflowResumeEditedScript(t *testing.T) {

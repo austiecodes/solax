@@ -101,8 +101,9 @@ type Task struct {
 	Agent       string    `json:"agent"` // agent name
 	AgentID     string    `json:"agent_id"`
 	SessionID   string    `json:"session_id"`
-	RequestedBy string    `json:"requested_by"` // human | super: who created the task
-	TurnBy      string    `json:"turn_by"`      // human | super: who started the current turn and gets its result
+	RequestedBy string    `json:"requested_by"`          // human | super: who created the task
+	TurnBy      string    `json:"turn_by"`               // human | super: who started the current turn and gets its result
+	WorkflowID  string    `json:"workflow_id,omitempty"` // the workflow that started the task
 	Title       string    `json:"title"`
 	Prompt      string    `json:"prompt"`
 	State       string    `json:"state"` // queued | running | done | failed | cancelled
@@ -213,15 +214,24 @@ type Workflow struct {
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
-// WorkflowStep is one wait of a workflow script.
+// WorkflowStep is one wait of a workflow script. CreatedAt is when the
+// wait started; a task step starts when its task gets a slot. When State
+// is not pending, UpdatedAt is when the wait ended. Steps whose times
+// overlap ran in parallel.
 type WorkflowStep struct {
-	Key    string          `json:"key"`
-	Kind   string          `json:"kind"` // agents | recall | task | reply | ask | sleep
-	Target string          `json:"target,omitempty"`
-	Phase  string          `json:"phase,omitempty"`
-	Label  string          `json:"label,omitempty"`
-	State  string          `json:"state"` // pending | done | failed
-	Output json.RawMessage `json:"output,omitempty"`
+	Key       string          `json:"key"`
+	Seq       int             `json:"seq"`  // the order of the call in the script
+	Kind      string          `json:"kind"` // agents | recall | task | reply | ask | sleep
+	Target    string          `json:"target,omitempty"`
+	Phase     string          `json:"phase,omitempty"`
+	Label     string          `json:"label,omitempty"`
+	Loop      string          `json:"loop,omitempty"`       // the loop of wf.round
+	Round     int             `json:"round,omitempty"`      // the round in Loop, from 1
+	MaxRounds int             `json:"max_rounds,omitempty"` // the most rounds of Loop, when the script gives it
+	State     string          `json:"state"`                // pending | done | failed
+	Output    json.RawMessage `json:"output,omitempty"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 // SavedWorkflow is a workflow script kept under a name.
