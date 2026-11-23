@@ -37,7 +37,7 @@ type rig struct {
 	pushes []protocol.Push
 }
 
-func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string) string) *rig {
+func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string) string, opts ...func(*agenttest.FakeRuntime)) *rig {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -77,11 +77,14 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 	// The daemon: real supervisor and connection, fake agent.
 	r.fake = &agenttest.FakeRuntime{KindV: ir.KindClaude, TurnDelay: 20 * time.Millisecond}
 	r.fake.Reply = func(spec agent.SessionSpec, text string) string { return reply(r, spec, text) }
+	for _, o := range opts {
+		o(r.fake)
+	}
 	var sup *supervisor.Supervisor
 	cn := conn.New(srv.URL, mtoken,
 		func(ctx context.Context) protocol.Hello {
 			return protocol.Hello{
-				Runtimes: []protocol.RuntimeProbe{{Kind: ir.KindClaude, OK: true, Caps: agenttest.FakeCaps}},
+				Runtimes: []protocol.RuntimeProbe{{Kind: ir.KindClaude, OK: true, Caps: r.fake.Caps()}},
 				Sessions: sup.States(), FreeSlots: sup.FreeSlots(),
 			}
 		},
@@ -275,5 +278,109 @@ func TestAgentInstructionsReachSession(t *testing.T) {
 	// The rig has no role prompt, so the system prompt is the instructions.
 	if starts := r.fake.Starts(); len(starts) != 1 || starts[0].Instructions != edited {
 		t.Fatalf("session spec = %+v", starts)
+	}
+}
+
+// Fast Path and Slow Path (system.md §4): the user steers and follows up a
+// task that the Super Agent started, without a turn of the Super Agent. The
+// Super Agent gets what the user did as [context] with its next waking
+// input.
+func TestFastPathNotesReachSuperAgent(t *testing.T) {
+	var mu sync.Mutex
+	var superGot []string
+	superTurns := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), superGot...)
+	}
+	r := newRig(t, func(r *rig, spec agent.SessionSpec, text string) string {
+		if spec.Env["SOLAX_TASK"] != "" {
+			return "worker did: " + text
+		}
+		mu.Lock()
+		superGot = append(superGot, text)
+		mu.Unlock()
+		if text == "[user] fix auth" {
+			me := client.New(r.url, spec.Env["SOLAX_TOKEN"])
+			if _, err := me.Dispatch(context.Background(), "coder", "fix auth"); err != nil {
+				return "dispatch failed: " + err.Error()
+			}
+			return "sent to coder"
+		}
+		return "noted"
+	}, func(f *agenttest.FakeRuntime) {
+		f.Steer = true
+		f.TurnDelay = 400 * time.Millisecond
+	})
+	r.addAgent(t, "router", true)
+	r.addAgent(t, "coder", false)
+	ctx := context.Background()
+
+	// Slow Path: the user asks the Super Agent, which starts a task.
+	if _, err := r.client.SendToSuper(ctx, "fix auth"); err != nil {
+		t.Fatal(err)
+	}
+	var task protocol.Task
+	waitFor(t, "the task runs", func() bool {
+		ts, _ := r.client.Tasks(ctx, 10)
+		if len(ts) == 1 && ts[0].State == "running" {
+			task = ts[0]
+			return true
+		}
+		return false
+	})
+	if task.RequestedBy != "super" || task.TurnBy != "super" {
+		t.Fatalf("task = %+v, want requested and owned by super", task)
+	}
+
+	// Fast Path 1: the user steers the running turn. The turn stays the
+	// Super Agent's, and it gets the steer and the result in one turn.
+	steered, err := r.client.Steer(ctx, task.ID, "use a 30s leeway")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if steered.TurnBy != "super" {
+		t.Fatalf("after steer turn_by = %s, want super", steered.TurnBy)
+	}
+	waitFor(t, "the Super Agent gets the result", func() bool { return len(superTurns()) == 2 })
+	got := superTurns()[1]
+	for _, want := range []string{"[context]", "the user steered task " + task.ID, "agent coder: done", "worker did: fix auth\n\nuse a 30s leeway"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("second Super Agent turn has no %q:\n%s", want, got)
+		}
+	}
+
+	// Fast Path 2: the user follows up the finished task directly. The
+	// worker answers the user; the Super Agent does not wake.
+	followed, err := r.client.FollowUp(ctx, task.ID, "add a benchmark")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if followed.TurnBy != "human" {
+		t.Fatalf("after follow-up turn_by = %s, want human", followed.TurnBy)
+	}
+	waitFor(t, "the follow-up is done", func() bool {
+		j, _ := r.client.Task(ctx, task.ID)
+		return j.State == "done" && strings.Contains(j.Result, "add a benchmark")
+	})
+	time.Sleep(300 * time.Millisecond) // a wrong wake would show by now
+	if n := len(superTurns()); n != 2 {
+		t.Fatalf("Super Agent turns = %d after the direct follow-up, want 2:\n%v", n, superTurns())
+	}
+
+	// The user talks to the Super Agent again: it gets the follow-up and
+	// its result as context first.
+	if _, err := r.client.SendToSuper(ctx, "status?"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the third Super Agent turn", func() bool { return len(superTurns()) == 3 })
+	got = superTurns()[2]
+	for _, want := range []string{"[context]", "the user followed up task " + task.ID, "agent coder: done", "add a benchmark", "[user] status?"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("third Super Agent turn has no %q:\n%s", want, got)
+		}
+	}
+	if strings.Index(got, "[context]") > strings.Index(got, "[user] status?") {
+		t.Fatalf("context comes after the user message:\n%s", got)
 	}
 }

@@ -57,6 +57,13 @@ func New(daemon http.Handler, st *stream.Stream) *gin.Engine {
 	tasks.POST("/:task/messages", controller.FollowUpTask)
 	tasks.POST("/:task/cancel", controller.CancelTask)
 	v1.GET("/sessions/:session/events", middleware.RequireClientOrSuper(), controller.ListSessionEvents)
+	workflows := v1.Group("/workflows", middleware.RequireClientOrSuper())
+	workflows.POST("", controller.StartWorkflow)
+	workflows.GET("", controller.ListWorkflows)
+	workflows.POST("/saved", controller.SaveWorkflow)
+	workflows.GET("/:workflow", controller.GetWorkflow)
+	workflows.POST("/:workflow/cancel", controller.CancelWorkflow)
+	workflows.POST("/:workflow/answer", controller.AnswerWorkflow)
 
 	// The conversation of the user with the Super Agent.
 	super := v1.Group("/super")

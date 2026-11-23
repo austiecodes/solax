@@ -15,14 +15,15 @@ type ID string
 type Prefix string
 
 const (
-	PrefixOwner   Prefix = "own"
-	PrefixClient  Prefix = "cli"
-	PrefixMachine Prefix = "mch"
-	PrefixAgent   Prefix = "agt"
-	PrefixMessage Prefix = "msg"
-	PrefixSession Prefix = "ses"
-	PrefixTask    Prefix = "tsk"
-	PrefixInput   Prefix = "in"
+	PrefixOwner    Prefix = "own"
+	PrefixClient   Prefix = "cli"
+	PrefixMachine  Prefix = "mch"
+	PrefixAgent    Prefix = "agt"
+	PrefixMessage  Prefix = "msg"
+	PrefixSession  Prefix = "ses"
+	PrefixTask     Prefix = "tsk"
+	PrefixInput    Prefix = "in"
+	PrefixWorkflow Prefix = "wfl"
 )
 
 // idTimeWidth is the width of the base-36 timestamp in an ID. It is fixed

@@ -125,18 +125,17 @@ func superEvent(ctx context.Context, tx *sql.Tx, ses model.Session, ev ir.Event,
 	return nil
 }
 
-// taskFinished reports a finished task of the Super Agent back to it: a
-// system note in the conversation, and an input in its inbox.
+// taskFinished reports a finished turn to the Super Agent when it has a
+// stake in the task (finishMode): a system line in the conversation, and an
+// input in its inbox that wakes it when it owns the turn, or waits as a
+// note when it only created the task.
 func taskFinished(ctx context.Context, tx *sql.Tx, j model.Task, ag model.Agent, post *afterCommit) error {
-	if j.RequestedBy != model.AuthorSuper {
+	if j.WorkflowID != "" {
+		post.add(func() { WakeWorkflow(j.WorkflowID) })
+	}
+	mode := finishMode(j)
+	if mode == "" {
 		return nil
-	}
-	ses, err := superSession(ctx, tx)
-	if errors.Is(err, errs.ErrNotFound) {
-		return nil // the Super Agent was removed; the task result stays on the task
-	}
-	if err != nil {
-		return err
 	}
 	head := fmt.Sprintf("[task %s] agent %s: %s", j.ID, ag.Name, j.State)
 	var b strings.Builder
@@ -149,13 +148,42 @@ func taskFinished(ctx context.Context, tx *sql.Tx, j model.Task, ag model.Agent,
 		b.WriteString("\nresult:\n")
 		b.WriteString(j.Result)
 	}
-	note, err := appendSuper(ctx, tx, j.OwnerID, model.Author{Kind: model.AuthorSystem}, model.MessageSystem, head)
+	text := b.String()
+	if mode == ir.ModeNote {
+		text = clip(text, noteClip)
+	}
+	return toSuper(ctx, tx, j.OwnerID, head, text, mode, post)
+}
+
+// toSuper writes head as a system line in the conversation, and text (or
+// head, when text is empty) as an input of mode in the Super Agent inbox.
+func toSuper(ctx context.Context, tx *sql.Tx, owner model.ID, head, text string, mode ir.InputMode, post *afterCommit) error {
+	if text == "" {
+		text = head
+	}
+	if err := superInput(ctx, tx, mode, text); err != nil {
+		return err
+	}
+	msg, err := appendSuper(ctx, tx, owner, model.Author{Kind: model.AuthorSystem}, model.MessageSystem, head)
 	if err != nil {
 		return err
 	}
-	post.add(func() { Publish(context.WithoutCancel(ctx), j.OwnerID, PushMessage, model.WireMessage(note)) })
+	post.add(func() { Publish(context.WithoutCancel(ctx), owner, PushMessage, model.WireMessage(msg)) })
+	return nil
+}
+
+// superInput adds an input to the Super Agent inbox. Without a Super Agent
+// it does nothing: the task keeps its result.
+func superInput(ctx context.Context, tx *sql.Tx, mode ir.InputMode, text string) error {
+	ses, err := superSession(ctx, tx)
+	if errors.Is(err, errs.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
 	now := clock()
-	return model.AddInput(ctx, tx, model.Input{ID: model.NewIDAt(model.PrefixInput, now), SessionID: ses.ID, Text: b.String(), CreatedAt: now})
+	return model.AddInput(ctx, tx, model.Input{ID: model.NewIDAt(model.PrefixInput, now), SessionID: ses.ID, Mode: mode, Text: text, CreatedAt: now})
 }
 
 // afterCommit collects actions that must run only after the transaction

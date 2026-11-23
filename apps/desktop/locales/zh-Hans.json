@@ -56,6 +56,7 @@
   "taskCancelDetail": "{agent} 将停止“{title}”的工作，且无法恢复。",
   "taskKeep": "保留任务",
   "taskFollowUp": "给 {agent} 补充输入",
+  "taskSteer": "引导 {agent} 正在运行的这一轮",
   "taskWasCancelled": "任务已取消",
   "agoNow": "刚刚",
   "agoMinutes": "{n} 分钟前",

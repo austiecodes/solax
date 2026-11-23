@@ -82,24 +82,7 @@ Super Agent sent the task, the result comes back to it as a new message.`),
 				return g.print(cmd.OutOrStdout(), j, func(w io.Writer) { printTask(w, j) })
 			},
 		},
-		&cobra.Command{
-			Use:   "reply <task> <text>",
-			Short: T("Send more input to the agent of a task (the task runs again)"),
-			Args:  cobra.ExactArgs(2),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				c, err := g.client()
-				if err != nil {
-					return err
-				}
-				j, err := c.FollowUp(cmd.Context(), args[0], args[1])
-				if err != nil {
-					return err
-				}
-				return g.print(cmd.OutOrStdout(), j, func(w io.Writer) {
-					fmt.Fprintf(w, T("sent to task %s (%s). The new result comes back when the agent is done.\n"), j.ID, j.Agent)
-				})
-			},
-		},
+		taskReplyCmd(g),
 		&cobra.Command{
 			Use:   "cancel <task>",
 			Short: T("Stop a task"),
@@ -323,4 +306,42 @@ func chatCmd(g *globals) *cobra.Command {
 			}
 		},
 	}
+}
+
+func taskReplyCmd(g *globals) *cobra.Command {
+	var steer bool
+	cmd := &cobra.Command{
+		Use:   "reply <task> <text>",
+		Short: T("Send more input to the agent of a task (the task runs again)"),
+		Long: T(`Send more input to the agent of a task.
+
+By default the input starts a new turn after the current one, and its
+result comes back to you. With --steer, the input goes into the turn that
+runs now, before the next model call; the turn keeps its owner. A task that
+does not run gets a steer as a normal reply.`),
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := g.client()
+			if err != nil {
+				return err
+			}
+			send := c.FollowUp
+			if steer {
+				send = c.Steer
+			}
+			j, err := send(cmd.Context(), args[0], args[1])
+			if err != nil {
+				return err
+			}
+			return g.print(cmd.OutOrStdout(), j, func(w io.Writer) {
+				if steer && j.State == "running" {
+					fmt.Fprintf(w, T("steered task %s (%s).\n"), j.ID, j.Agent)
+					return
+				}
+				fmt.Fprintf(w, T("sent to task %s (%s). The new result comes back when the agent is done.\n"), j.ID, j.Agent)
+			})
+		},
+	}
+	cmd.Flags().BoolVar(&steer, "steer", false, T("add the input to the running turn"))
+	return cmd
 }

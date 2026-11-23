@@ -3,6 +3,7 @@ package agenttest
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,9 @@ type FakeRuntime struct {
 	Reply func(spec agent.SessionSpec, text string) string
 	// TurnDelay is the time a turn takes.
 	TurnDelay time.Duration
+	// Steer makes steer native: a steer during a turn joins the text that
+	// the turn answers, after a blank line.
+	Steer bool
 
 	mu     sync.Mutex
 	starts []agent.SessionSpec
@@ -32,7 +36,19 @@ type FakeRuntime struct {
 func (d *FakeRuntime) Kind() ir.Kind { return d.KindV }
 
 func (d *FakeRuntime) Probe(context.Context) (agent.Probe, error) {
-	return agent.Probe{OK: true, Version: "fake", Caps: FakeCaps}, nil
+	return agent.Probe{OK: true, Version: "fake", Caps: d.Caps()}, nil
+}
+
+// Caps returns FakeCaps, with steer when Steer is set.
+func (d *FakeRuntime) Caps() ir.Caps {
+	if !d.Steer {
+		return FakeCaps
+	}
+	native := map[ir.InputMode]bool{ir.ModeSteer: true}
+	for m, ok := range FakeCaps.Native {
+		native[m] = ok
+	}
+	return ir.Caps{Native: native}
 }
 
 // Starts returns the specs of all started sessions.
@@ -47,7 +63,7 @@ func (d *FakeRuntime) Start(ctx context.Context, spec agent.SessionSpec) (agent.
 	d.starts = append(d.starts, spec)
 	d.mu.Unlock()
 	s := &fakeSession{d: d, spec: spec, em: proc.NewEmitter(spec.SessionID), ref: ir.SessionRef{Kind: d.KindV, NativeID: "native-" + spec.SessionID}}
-	s.em.Emit(agent.SessionStarted(s.ref, spec.Model, FakeCaps))
+	s.em.Emit(agent.SessionStarted(s.ref, spec.Model, d.Caps()))
 	return s, nil
 }
 
@@ -57,20 +73,29 @@ type fakeSession struct {
 	em   *proc.Emitter
 	ref  ir.SessionRef
 
-	mu     sync.Mutex
-	turns  int
-	busy   bool
-	closed bool
+	mu      sync.Mutex
+	turns   int
+	busy    bool
+	steered []string // steers of the running turn
+	closed  bool
 }
 
 func (s *fakeSession) Ref() ir.SessionRef      { return s.ref }
-func (s *fakeSession) Caps() ir.Caps           { return FakeCaps }
+func (s *fakeSession) Caps() ir.Caps           { return s.d.Caps() }
 func (s *fakeSession) Events() <-chan ir.Event { return s.em.Events() }
 
 func (s *fakeSession) Send(ctx context.Context, in ir.Input) (agent.Accepted, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if in.Mode == ir.ModeInterrupt {
+		return agent.Accepted{}, nil
+	}
+	if in.Mode == ir.ModeSteer && s.d.Steer {
+		if !s.busy {
+			return agent.Accepted{}, fmt.Errorf("fake: steer while idle")
+		}
+		s.steered = append(s.steered, in.Text)
+		s.em.Emit(agent.UserMessage(in.Ref, in.Text))
 		return agent.Accepted{}, nil
 	}
 	if in.Mode != ir.ModePrompt {
@@ -86,9 +111,13 @@ func (s *fakeSession) Send(ctx context.Context, in ir.Input) (agent.Accepted, er
 	go func() {
 		s.em.Emit(agent.TurnStarted(turn, ir.CauseInput))
 		time.Sleep(s.d.TurnDelay)
+		s.mu.Lock()
+		prompt := strings.Join(append([]string{in.Text}, s.steered...), "\n\n")
+		s.steered = nil
+		s.mu.Unlock()
 		text := "ok"
 		if s.d.Reply != nil {
-			text = s.d.Reply(s.spec, in.Text)
+			text = s.d.Reply(s.spec, prompt)
 		}
 		s.mu.Lock()
 		s.busy = false

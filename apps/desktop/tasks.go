@@ -85,9 +85,14 @@ func (d *desktop) taskDetail(c *ui.Context, j protocol.Task) {
 	blocks := withWorking(taskBlocks(j, d.events[j.SessionID], d.live[j.SessionID]), taskLive(j.State))
 	d.transcriptView(c, pal, &d.taskList, blocks, nil)
 	closed := j.State == "cancelled"
+	// While a turn runs, input steers it; otherwise it starts a new turn.
+	steer := j.State == "running"
 	placeholder := locales.TaskFollowUp(j.Agent)
-	if closed {
+	switch {
+	case closed:
 		placeholder = locales.TaskWasCancelled()
+	case steer:
+		placeholder = locales.TaskSteer(j.Agent)
 	}
 	composer{
 		key: "follow-up", placeholder: placeholder, draft: &d.followDraft, disabled: closed,
@@ -101,7 +106,11 @@ func (d *desktop) taskDetail(c *ui.Context, j protocol.Task) {
 			id := j.ID
 			d.followDraft = ""
 			d.do(func(ctx context.Context, c *client.Client) (func(), error) {
-				nj, err := c.FollowUp(ctx, id, text)
+				send := c.FollowUp
+				if steer {
+					send = c.Steer
+				}
+				nj, err := send(ctx, id, text)
 				return func() { d.upsertTask(nj) }, err
 			})
 		},

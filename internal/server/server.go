@@ -20,6 +20,7 @@ import (
 	"github.com/austiecodes/solax/internal/server/router"
 	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/internal/server/stream"
+	"github.com/austiecodes/solax/internal/server/workflow"
 )
 
 // Config configures the server.
@@ -50,6 +51,8 @@ type App struct {
 	Handler http.Handler
 	hub     *hub.Hub
 	loop    *delivery.Loop
+	runner  *workflow.Runner
+	log     *slog.Logger
 }
 
 // New assembles the server and sets the service functions. The model
@@ -65,20 +68,34 @@ func New(secret []byte, log *slog.Logger) *App {
 	service.IssueToken = auth.IssueToken
 	service.Wake = loop.Kick
 
+	runner := workflow.New(log)
+	service.CheckWorkflow = runner.Check
+	service.RunWorkflow, service.StopWorkflow, service.WakeWorkflow = runner.Start, runner.Stop, runner.Wake
+
 	return &App{
 		Handler: router.New(h, st),
 		hub:     h,
 		loop:    loop,
+		runner:  runner,
+		log:     log,
 	}
 }
 
-// Close closes the daemon connections and waits for their handlers. Call
-// it after the HTTP server stops and before the database closes.
-func (a *App) Close() { a.hub.Close() }
+// Close closes the daemon connections and waits for their handlers, then
+// stops the workflow runs. Call it after the HTTP server stops and before
+// the database closes.
+func (a *App) Close() {
+	a.hub.Close()
+	a.runner.Close()
+}
 
-// Start runs the delivery loop until ctx ends. Its error goes to errc.
+// Start runs the delivery loop until ctx ends, and resumes the workflows
+// that were active when the server stopped. The loop's error goes to errc.
 func (a *App) Start(ctx context.Context, errc chan<- error) {
 	go func() { errc <- a.loop.Run(ctx) }()
+	if err := a.runner.Resume(ctx); err != nil {
+		a.log.Error("workflow: resume", "err", err)
+	}
 }
 
 // Serve starts the server on ln and blocks until ctx ends. It closes ln.

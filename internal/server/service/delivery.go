@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"database/sql"
-	"strings"
 
 	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/pkg/ir"
@@ -65,15 +64,17 @@ func planDelivery(ctx context.Context, db model.Querier, sid model.ID) (Delivery
 	if err != nil || len(pending) == 0 {
 		return Delivery{}, false, err
 	}
+	text, mode, ok := batch(pending)
+	if !ok {
+		return Delivery{}, false, nil // only notes: they wait for a waking input
+	}
 	d := Delivery{MachineID: m.ID, SessionID: sid}
-	texts := make([]string, len(pending))
-	for i, in := range pending {
-		texts[i] = in.Text
+	for _, in := range pending {
 		d.InputIDs = append(d.InputIDs, in.ID)
 	}
 	// The ref is the first input: a batch that is resent after a lost ack
 	// has the same first input, so the daemon drops it.
-	d.Input = ir.Input{Mode: ir.ModeFollowUp, Text: strings.Join(texts, "\n\n---\n\n"), Ref: string(pending[0].ID)}
+	d.Input = ir.Input{Mode: mode, Text: text, Ref: string(pending[0].ID)}
 	if !ses.Live {
 		ens, err := ensureFor(ctx, ses, ag, m)
 		if err != nil {

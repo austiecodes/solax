@@ -8,6 +8,7 @@ import (
 	"github.com/austiecodes/solax/internal/server/middleware"
 	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/internal/server/service"
+	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -45,13 +46,14 @@ func GetTask(c *gin.Context) {
 	replyTask(c, http.StatusOK, j, err)
 }
 
-// FollowUpTask sends more text to the agent of a task.
+// FollowUpTask sends more text to the agent of a task: a follow-up, or a
+// steer of the running turn.
 func FollowUpTask(c *gin.Context) {
-	var r protocol.TextRequest
+	var r protocol.FollowUpRequest
 	if !bind(c, &r) {
 		return
 	}
-	j, err := service.FollowUp(c.Request.Context(), middleware.Actor(c), model.ID(c.Param("task")), r.Text)
+	j, err := service.FollowUp(c.Request.Context(), middleware.Actor(c), model.ID(c.Param("task")), r.Text, ir.InputMode(r.Mode))
 	replyTask(c, http.StatusAccepted, j, err)
 }
 

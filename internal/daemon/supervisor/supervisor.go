@@ -259,20 +259,35 @@ func (s *Supervisor) deliver(ctx context.Context, payload json.RawMessage) error
 	if in.Ref != "" && r.queue.Seen(in.Ref) {
 		return nil
 	}
-	if in.Mode == ir.ModeFollowUp || in.Mode == ir.ModePrompt {
-		switch {
-		case r.idle():
-			in.Mode = ir.ModePrompt
-		case r.caps.Native[ir.ModeFollowUp] && r.state.State() != ir.SessionStarting:
-			in.Mode = ir.ModeFollowUp
-		default:
-			// Starting, or no native follow_up: flush sends it as the
-			// next prompt when the session turns idle.
-			in.Mode = ir.ModeFollowUp
-			return r.queue.Push(in)
-		}
+	mode, queue := r.route(in.Mode)
+	in.Mode = mode
+	if queue {
+		// Starting, or no native mode: flush sends it as the next prompt
+		// when the session turns idle.
+		return r.queue.Push(in)
 	}
 	return r.send(ctx, in)
+}
+
+// route picks how an input of mode reaches the session now. An idle
+// session takes a prompt. A busy one takes a follow-up or a steer when the
+// runtime has it natively; else the input waits in the queue (queue is
+// true) and runs as the next prompt. Other modes go as they are. The
+// caller holds mu.
+func (r *running) route(mode ir.InputMode) (_ ir.InputMode, queue bool) {
+	if mode != ir.ModeFollowUp && mode != ir.ModePrompt && mode != ir.ModeSteer {
+		return mode, false
+	}
+	if r.idle() {
+		return ir.ModePrompt, false
+	}
+	if mode == ir.ModePrompt {
+		mode = ir.ModeFollowUp
+	}
+	if r.caps.Native[mode] && r.state.State() != ir.SessionStarting {
+		return mode, false
+	}
+	return ir.ModeFollowUp, true
 }
 
 // idle reports whether a prompt can start a turn now. The caller holds mu.

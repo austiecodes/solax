@@ -44,10 +44,10 @@ var (
 
 // Helpers shared by the domain files.
 
-// requireManager rejects a plain worker agent. Only a person and the Super
-// Agent dispatch, follow up and cancel tasks.
+// requireManager rejects a plain worker agent. Only a person, the Super
+// Agent and a workflow dispatch, follow up and cancel tasks.
 func requireManager(a model.Actor) error {
-	if a.Kind != model.AuthorHuman && a.Kind != model.AuthorSuper {
+	if a.Kind != model.AuthorHuman && a.Kind != model.AuthorSuper && a.Kind != model.AuthorWorkflow {
 		return errs.ErrForbidden
 	}
 	return nil
@@ -92,6 +92,7 @@ const (
 	PushTask     = "task"             // protocol.Task
 	PushSession  = "session.event"    // protocol.SessionEventNote
 	PushMessage  = "super.message"    // protocol.Message of the Super Agent conversation
+	PushWorkflow = "workflow"         // protocol.Workflow, without steps
 )
 
 func firstLine(s string) string {

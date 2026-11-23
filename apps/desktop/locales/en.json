@@ -138,6 +138,7 @@
   "taskCancelDetail": "{agent} stops work on \"{title}\". You cannot resume it.",
   "taskKeep": "Keep task",
   "taskFollowUp": "Send more input to {agent}",
+  "taskSteer": "Steer the running turn of {agent}",
   "taskWasCancelled": "The task was cancelled",
   "agoNow": "just now",
   "agoMinutes": "{n} min ago",

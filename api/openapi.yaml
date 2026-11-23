@@ -32,7 +32,7 @@ paths:
     get: { summary: List tasks, newest first }
     post: { summary: Give a task to an agent; returns at once }
   /v1/tasks/{task}: { get: { summary: Show a task } }
-  /v1/tasks/{task}/messages: { post: { summary: Send more input to the session of a task } }
+  /v1/tasks/{task}/messages: { post: { summary: "Send more input to a task: {text, mode: follow_up (default) | steer}" } }
   /v1/tasks/{task}/cancel: { post: { summary: Cancel a task } }
   /v1/sessions/{session}/events: { get: { summary: Read the stored IR events of a session } }
   /v1/super/messages:

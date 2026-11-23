@@ -101,7 +101,8 @@ type Task struct {
 	Agent       string    `json:"agent"` // agent name
 	AgentID     string    `json:"agent_id"`
 	SessionID   string    `json:"session_id"`
-	RequestedBy string    `json:"requested_by"` // human | super
+	RequestedBy string    `json:"requested_by"` // human | super: who created the task
+	TurnBy      string    `json:"turn_by"`      // human | super: who started the current turn and gets its result
 	Title       string    `json:"title"`
 	Prompt      string    `json:"prompt"`
 	State       string    `json:"state"` // queued | running | done | failed | cancelled
@@ -109,6 +110,14 @@ type Task struct {
 	Error       string    `json:"error,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// FollowUpRequest is the body of POST /v1/tasks/:task/messages.
+type FollowUpRequest struct {
+	Text string `json:"text"`
+	// Mode is "follow_up" (the default: a new turn after the current one)
+	// or "steer" (guide the running turn).
+	Mode string `json:"mode,omitempty"`
 }
 
 // DispatchRequest is the body of POST /v1/tasks.
@@ -169,4 +178,93 @@ type Object struct {
 
 type ErrorResponse struct {
 	Error string `json:"error"`
+}
+
+// Workflows.
+
+// WorkflowMeta is the meta export of a workflow script.
+type WorkflowMeta struct {
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	WhenToUse   string          `json:"whenToUse,omitempty"`
+	Phases      []WorkflowPhase `json:"phases,omitempty"`
+}
+
+// WorkflowPhase is one phase in WorkflowMeta.
+type WorkflowPhase struct {
+	Title  string `json:"title"`
+	Detail string `json:"detail,omitempty"`
+}
+
+// Workflow is one run of a workflow script.
+type Workflow struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name,omitempty"`
+	Title       string          `json:"title"`
+	RequestedBy string          `json:"requested_by"` // human | super
+	ResumeFrom  string          `json:"resume_from,omitempty"`
+	State       string          `json:"state"` // running | waiting | done | failed | cancelled
+	Result      json.RawMessage `json:"result,omitempty"`
+	Error       string          `json:"error,omitempty"`
+	Logs        string          `json:"logs,omitempty"`
+	Source      string          `json:"source,omitempty"` // only in one workflow
+	Steps       []WorkflowStep  `json:"steps,omitempty"`  // only in one workflow
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+// WorkflowStep is one wait of a workflow script.
+type WorkflowStep struct {
+	Key    string          `json:"key"`
+	Kind   string          `json:"kind"` // agents | recall | task | reply | ask | sleep
+	Target string          `json:"target,omitempty"`
+	Phase  string          `json:"phase,omitempty"`
+	Label  string          `json:"label,omitempty"`
+	State  string          `json:"state"` // pending | done | failed
+	Output json.RawMessage `json:"output,omitempty"`
+}
+
+// SavedWorkflow is a workflow script kept under a name.
+type SavedWorkflow struct {
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Meta        WorkflowMeta `json:"meta"`
+	Source      string       `json:"source,omitempty"` // only in one saved workflow
+	UpdatedAt   time.Time    `json:"updated_at"`
+}
+
+// WorkflowList is the answer of GET /v1/workflows.
+type WorkflowList struct {
+	Saved []SavedWorkflow `json:"saved"`
+	Runs  []Workflow      `json:"runs"`
+}
+
+// WorkflowItem is the answer of GET /v1/workflows/:ref: a run (wfl_ ID) or
+// a saved workflow (name).
+type WorkflowItem struct {
+	Run   *Workflow      `json:"run,omitempty"`
+	Saved *SavedWorkflow `json:"saved,omitempty"`
+	Runs  []Workflow     `json:"runs,omitempty"` // recent runs of a saved workflow
+}
+
+// StartWorkflowRequest is the body of POST /v1/workflows. Give Source, or
+// Name to run a saved workflow.
+type StartWorkflowRequest struct {
+	Source string          `json:"source,omitempty"`
+	Name   string          `json:"name,omitempty"`
+	Args   json.RawMessage `json:"args,omitempty"`
+	// Resume is a wfl_ ID: the new run reuses its finished steps while the
+	// script makes the same calls.
+	Resume string `json:"resume,omitempty"`
+}
+
+// SaveWorkflowRequest is the body of POST /v1/workflows/saved.
+type SaveWorkflowRequest struct {
+	Source string `json:"source"`
+}
+
+// AnswerRequest is the body of POST /v1/workflows/:workflow/answer.
+type AnswerRequest struct {
+	Choice string `json:"choice"`
+	Text   string `json:"text,omitempty"`
 }

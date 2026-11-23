@@ -666,6 +666,16 @@ func (msgs Messages) TaskFollowUp(agent string) string {
 	return Catalog.Format(msgs.locale, "taskFollowUp", map[string]any{"agent": agent})
 }
 
+// TaskSteer says "Steer the running turn of {agent}"
+// in the language the app shows.
+func TaskSteer(agent string) string { return In(i18n.Locale()).TaskSteer(agent) }
+
+// TaskSteer says "Steer the running turn of {agent}"
+// in the language of msgs.
+func (msgs Messages) TaskSteer(agent string) string {
+	return Catalog.Format(msgs.locale, "taskSteer", map[string]any{"agent": agent})
+}
+
 // TaskWasCancelled says "The task was cancelled"
 // in the language the app shows.
 func TaskWasCancelled() string { return In(i18n.Locale()).TaskWasCancelled() }

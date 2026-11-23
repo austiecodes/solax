@@ -300,3 +300,39 @@ func TestAtomicRollsBackAndSnapshotIsReadOnly(t *testing.T) {
 		t.Fatal("write in Snapshot succeeded")
 	}
 }
+
+// A session whose unsent inputs are all notes does not wake; the notes go
+// with the next waking input, in order. A task keeps who owns its turn.
+func TestNotesWaitForAWakingInput(t *testing.T) {
+	open(t)
+	o, a, _ := seed(t)
+	ctx := context.Background()
+	add := func(id ID, mode ir.InputMode, at time.Time) {
+		atomic_(t, func(tx *sql.Tx) error {
+			return AddInput(ctx, tx, Input{ID: id, SessionID: "ses_1", Mode: mode, Text: string(id), CreatedAt: at})
+		})
+	}
+	add("inp_1", ir.ModeNote, t0)
+	if ids, err := ListPendingSessions(ctx, ReadDB); err != nil || len(ids) != 0 {
+		t.Fatalf("pending with only a note = %v, %v; want none", ids, err)
+	}
+	add("inp_2", "", t0.Add(time.Second)) // the default mode wakes
+	ids, err := ListPendingSessions(ctx, ReadDB)
+	if err != nil || len(ids) != 1 || ids[0] != "ses_1" {
+		t.Fatalf("pending = %v, %v; want ses_1", ids, err)
+	}
+	ins, err := ListPendingInputs(ctx, ReadDB, "ses_1")
+	if err != nil || len(ins) != 2 || ins[0].Mode != ir.ModeNote || ins[1].Mode != ir.ModeFollowUp {
+		t.Fatalf("inputs = %+v, %v", ins, err)
+	}
+
+	j := Task{ID: "tsk_1", OwnerID: o.ID, AgentID: a.ID, SessionID: "ses_1", RequestedBy: AuthorSuper, TurnBy: AuthorSuper,
+		State: TaskQueued, CreatedAt: t0, UpdatedAt: t0}
+	atomic_(t, func(tx *sql.Tx) error { return SaveTask(ctx, tx, j) })
+	j.TurnBy = AuthorHuman
+	atomic_(t, func(tx *sql.Tx) error { return SaveTask(ctx, tx, j) })
+	got, err := GetTask(ctx, ReadDB, "tsk_1")
+	if err != nil || got.RequestedBy != AuthorSuper || got.TurnBy != AuthorHuman {
+		t.Fatalf("task = %+v, %v; want requested by super, turn by human", got, err)
+	}
+}

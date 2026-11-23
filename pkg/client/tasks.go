@@ -53,10 +53,22 @@ func (c *Client) Task(ctx context.Context, id string) (protocol.Task, error) {
 	return out, c.do(ctx, http.MethodGet, "/v1/tasks/"+esc(id), nil, nil, &out)
 }
 
-// FollowUp sends more input to the session of a task.
+// FollowUp sends more input to the session of a task. It starts a new
+// turn after the current one, and the result of that turn comes back to
+// the caller.
 func (c *Client) FollowUp(ctx context.Context, id, text string) (protocol.Task, error) {
+	return c.sendTask(ctx, id, protocol.FollowUpRequest{Text: text, Mode: "follow_up"})
+}
+
+// Steer adds input to the running turn of a task. The turn keeps its
+// owner. A task that does not run gets the input as a follow-up.
+func (c *Client) Steer(ctx context.Context, id, text string) (protocol.Task, error) {
+	return c.sendTask(ctx, id, protocol.FollowUpRequest{Text: text, Mode: "steer"})
+}
+
+func (c *Client) sendTask(ctx context.Context, id string, r protocol.FollowUpRequest) (protocol.Task, error) {
 	var out protocol.Task
-	return out, c.do(ctx, http.MethodPost, "/v1/tasks/"+esc(id)+"/messages", nil, protocol.TextRequest{Text: text}, &out)
+	return out, c.do(ctx, http.MethodPost, "/v1/tasks/"+esc(id)+"/messages", nil, r, &out)
 }
 
 func (c *Client) CancelTask(ctx context.Context, id string) (protocol.Task, error) {

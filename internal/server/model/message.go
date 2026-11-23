@@ -15,6 +15,8 @@ const (
 	AuthorAgent  AuthorKind = "agent"
 	AuthorSuper  AuthorKind = "super"
 	AuthorSystem AuthorKind = "system"
+	// AuthorWorkflow is a workflow script. It starts and follows up tasks.
+	AuthorWorkflow AuthorKind = "workflow"
 )
 
 // Author is the author of a message. It comes from the token, never from
