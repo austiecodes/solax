@@ -1,0 +1,9 @@
+{
+  "name": "solax",
+  "description": "Solax: skills for the Solax Super Agent",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Solax",
+    "shortDescription": "Skills for the Solax Super Agent"
+  }
+}

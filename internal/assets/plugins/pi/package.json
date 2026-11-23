@@ -1,0 +1,8 @@
+{
+  "name": "solax",
+  "private": true,
+  "description": "Solax: skills for the Solax Super Agent",
+  "pi": {
+    "skills": ["./skills"]
+  }
+}

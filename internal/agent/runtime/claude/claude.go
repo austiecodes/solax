@@ -144,6 +144,9 @@ func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sess
 	if len(spec.Tools.Deny) > 0 {
 		args = append(args, "--disallowedTools", strings.Join(spec.Tools.Deny, ","))
 	}
+	if spec.Plugin != "" {
+		args = append(args, "--plugin-dir", spec.Plugin)
+	}
 	dir, err := proc.NewSessionDir(d.cfg.StateDir, spec.SessionID)
 	if err != nil {
 		return nil, err

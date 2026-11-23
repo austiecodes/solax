@@ -30,6 +30,9 @@ type Config struct {
 	Runtimes []agent.Runtime
 	// Prompt returns the role prompt of a session.
 	Prompt func(role protocol.SessionRole) (string, error)
+	// Plugin returns the folder of the Solax plugin for a runtime, or "".
+	// Only the Super Agent loads it.
+	Plugin func(kind ir.Kind) string
 	// Env returns the environment of a session: SOLAX_* values and PATH.
 	Env func(e protocol.SessionEnsure) map[string]string
 	// Dir resolves the work folder of an agent, for example "~/src".
@@ -216,6 +219,9 @@ func (s *Supervisor) ensure(ctx context.Context, payload json.RawMessage) error 
 	}
 	if s.cfg.Env != nil {
 		spec.Env = s.cfg.Env(e)
+	}
+	if s.cfg.Plugin != nil && e.Role == protocol.RoleSuper {
+		spec.Plugin = s.cfg.Plugin(e.Runtime)
 	}
 	sess, err := drv.Start(ctx, spec)
 	if err != nil && e.Resume != nil {

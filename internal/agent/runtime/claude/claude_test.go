@@ -96,3 +96,21 @@ func TestKindDefaults(t *testing.T) {
 		t.Fatalf("mycc binary = %q", d.cfg.Binary)
 	}
 }
+
+// A session with a plugin starts with --plugin-dir.
+func TestPluginDir(t *testing.T) {
+	bin, argsFile := fakeCLI(t, true)
+	d := New(Config{Kind: "fakecc", Binary: bin, StateDir: t.TempDir()})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	s, err := d.Start(ctx, agent.SessionSpec{SessionID: "ses_1", Dir: t.TempDir(), Plugin: "/assets/plugins/claudecode"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range s.Events() {
+	}
+	b, _ := os.ReadFile(argsFile)
+	if !strings.Contains(string(b), "--plugin-dir /assets/plugins/claudecode") {
+		t.Fatalf("args %q have no --plugin-dir", b)
+	}
+}

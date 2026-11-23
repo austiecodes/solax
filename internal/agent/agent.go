@@ -41,8 +41,12 @@ type SessionSpec struct {
 	Instructions string            // appended system prompt (Solax role + CLI etiquette)
 	Env          map[string]string // SOLAX_* values
 	Tools        ToolPolicy
-	Extensions   []string       // pi only
-	Options      map[string]any // runtime-specific, for example pi "codemode"
+	Extensions   []string // pi only
+	// Plugin is the folder of the Solax plugin for this runtime, or "".
+	// pi loads it as a package, Claude Code as a plugin; Codex has no
+	// session plugins and gets its skills in the instructions.
+	Plugin  string
+	Options map[string]any // runtime-specific, for example pi "codemode"
 }
 
 // ToolPolicy limits the tools of a session.

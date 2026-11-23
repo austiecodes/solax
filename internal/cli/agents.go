@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -66,12 +67,14 @@ func agentAddCmd(g *globals) *cobra.Command {
 	var r protocol.CreateAgentRequest
 	var runtime string
 	var instr instructionsFlags
+	var opts optionsFlags
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: T("Set up an agent on a machine"),
 		Example: `  solax agent add reviewer --machine mac --runtime claude --dir ~/src/app \
       --desc "Reviews Go code and finds bugs" --instructions-file review.md
-  solax agent add router --machine mac --runtime pi --dir ~ --super`,
+  solax agent add router --machine mac --runtime pi --dir ~ --super
+  solax agent add coder --machine dev --runtime codex --dir /src --option sandbox=danger-full-access`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
@@ -82,6 +85,7 @@ func agentAddCmd(g *globals) *cobra.Command {
 			if r.Instructions, _, err = instr.read(cmd); err != nil {
 				return err
 			}
+			r.Options = opts.get()
 			if r.Machine == "" {
 				r.Machine = localMachine()
 			}
@@ -105,6 +109,7 @@ func agentAddCmd(g *globals) *cobra.Command {
 	f.StringVar(&r.Model, "model", "", T("model (default: the CLI default)"))
 	f.BoolVar(&r.Super, "super", false, T("make this agent the Super Agent (the router)"))
 	instr.add(cmd)
+	opts.add(cmd)
 	_ = cmd.MarkFlagRequired("runtime")
 	_ = cmd.MarkFlagRequired("dir")
 	return cmd
@@ -114,6 +119,7 @@ func agentEditCmd(g *globals) *cobra.Command {
 	var desc, dir, model string
 	var super bool
 	var instr instructionsFlags
+	var opts optionsFlags
 	cmd := &cobra.Command{
 		Use:   "edit <agent>",
 		Short: T("Change the description, instructions, folder, model or role of an agent"),
@@ -141,6 +147,9 @@ func agentEditCmd(g *globals) *cobra.Command {
 			if f.Changed("model") {
 				r.Model = &model
 			}
+			if f.Changed("option") {
+				r.Options = opts.get()
+			}
 			if f.Changed("super") {
 				r.Super = &super
 			}
@@ -157,8 +166,58 @@ func agentEditCmd(g *globals) *cobra.Command {
 	f.StringVar(&model, "model", "", T("new model"))
 	f.BoolVar(&super, "super", false, T("make it the Super Agent (--super=false to undo)"))
 	instr.add(cmd)
+	opts.add(cmd)
 	return cmd
 }
+
+// optionsFlags is --option KEY=VALUE: an option of the agent runtime, for
+// example --option sandbox=danger-full-access or --option thinking=high.
+// A value that is valid JSON (true, 3, {"a":1}) is stored as JSON; any
+// other value is a string. The flag can repeat. On "agent edit" it
+// replaces all the options of the agent.
+type optionsFlags struct{ m map[string]any }
+
+func (fl *optionsFlags) add(cmd *cobra.Command) {
+	cmd.Flags().Var(fl, "option", T("option of the agent runtime, KEY=VALUE (repeatable), for example sandbox=danger-full-access; on edit it replaces all the options"))
+}
+
+// get returns the options, or nil when the flag is not on the command line.
+func (fl *optionsFlags) get() map[string]any {
+	if len(fl.m) == 0 {
+		return nil
+	}
+	return fl.m
+}
+
+func (fl *optionsFlags) String() string {
+	if fl.m == nil {
+		return ""
+	}
+	b, _ := json.Marshal(fl.m)
+	return string(b)
+}
+
+func (fl *optionsFlags) Set(s string) error {
+	k, v, ok := strings.Cut(s, "=")
+	if !ok || strings.TrimSpace(k) == "" {
+		return fmt.Errorf(T("--option wants KEY=VALUE, got %q"), s)
+	}
+	var val any = v
+	if json.Valid([]byte(v)) {
+		var j any
+		if err := json.Unmarshal([]byte(v), &j); err != nil {
+			return fmt.Errorf(T("--option %s: %w"), k, err)
+		}
+		val = j
+	}
+	if fl.m == nil {
+		fl.m = map[string]any{}
+	}
+	fl.m[k] = val
+	return nil
+}
+
+func (fl *optionsFlags) Type() string { return "KEY=VALUE" }
 
 // instructionsFlags are --instructions and --instructions-file: the system
 // prompt of an agent, which its sessions get after the Solax role prompt.

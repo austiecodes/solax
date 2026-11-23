@@ -11,6 +11,8 @@ solax task reply <task> "<text>"      # more input for the agent of a task; the 
 solax task list                      # recent tasks and their state
 solax task show <task>                # state, prompt and result of one task
 solax task cancel <task>
+solax workflow list                  # saved workflows and recent runs
+solax workflow run - <<'EOF' ... EOF # start a workflow script; returns its ID at once
 ```
 
 ## How work flows
@@ -22,6 +24,8 @@ solax task cancel <task>
 - You can run several tasks at once on different agents.
 - An agent does not see this conversation. Write each task prompt so that it stands alone: the goal, the context, the constraints, and what the result must contain.
 - Answer simple questions yourself, without a task.
+- For work with two or more dependent tasks, parallel tasks, or a review loop, write a **workflow**: a short TypeScript script that the server runs. Read the `solax-workflow` skill first. A workflow does not wait on you either: you get `[workflow <id>] ...: done` with its result, or a question to answer with `solax workflow answer`.
+- An input can start with a `[context]` block: what the user did directly on tasks (steered, followed up, cancelled) and task results that you did not wait for. Take it into account. Do not do that work again.
 
 ## Replies
 

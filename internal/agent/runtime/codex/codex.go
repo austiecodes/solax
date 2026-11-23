@@ -139,8 +139,8 @@ func (s *session) handshake(ctx context.Context, spec agent.SessionSpec) (thread
 	if spec.Model != "" {
 		params["model"] = spec.Model
 	}
-	if spec.Instructions != "" {
-		params["developerInstructions"] = spec.Instructions
+	if instr := spec.Instructions + skills(spec.Plugin); instr != "" {
+		params["developerInstructions"] = instr
 	}
 	if err := s.peer.Call(ctx, "thread/start", params, &res); err != nil {
 		return thread{}, fmt.Errorf("thread/start: %w", err)

@@ -217,3 +217,27 @@ func TestSystemPrompt(t *testing.T) {
 		}
 	}
 }
+
+// Only the Super Agent session gets the Solax plugin.
+func TestPluginOnlyForSuper(t *testing.T) {
+	fake := &agenttest.FakeRuntime{KindV: ir.KindClaude}
+	ctx := context.Background()
+	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 2, Send: (&sink{}).Send,
+		Plugin: func(k ir.Kind) string { return "/assets/plugins/" + string(k) }})
+	for _, e := range []protocol.SessionEnsure{
+		{SessionID: "ses_s", Agent: "router", Runtime: ir.KindClaude, Dir: "/x", Role: protocol.RoleSuper},
+		{SessionID: "ses_w", Agent: "coder", Runtime: ir.KindClaude, Dir: "/x", Role: protocol.RoleWorker},
+	} {
+		if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, e)); !ack.OK {
+			t.Fatal(ack.Error)
+		}
+	}
+	got := map[string]string{}
+	for _, spec := range fake.Starts() {
+		got[spec.SessionID] = spec.Plugin
+	}
+	if got["ses_s"] != "/assets/plugins/claude" || got["ses_w"] != "" {
+		t.Fatalf("plugins = %v", got)
+	}
+	_ = s.Shutdown(ctx)
+}

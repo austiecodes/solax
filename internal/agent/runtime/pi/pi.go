@@ -116,6 +116,9 @@ func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sess
 	for _, e := range spec.Extensions {
 		args = append(args, "-e", e)
 	}
+	if spec.Plugin != "" {
+		args = append(args, "-e", spec.Plugin) // a local package folder
+	}
 
 	logw := dir.Log()
 	p, err := proc.Start(proc.Config{Binary: d.cfg.Binary, Args: args, Dir: spec.Dir, Env: spec.Env, Stderr: logw})

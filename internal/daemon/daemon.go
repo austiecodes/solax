@@ -24,6 +24,7 @@ import (
 	"github.com/austiecodes/solax/internal/localconfig"
 	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/internal/svc"
+	"github.com/austiecodes/solax/pkg/ir"
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
@@ -116,6 +117,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.sup = supervisor.New(ctx, supervisor.Config{
 		Runtimes: d.runtimes,
 		Prompt:   func(role protocol.SessionRole) (string, error) { return assets.Prompt(d.assets, role) },
+		Plugin:   func(kind ir.Kind) string { return assets.Plugin(d.assets, kind) },
 		Env:      d.sessionEnv,
 		Dir:      localconfig.ExpandHome,
 		MaxSlots: d.config().Machine.MaxSessions,
