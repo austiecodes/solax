@@ -191,6 +191,10 @@ const (
 
 // Turn is the payload of TurnStarted and TurnCompleted.
 type Turn struct {
+	// Answer is the final response on success. An empty answer is valid.
+	// Older daemons omit it, so the server uses their last message.
+	Answer *string `json:"answer,omitempty"`
+
 	Cause  TurnCause  `json:"cause,omitempty"`
 	Status TurnStatus `json:"status,omitempty"`
 	Error  *Error     `json:"error,omitempty"`

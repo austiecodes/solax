@@ -227,8 +227,8 @@ func publishTask(ctx context.Context, j model.Task) {
 }
 
 // applyTaskEvent moves a task with one event of its session. It reports
-// whether the task changed. The result is the last agent message of the
-// last turn; a cancelled task stays cancelled.
+// whether the task changed. While running, Result shows a preview.
+// On success, the daemon supplies the final answer.
 func applyTaskEvent(j *model.Task, ev ir.Event) bool {
 	if j.State == model.TaskCancelled {
 		return false
@@ -238,7 +238,7 @@ func applyTaskEvent(j *model.Task, ev ir.Event) bool {
 		j.State, j.Result, j.Error = model.TaskRunning, "", ""
 		return true
 	case ir.ItemCompleted:
-		if ev.Item != nil && ev.Item.Kind == ir.ItemAgentMessage && strings.TrimSpace(ev.Item.Text) != "" {
+		if j.State == model.TaskRunning && ev.Item != nil && ev.Item.Kind == ir.ItemAgentMessage && strings.TrimSpace(ev.Item.Text) != "" {
 			j.Result = ev.Item.Text
 			return true
 		}
@@ -249,10 +249,13 @@ func applyTaskEvent(j *model.Task, ev ir.Event) bool {
 		switch ev.Turn.Status {
 		case ir.TurnOK:
 			j.State = model.TaskDone
+			if ev.Turn.Answer != nil {
+				j.Result = *ev.Turn.Answer
+			}
 		case ir.TurnInterrupted:
-			j.State, j.Error = model.TaskFailed, "interrupted"
+			j.State, j.Result, j.Error = model.TaskFailed, "", "interrupted"
 		default:
-			j.State, j.Error = model.TaskFailed, "turn failed"
+			j.State, j.Result, j.Error = model.TaskFailed, "", "turn failed"
 			if ev.Turn.Error != nil && ev.Turn.Error.Message != "" {
 				j.Error = ev.Turn.Error.Message
 			}
@@ -260,7 +263,7 @@ func applyTaskEvent(j *model.Task, ev ir.Event) bool {
 		return true
 	case ir.SessionExitedEvent:
 		if !j.State.Terminal() {
-			j.State, j.Error = model.TaskFailed, "agent process exited"
+			j.State, j.Result, j.Error = model.TaskFailed, "", "agent process exited"
 			if ev.Session != nil && ev.Session.Reason != "" {
 				j.Error += ": " + ev.Session.Reason
 			}

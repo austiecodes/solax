@@ -24,7 +24,9 @@ import (
 // user message itself. Server requests (approvals) are handled by the
 // session, not here.
 type Decoder struct {
-	usage *ir.Usage // last total, attached to turn.completed
+	turnID string
+	answer string    // for app-server versions that omit items at completion
+	usage  *ir.Usage // last total, attached to turn.completed
 }
 
 // NewDecoder returns a decoder for one session.
@@ -62,9 +64,10 @@ type params struct {
 }
 
 type turn struct {
-	ID     string     `json:"id"`
-	Status string     `json:"status"`
-	Error  *turnError `json:"error"`
+	Items  []answerItem `json:"items"`
+	ID     string       `json:"id"`
+	Status string       `json:"status"`
+	Error  *turnError   `json:"error"`
 }
 
 type turnError struct {
@@ -90,6 +93,7 @@ func (d *Decoder) Notification(method string, raw json.RawMessage) ([]ir.Event, 
 		if p.Turn == nil {
 			return nil, nil
 		}
+		d.turnID, d.answer = p.Turn.ID, ""
 		d.usage = nil
 		return []ir.Event{agent.TurnStarted(p.Turn.ID, ir.CauseInput)}, nil
 	case "turn/completed":
@@ -107,9 +111,27 @@ func (d *Decoder) Notification(method string, raw json.RawMessage) ([]ir.Event, 
 				msg = p.Turn.Error.Message
 			}
 		}
+		if status == ir.TurnOK {
+			if p.Turn.ID == d.turnID {
+				msg = d.answer
+			}
+			if n := len(p.Turn.Items); n > 0 {
+				msg = p.Turn.Items[n-1].answer()
+			}
+		}
 		return []ir.Event{agent.TurnCompleted(p.Turn.ID, status, msg, d.usage)}, nil
 	case "item/started", "item/completed":
-		it, ok := mapItem(p.Item)
+		var native item
+		if json.Unmarshal(p.Item, &native) != nil || native.ID == "" {
+			return nil, nil
+		}
+		if p.TurnID == d.turnID {
+			d.answer = ""
+			if method == "item/completed" {
+				d.answer = native.answer()
+			}
+		}
+		it, ok := mapItem(native)
 		if !ok {
 			return nil, nil
 		}
@@ -145,12 +167,25 @@ func (d *Decoder) Notification(method string, raw json.RawMessage) ([]ir.Event, 
 	return nil, nil
 }
 
+// Older app-servers omit the phase. Only the terminal message is eligible.
+type answerItem struct {
+	Type  string `json:"type"`
+	Phase string `json:"phase"`
+	Text  string `json:"text"`
+}
+
+func (it answerItem) answer() string {
+	if it.Type == "agentMessage" && (it.Phase == "final_answer" || it.Phase == "") {
+		return it.Text
+	}
+	return ""
+}
+
 // item is the union of the ThreadItem fields that Solax reads.
 type item struct {
-	Type             string          `json:"type"`
+	answerItem
 	ID               string          `json:"id"`
 	Status           string          `json:"status"`
-	Text             string          `json:"text"`
 	Summary          []string        `json:"summary"`
 	Content          json.RawMessage `json:"content"`
 	Command          string          `json:"command"`
@@ -172,11 +207,7 @@ type item struct {
 
 // mapItem maps a ThreadItem to an IR item. ok is false for items that the
 // IR does not show (userMessage, review mode markers, unknown types).
-func mapItem(raw json.RawMessage) (ir.Item, bool) {
-	var it item
-	if json.Unmarshal(raw, &it) != nil || it.ID == "" {
-		return ir.Item{}, false
-	}
+func mapItem(it item) (ir.Item, bool) {
 	out := ir.Item{ID: it.ID, Native: it.Type, Status: itemStatus(it.Status)}
 	switch it.Type {
 	case "agentMessage":

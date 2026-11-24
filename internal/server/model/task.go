@@ -39,7 +39,7 @@ type Task struct {
 	Title      string
 	Prompt     string
 	State      TaskState
-	Result     string // the last agent message of the last turn
+	Result     string // latest text while running, final answer when done
 	Error      string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time

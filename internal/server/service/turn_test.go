@@ -126,3 +126,26 @@ func TestBatch(t *testing.T) {
 		})
 	}
 }
+
+func TestTaskCompletionReplacesPreview(t *testing.T) {
+	answer, empty := "final answer", ""
+	for _, tc := range []struct {
+		name string
+		turn ir.Turn
+		want string
+	}{
+		{"success", ir.Turn{Status: ir.TurnOK, Answer: &answer}, answer},
+		{"empty answer", ir.Turn{Status: ir.TurnOK, Answer: &empty}, ""},
+		{"failed", ir.Turn{Status: ir.TurnFailed}, ""},
+		{"interrupted", ir.Turn{Status: ir.TurnInterrupted}, ""},
+		{"older daemon", ir.Turn{Status: ir.TurnOK}, "preview"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			j := model.Task{State: model.TaskRunning, Result: "preview"}
+			applyTaskEvent(&j, ir.Event{Type: ir.TurnCompleted, Turn: &tc.turn})
+			if !j.State.Terminal() || j.Result != tc.want {
+				t.Fatalf("state = %s, result = %q, want terminal with %q", j.State, j.Result, tc.want)
+			}
+		})
+	}
+}

@@ -124,7 +124,7 @@ func (s *fakeSession) Send(ctx context.Context, in ir.Input) (agent.Accepted, er
 		s.mu.Unlock()
 		s.em.Emit(
 			agent.ItemCompleted(turn, ir.Item{ID: turn + ":msg", Kind: ir.ItemAgentMessage, Text: text}),
-			agent.TurnCompleted(turn, ir.TurnOK, "", nil),
+			agent.TurnCompleted(turn, ir.TurnOK, text, nil),
 		)
 	}()
 	return agent.Accepted{}, nil

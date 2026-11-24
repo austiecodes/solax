@@ -64,6 +64,7 @@ type record struct {
 	ParentToolUseID string          `json:"parent_tool_use_id"`
 	Event           *streamEvent    `json:"event"`
 	Message         *message        `json:"message"`
+	StopReason      string          `json:"stop_reason"`
 	Result          string          `json:"result"`
 	IsError         bool            `json:"is_error"`
 	Usage           *usage          `json:"usage"`
@@ -292,6 +293,9 @@ func (d *Decoder) result(r record) []ir.Event {
 	}
 	clear(d.tools)
 	clear(d.paren)
+	if status == ir.TurnOK && r.StopReason != "tool_use" {
+		msg = r.Result
+	}
 	out = append(out, agent.TurnCompleted(d.turn, status, msg, u))
 	d.turn, d.interrupted = "", false
 	if d.pending > 0 {

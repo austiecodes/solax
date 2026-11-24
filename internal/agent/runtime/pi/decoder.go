@@ -18,7 +18,7 @@ import (
 //	compaction_start/end             → item.* (compaction)
 //	auto_retry_start/end             → notice
 //	agent_settled                    → turn.completed (not agent_end)
-//	turn_start/turn_end, agent_end   → dropped (steps inside an IR turn)
+//	turn_start/turn_end              → track the last model step for the answer
 //	response, extension_ui_request   → handled by the session
 //
 // Item IDs of text and thinking blocks are "<turn>:m<message>:<index>".
@@ -28,6 +28,7 @@ type Decoder struct {
 	turn    string
 	pending int
 	msgs    int    // assistant messages in the turn
+	answer  string // text of the last tool-free model step
 	lastErr string // error of the last assistant message
 	usage   ir.Usage
 	partial map[string]string          // tool call ID → output seen so far
@@ -117,6 +118,10 @@ func (d *Decoder) Decode(rec []byte) ([]ir.Event, error) {
 	switch r.Type {
 	case "agent_start":
 		return d.open(), nil
+	case "turn_start":
+		d.answer = ""
+	case "turn_end":
+		d.answer = stepAnswer(r.Message)
 	case "message_start":
 		if r.Message != nil && r.Message.Role == "assistant" {
 			d.msgs++
@@ -276,6 +281,31 @@ func (d *Decoder) toolEnd(r record) []ir.Event {
 	return []ir.Event{agent.ItemCompleted(d.turn, it)}
 }
 
+// stepAnswer reads one complete model response. A tool step may contain
+// both text and calls, even if a provider omits the toolUse stop reason.
+func stepAnswer(m *message) string {
+	if m == nil || m.Role != "assistant" || (m.StopReason != "stop" && m.StopReason != "length") {
+		return ""
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(m.Content, &blocks) != nil {
+		return ""
+	}
+	var text []string
+	for _, b := range blocks {
+		switch b.Type {
+		case "toolCall":
+			return ""
+		case "text":
+			text = append(text, b.Text)
+		}
+	}
+	return strings.Join(text, "\n")
+}
+
 func (d *Decoder) settled(r record) []ir.Event {
 	if d.turn == "" {
 		return nil
@@ -292,12 +322,16 @@ func (d *Decoder) settled(r record) []ir.Event {
 		cp := d.usage
 		u = &cp
 	}
-	out := []ir.Event{agent.TurnCompleted(d.turn, status, msg, u)}
+	if status == ir.TurnOK {
+		msg = d.answer
+	}
+	done := agent.TurnCompleted(d.turn, status, msg, u)
+	d.answer = ""
 	d.turn = ""
 	clear(d.partial)
 	clear(d.args)
 	if d.pending > 0 {
 		d.pending--
 	}
-	return out
+	return []ir.Event{done}
 }

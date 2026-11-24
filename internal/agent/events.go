@@ -26,11 +26,14 @@ func TurnStarted(turnID string, cause ir.TurnCause) ir.Event {
 	return ir.Event{Type: ir.TurnStarted, TurnID: turnID, Turn: &ir.Turn{Cause: cause}}
 }
 
-// TurnCompleted closes a turn. errMsg is set for a failed turn.
-func TurnCompleted(turnID string, status ir.TurnStatus, errMsg string, usage *ir.Usage) ir.Event {
+// TurnCompleted closes a turn. Text is the final answer on success or
+// the error message on failure.
+func TurnCompleted(turnID string, status ir.TurnStatus, text string, usage *ir.Usage) ir.Event {
 	t := &ir.Turn{Status: status, Usage: usage}
-	if errMsg != "" {
-		t.Error = &ir.Error{Message: errMsg}
+	if status == ir.TurnOK {
+		t.Answer = &text
+	} else if text != "" {
+		t.Error = &ir.Error{Message: text}
 	}
 	return ir.Event{Type: ir.TurnCompleted, TurnID: turnID, Turn: t}
 }
