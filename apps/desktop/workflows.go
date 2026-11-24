@@ -82,6 +82,9 @@ func (d *desktop) upsertWorkflow(w protocol.Workflow) {
 	found := false
 	for i := range d.wf.list.Runs {
 		if d.wf.list.Runs[i].ID == w.ID {
+			if d.wf.list.Runs[i].UpdatedAt.After(w.UpdatedAt) {
+				return // an older push
+			}
 			d.wf.list.Runs[i], found = w, true
 		}
 	}

@@ -85,6 +85,12 @@ type desktop struct {
 	status string // the last error, shown until the next action
 	md     markdown.Options
 
+	// A reload holds the pushes that come while it reads, and applies
+	// them after its snapshot (reloadAll). syncGen counts the reloads.
+	syncGen int
+	syncing bool
+	held    []protocol.Push
+
 	// Chat with the Super Agent.
 	messages  []protocol.Message
 	draft     string
@@ -261,6 +267,8 @@ func (d *desktop) connect() {
 		// reloadAll loads its events. A task of another server shows as
 		// "Choose a task".
 		d.events, d.live, d.superSes = map[string][]ir.Event{}, map[string]map[string]*liveText{}, ""
+		d.syncGen++ // a reload of the old server is stale
+		d.syncing, d.held = false, nil
 	})
 	go d.feed(ctx, c, p.Server)
 }
@@ -307,9 +315,17 @@ func (d *desktop) feed(ctx context.Context, c *client.Client, server string) {
 		d.update(func() { d.conn = connState{State: "connecting", Server: server} })
 		err := c.StreamReady(ctx, func() {
 			backoff = time.Second
-			d.update(func() { d.conn = connState{State: "connected", Server: server} })
-			d.reloadAll()
-		}, func(p protocol.Push) { d.update(func() { d.apply(p) }) })
+			d.update(func() {
+				d.conn = connState{State: "connected", Server: server}
+				d.reloadAll()
+			})
+		}, func(p protocol.Push) {
+			d.update(func() {
+				if ctx.Err() == nil { // not a push of a profile left behind
+					d.push(p)
+				}
+			})
+		})
 		if ctx.Err() != nil {
 			return
 		}
@@ -327,41 +343,96 @@ func (d *desktop) feed(ctx context.Context, c *client.Client, server string) {
 	}
 }
 
+// snapshot is the state that reloadAll reads.
+type snapshot struct {
+	messages  []protocol.Message
+	tasks     []protocol.Task
+	agents    []protocol.Agent
+	machines  []protocol.Machine
+	workflows protocol.WorkflowList
+}
+
 // reloadAll reads the conversation, tasks, workflows, agents and machines.
+// It runs on the UI thread. Pushes that come while it reads are held and
+// applied after the snapshot: a push can be newer than the snapshot, and
+// the snapshot must not hide it.
 func (d *desktop) reloadAll() {
-	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
-		msgs, err := c.SuperMessages(ctx, 0)
-		if err != nil {
-			return nil, err
+	c, err := d.api()
+	if err != nil {
+		d.status = errText(err)
+		return
+	}
+	d.syncGen++
+	gen := d.syncGen
+	d.syncing, d.held = true, nil
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		s, err := readSnapshot(ctx, c)
+		d.update(func() { d.synced(gen, s, err) })
+	}()
+}
+
+func readSnapshot(ctx context.Context, c *client.Client) (snapshot, error) {
+	var (
+		s   snapshot
+		err error
+	)
+	if s.messages, err = c.SuperMessages(ctx, 0); err != nil {
+		return s, err
+	}
+	if s.tasks, err = c.Tasks(ctx, 100); err != nil {
+		return s, err
+	}
+	if s.agents, err = c.Agents(ctx); err != nil {
+		return s, err
+	}
+	if s.machines, err = c.Machines(ctx); err != nil {
+		return s, err
+	}
+	s.workflows, err = c.Workflows(ctx)
+	return s, err
+}
+
+// synced applies the snapshot of reload gen, then the pushes held while
+// it read. The snapshot of an older reload is stale: a newer reload holds
+// the pushes now.
+func (d *desktop) synced(gen int, s snapshot, err error) {
+	if gen != d.syncGen {
+		return
+	}
+	if err != nil {
+		d.status = errText(err)
+	} else {
+		d.status = ""
+		d.messages, d.agents, d.machines, d.wf.list = s.messages, s.agents, s.machines, s.workflows
+		d.setTasks(s.tasks)
+		if sa := d.superAgent(); sa != nil && sa.SessionID != "" {
+			d.superSes = sa.SessionID
+			d.loadSession(sa.SessionID)
 		}
-		tasks, err := c.Tasks(ctx, 100)
-		if err != nil {
-			return nil, err
+		if d.taskSel != "" {
+			d.loadEvents(d.taskSel)
 		}
-		agents, err := c.Agents(ctx)
-		if err != nil {
-			return nil, err
+		if d.wf.sel != "" {
+			d.loadWorkflow(d.wf.sel)
 		}
-		machines, err := c.Machines(ctx)
-		if err != nil {
-			return nil, err
-		}
-		wfs, err := c.Workflows(ctx)
-		return func() {
-			d.messages, d.agents, d.machines, d.wf.list = msgs, agents, machines, wfs
-			d.setTasks(tasks)
-			if sa := d.superAgent(); sa != nil && sa.SessionID != "" {
-				d.superSes = sa.SessionID
-				d.loadSession(sa.SessionID)
-			}
-			if d.taskSel != "" {
-				d.loadEvents(d.taskSel)
-			}
-			if d.wf.sel != "" {
-				d.loadWorkflow(d.wf.sel)
-			}
-		}, err
-	})
+	}
+	held := d.held
+	d.syncing, d.held = false, nil
+	for _, p := range held {
+		d.apply(p)
+	}
+}
+
+// push takes a push from the stream. During a reload it waits for the
+// snapshot.
+func (d *desktop) push(p protocol.Push) {
+	if d.syncing {
+		d.held = append(d.held, p)
+		return
+	}
+	d.apply(p)
 }
 
 func (d *desktop) reloadAgents() {
@@ -414,11 +485,15 @@ func (d *desktop) addMessage(m protocol.Message) {
 	sort.SliceStable(d.messages, func(i, j int) bool { return d.messages[i].Seq < d.messages[j].Seq })
 }
 
-// upsertTask adds or replaces a task. A task that comes to an end goes to
-// taskEnded (unread.go).
+// upsertTask adds or replaces a task. A push older than the task in hand
+// does not replace it. A task that comes to an end goes to taskEnded
+// (unread.go).
 func (d *desktop) upsertTask(j protocol.Task) {
 	for i := range d.tasks {
 		if d.tasks[i].ID == j.ID {
+			if d.tasks[i].UpdatedAt.After(j.UpdatedAt) {
+				return
+			}
 			ended := taskLive(d.tasks[i].State) && !taskLive(j.State)
 			d.tasks[i] = j
 			if ended {
