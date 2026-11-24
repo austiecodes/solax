@@ -199,3 +199,49 @@ func TestWithWorking(t *testing.T) {
 		}
 	}
 }
+
+// A follow-up arrives after the first tool but before its answer. The
+// same order must hold during streaming, on completion, and on reload.
+func TestChatFollowUpDuringReply(t *testing.T) {
+	t0 := time.Unix(1000, 0)
+	at := func(n int) time.Time { return t0.Add(time.Duration(n) * time.Second) }
+	msg := func(id, author, text string, n int) protocol.Message {
+		return protocol.Message{ID: id, Author: protocol.Author{Kind: author}, Text: text, CreatedAt: at(n)}
+	}
+	msgs := []protocol.Message{
+		msg("m1", "human", "list agents", 0), msg("m2", "human", "say hi", 3),
+		msg("m3", "super", "Three agents.", 5), msg("m4", "super", "Hi!", 7),
+	}
+	evs := []ir.Event{
+		done(1, ir.Item{ID: "u1", Kind: ir.ItemUserMessage, Text: "[user] list agents"}, at(0)),
+		{Seq: 2, Type: ir.TurnStarted, At: at(1)},
+		done(3, ir.Item{ID: "t1", Kind: ir.ItemToolCall, Tool: shell("solax agents")}, at(2)),
+		done(4, ir.Item{ID: "u2", Kind: ir.ItemUserMessage, Text: "[user] say hi"}, at(3)),
+		{Seq: 5, Type: ir.ItemStarted, Item: &ir.Item{ID: "a1", Kind: ir.ItemAgentMessage}, At: at(4)},
+		done(6, ir.Item{ID: "a1", Kind: ir.ItemAgentMessage, Text: "Three agents."}, at(5)),
+		done(7, ir.Item{ID: "t2", Kind: ir.ItemToolCall, Tool: shell("solax task send tester")}, at(6)),
+		done(8, ir.Item{ID: "a2", Kind: ir.ItemAgentMessage, Text: "Hi!"}, at(7)),
+	}
+	for _, tc := range []struct {
+		name         string
+		msgs, events int
+		live         map[string]*liveText
+		keys         []string
+	}{
+		{"queued", 2, 3, nil, []string{"m1", "steps-t1", "m2"}},
+		{"streaming", 2, 5, map[string]*liveText{"a1": {kind: "text", text: "Three"}}, []string{"m1", "steps-t1", "a1", "m2"}},
+		{"completed", 3, 6, nil, []string{"m1", "steps-t1", "m3", "m2"}},
+		{"reloaded", 4, 8, nil, []string{"m1", "steps-t1", "m3", "m2", "steps-t2", "m4"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bs := chatBlocks(msgs[:tc.msgs], evs[:tc.events], tc.live, tc.live != nil)
+			var keys []string
+			for _, b := range bs {
+				keys = append(keys, b.key)
+			}
+			if !slices.Equal(keys, tc.keys) {
+				t.Errorf("blocks = %v, want %v", keys, tc.keys)
+			}
+		})
+	}
+}

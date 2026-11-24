@@ -30,6 +30,9 @@ const (
 )
 
 type block struct {
+	// start is the first event of the work that leads to this output.
+	// The chat uses it to place a follow-up sent while a reply is pending.
+	start *ir.Event
 	kind  blockKind
 	key   string // stable while the block grows, for the list and the fold
 	text  string
@@ -63,7 +66,13 @@ type liveText struct {
 func eventBlocks(evs []ir.Event, live map[string]*liveText, busy bool) []block {
 	var t transcript
 	started := map[string]time.Time{}
-	for _, e := range evs {
+	var work *ir.Event
+	for i := range evs {
+		e := &evs[i]
+		if e.Type == ir.TurnStarted || (work == nil && e.Item != nil && e.Item.Kind != ir.ItemUserMessage) {
+			work = e
+		}
+		before := len(t.blocks)
 		switch e.Type {
 		case ir.ItemStarted:
 			if e.Item == nil {
@@ -84,8 +93,18 @@ func eventBlocks(evs []ir.Event, live map[string]*liveText, busy bool) []block {
 			}
 		case ir.NoticeEmitted:
 			if n := e.Notice; n != nil && n.Level != "info" {
-				t.note(block{key: noteKey(e), text: n.Message, warn: true})
+				t.note(block{key: noteKey(*e), text: n.Message, warn: true})
 			}
+		}
+		if len(t.blocks) > before {
+			b := &t.blocks[before]
+			b.start = work
+			if b.kind == blockReply {
+				work = nil
+			}
+		}
+		if e.Type == ir.TurnCompleted || e.Type == ir.SessionExitedEvent {
+			work = nil
 		}
 	}
 	// What streams in comes last, in the order of the item IDs.
@@ -93,10 +112,14 @@ func eventBlocks(evs []ir.Event, live map[string]*liveText, busy bool) []block {
 		l := live[id]
 		switch l.kind {
 		case "reasoning":
+			before := len(t.blocks)
 			t.addStep(step{id: id, kind: ir.ItemReasoning, text: l.text, status: ir.StatusInProgress})
+			if len(t.blocks) > before {
+				t.blocks[before].start = work
+			}
 		case "text":
 			if strings.TrimSpace(l.text) != "" {
-				t.blocks = append(t.blocks, block{kind: blockReply, key: id, text: l.text, live: true})
+				t.blocks = append(t.blocks, block{kind: blockReply, key: id, text: l.text, live: true, start: work})
 			}
 		}
 	}
@@ -201,20 +224,25 @@ func took(from, to time.Time) time.Duration {
 func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveText, busy bool) []block {
 	// lead is a reply of the events and the steps before it.
 	type lead struct {
+		start *ir.Event
 		text  string
 		steps []step
 	}
 	var (
-		leads   []lead
-		pending []step
-		tail    []block
+		leads        []lead
+		pendingStart *ir.Event
+		pending      []step
+		tail         []block
 	)
 	for _, b := range eventBlocks(evs, live, busy) {
 		switch {
 		case b.kind == blockSteps:
+			if len(pending) == 0 {
+				pendingStart = b.start
+			}
 			pending = append(pending, b.steps...)
 		case b.kind == blockReply && !b.live:
-			leads = append(leads, lead{b.text, pending})
+			leads = append(leads, lead{b.start, b.text, pending})
 			pending = nil
 		case b.kind == blockReply:
 			tail = append(tail, b) // it streams: no message yet
@@ -222,10 +250,35 @@ func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveTe
 	}
 
 	var out []block
+	// Keep each reply and its tools ahead of human messages that arrived
+	// after that work began. Use session order when the input was echoed.
+	inputs := chatInputEvents(msgs, evs)
+	received := make(map[string]time.Time)
+	insertWork := func(start *ir.Event, blocks ...block) {
+		at := len(out)
+		for start != nil && at > 0 && out[at-1].kind == blockUser {
+			id := out[at-1].key
+			// Some runtimes acknowledge the opening prompt just after
+			// turn.started. Its send time still precedes the turn.
+			if !start.At.IsZero() && !received[id].IsZero() && !received[id].After(start.At) {
+				break
+			}
+			if echo, ok := inputs[id]; ok {
+				if echo <= start.Seq {
+					break
+				}
+			} else if received[id].IsZero() || start.At.IsZero() {
+				break
+			}
+			at--
+		}
+		out = slices.Insert(out, at, blocks...)
+	}
 	next := 0 // the first lead not used
 	for _, m := range msgs {
 		switch m.Author.Kind {
 		case "human":
+			received[m.ID] = m.CreatedAt
 			out = append(out, block{kind: blockUser, key: m.ID, text: m.Text})
 		case "system":
 			// "[task <id>] agent coder: done"
@@ -233,17 +286,21 @@ func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveTe
 			out = append(out, block{kind: blockNote, key: m.ID, text: strings.TrimPrefix(m.Text, "[task "+id+"] "), task: id})
 		default:
 			text := strings.TrimSpace(m.Text)
+			var group []block
+			var start *ir.Event
 			if k := slices.IndexFunc(leads[next:], func(l lead) bool { return l.text == text }); k >= 0 {
 				var steps []step
 				for _, l := range leads[next : next+k+1] {
 					steps = append(steps, l.steps...)
 				}
+				start = leads[next+k].start
 				next += k + 1
 				if len(steps) > 0 {
-					out = append(out, block{kind: blockSteps, key: "steps-" + steps[0].id, steps: steps})
+					group = append(group, block{kind: blockSteps, key: "steps-" + steps[0].id, steps: steps})
 				}
 			}
-			out = append(out, block{kind: blockReply, key: m.ID, text: m.Text})
+			group = append(group, block{kind: blockReply, key: m.ID, text: m.Text})
+			insertWork(start, group...)
 		}
 	}
 	// The steps of replies that have no message yet, and those after them.
@@ -253,10 +310,38 @@ func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveTe
 	}
 	rest = append(rest, pending...)
 	if len(rest) > 0 {
-		out = append(out, block{kind: blockSteps, key: "steps-" + rest[0].id, steps: rest,
+		if next < len(leads) {
+			pendingStart = leads[next].start
+		}
+		insertWork(pendingStart, block{kind: blockSteps, key: "steps-" + rest[0].id, steps: rest,
 			live: busy || slices.ContainsFunc(rest, step.running)})
 	}
-	return append(out, tail...)
+	for _, b := range tail {
+		insertWork(b.start, b)
+	}
+	return out
+}
+
+// chatInputEvents matches human messages to their delivery events in order.
+// Repeated prompts use successive echoes. Batched inputs or missing events
+// fall back to the time the server received the message.
+func chatInputEvents(msgs []protocol.Message, evs []ir.Event) map[string]uint64 {
+	echoes := make(map[string][]uint64)
+	for _, e := range evs {
+		if e.Type == ir.ItemCompleted && e.Item != nil && e.Item.Kind == ir.ItemUserMessage {
+			if text, ok := strings.CutPrefix(e.Item.Text, "[user] "); ok {
+				echoes[text] = append(echoes[text], e.Seq)
+			}
+		}
+	}
+	inputs := make(map[string]uint64)
+	for _, m := range msgs {
+		if seqs := echoes[m.Text]; m.Author.Kind == "human" && len(seqs) > 0 {
+			inputs[m.ID] = seqs[0]
+			echoes[m.Text] = seqs[1:]
+		}
+	}
+	return inputs
 }
 
 // taskBlocks is the transcript of a task: its prompt, then what its session
