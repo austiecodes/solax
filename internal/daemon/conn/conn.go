@@ -24,11 +24,19 @@ import (
 	"github.com/austiecodes/solax/pkg/protocol"
 )
 
-const (
+// Variables, so tests can make them short.
+var (
 	heartbeatEvery = 15 * time.Second
-	writeTimeout   = 15 * time.Second
-	maxQueue       = 20000
-	maxBackoff     = 30 * time.Second
+	// readTimeout ends a link that is silent for too long, such as a
+	// half-open link after a sleep or a network change. The daemon pings
+	// with each heartbeat, and the server answers each ping.
+	readTimeout = 60 * time.Second
+)
+
+const (
+	writeTimeout = 15 * time.Second
+	maxQueue     = 20000
+	maxBackoff   = 30 * time.Second
 )
 
 // Handler handles a command from the server and returns its ack.
@@ -104,11 +112,15 @@ func (c *Conn) session(ctx context.Context) error {
 		return err
 	}
 	ws.SetReadLimit(16 << 20)
+	_ = ws.SetReadDeadline(time.Now().Add(readTimeout))
+	ws.SetPongHandler(func(string) error { return ws.SetReadDeadline(time.Now().Add(readTimeout)) })
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	// Closing the connection is the only way to stop a blocked read.
+	// Closing the connection is the only way to stop a blocked read. The
+	// close frame tells the server that the daemon left on purpose.
 	go func() {
 		<-ctx.Done()
+		_ = ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, ""), time.Now().Add(time.Second))
 		ws.Close()
 	}()
 
@@ -127,7 +139,7 @@ func (c *Conn) session(ctx context.Context) error {
 
 	errc := make(chan error, 3)
 	go func() { errc <- c.writeLoop(ctx, write) }()
-	go func() { errc <- c.heartbeatLoop(ctx, write) }()
+	go func() { errc <- c.heartbeatLoop(ctx, ws, write) }()
 	go func() { errc <- c.readLoop(ctx, ws, write) }()
 	return <-errc
 }
@@ -138,6 +150,7 @@ func (c *Conn) readLoop(ctx context.Context, ws *websocket.Conn, write func(prot
 		if err := ws.ReadJSON(&env); err != nil {
 			return err
 		}
+		_ = ws.SetReadDeadline(time.Now().Add(readTimeout))
 		if env.Type == protocol.TypeAck {
 			continue // the daemon does not wait for acks
 		}
@@ -177,7 +190,9 @@ func (c *Conn) writeLoop(ctx context.Context, write func(protocol.Envelope) erro
 	}
 }
 
-func (c *Conn) heartbeatLoop(ctx context.Context, write func(protocol.Envelope) error) error {
+// heartbeatLoop pings the server and sends a heartbeat on each tick. The
+// pong moves the read deadline.
+func (c *Conn) heartbeatLoop(ctx context.Context, ws *websocket.Conn, write func(protocol.Envelope) error) error {
 	t := time.NewTicker(heartbeatEvery)
 	defer t.Stop()
 	for {
@@ -185,6 +200,10 @@ func (c *Conn) heartbeatLoop(ctx context.Context, write func(protocol.Envelope) 
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-t.C:
+			// WriteControl may run with other writers.
+			if err := ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeTimeout)); err != nil {
+				return err
+			}
 			if c.heartbeat == nil {
 				continue
 			}
