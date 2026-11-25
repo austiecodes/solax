@@ -1682,6 +1682,16 @@ func (msgs Messages) OpenTask() string {
 	return Catalog.Format(msgs.locale, "openTask", nil)
 }
 
+// OpenWorkflow says "Open workflow"
+// in the language the app shows.
+func OpenWorkflow() string { return In(i18n.Locale()).OpenWorkflow() }
+
+// OpenWorkflow says "Open workflow"
+// in the language of msgs.
+func (msgs Messages) OpenWorkflow() string {
+	return Catalog.Format(msgs.locale, "openWorkflow", nil)
+}
+
 // ScrollToEnd says "Scroll to the end"
 // in the language the app shows.
 func ScrollToEnd() string { return In(i18n.Locale()).ScrollToEnd() }

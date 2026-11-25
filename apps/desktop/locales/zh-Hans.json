@@ -154,6 +154,7 @@
   "durationMinutes": "{m} 分",
   "durationMinutesSeconds": "{m} 分 {s} 秒",
   "openTask": "打开任务",
+  "openWorkflow": "打开工作流",
   "scrollToEnd": "滚动到底部",
   "stepDeclined": "已拒绝",
   "stepExit": "退出码 {code}",

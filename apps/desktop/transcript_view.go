@@ -18,6 +18,9 @@ import (
 const (
 	readW  = 720 // the width of a transcript and of its composer
 	stepsW = 640 // the width of the text in a group of steps
+	stepsH = 240 // the most height an open group of steps takes; it scrolls past it
+	fadeH  = 24  // the height of the fade at an end of a group that scrolls
+	eventW = 520 // the width of the card of a task or a workflow in the chat
 )
 
 // fadeEnds fades a transcript out at its ends, so text that scrolls
@@ -33,6 +36,10 @@ var fadeEnds = ui.LinearGradient{Angle: 180, Stops: []ui.GradientStop{
 type fold struct {
 	open bool
 	set  bool // the user chose
+
+	// steps is the window of an open group of steps, which follows its
+	// end while the agent works.
+	steps ui.ListState
 }
 
 // foldFor returns the fold of key, open or closed as auto says unless the
@@ -104,39 +111,104 @@ func (d *desktop) blockView(c *ui.Context, pal *palette, b block) {
 		d.stepsView(c, pal, b)
 	case blockNote:
 		d.noteView(c, pal, b)
+	case blockEvent:
+		d.eventView(c, pal, b)
 	case blockWorking:
 		workingView(c, pal)
 	}
 }
 
-// noteView is a line between messages: a task that ended, with a link to
-// it, or an error.
+// noteView is a line between messages: an error, or a compaction.
 func (d *desktop) noteView(c *ui.Context, pal *palette, b block) {
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-		switch {
-		case b.warn:
-			statusIcon(c, pal, "failed", true, 14)
-		case b.task != "":
-			if j, ok := d.task(b.task); ok {
-				statusIcon(c, pal, j.State, d.unread[j.ID], 14)
-			}
-		}
 		col := pal.textMuted
 		if b.warn {
+			statusIcon(c, pal, "failed", true, 14)
 			col = pal.danger
 		}
 		ui.Text(c, b.text).FontSize(12.5).TextColor(col).MinWidth(0).Selectable()
-		if b.task != "" {
-			l := ui.ButtonBase(c.Key("open")).Label(locales.OpenTask()).Padding(2, 6).Radius(6).TextColor(pal.textMuted)
-			if l.Hovered() {
-				l.Background(pal.rowHover).TextColor(pal.text)
-			}
-			l.Children(func() { ui.Text(c, locales.OpenTask()).FontSize(12.5).FontWeight(500) })
-			if l.Clicked() {
-				d.openTask(b.task)
-			}
-		}
 	})
+}
+
+// eventView is a card for a task or a workflow that the chat tells of:
+// its icon, its agent or title with its state, a line on it, and what a
+// click does, which opens it.
+func (d *desktop) eventView(c *ui.Context, pal *palette, b block) {
+	ev := b.ev
+	icon, state, detail, action := agentIcon, ev.state, "", locales.OpenTask()
+	open := func() { d.openTask(ev.id) }
+	switch ev.kind {
+	case "task":
+		if j, ok := d.task(ev.id); ok {
+			detail = j.Title
+		}
+	case "workflow":
+		icon, action = workflowIcon, locales.OpenWorkflow()
+		open = func() { d.openWorkflow(ev.id) }
+		w, known := d.workflowRun(ev.id)
+		switch {
+		case ev.question != "":
+			icon, detail = questionIcon, ev.question
+			if !known || w.State == "waiting" {
+				action = locales.WorkflowAnswer()
+			} else {
+				state = "" // it has its answer
+			}
+		case ev.state == "failed" && w.Error != "":
+			detail = w.Error
+		}
+	}
+	m := runMark(state)
+	card := ui.ButtonBase(c.Key("event")).AlignSelf(ui.Stretch).MaxWidth(eventW).
+		Padding(10, 14, 10, 10).Gap(10).AlignItems(ui.Center).Radius(12).Border(1, pal.divider).
+		Label(ev.name + " " + stateWord(state) + " " + action)
+	if card.Hovered() {
+		card.Background(pal.rowHover)
+	}
+	card.Children(func() {
+		avatar(c, icon, m)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, ev.name).FontSize(13.5).FontWeight(600).TextColor(pal.text).SingleLine().Ellipsis("…").MinWidth(0)
+				if state != "" {
+					chip(c, stateWord(state), m)
+				}
+			})
+			if detail != "" {
+				// A question wraps: it is what the user answers.
+				t := ui.Text(c, detail).FontSize(12.5).LineHeight(1.4).TextColor(pal.textMuted).MaxLines(1).Ellipsis("…").MinWidth(0)
+				if ev.question != "" {
+					t.MaxLines(2)
+				}
+			}
+		})
+		fg := pal.textMuted
+		if card.Hovered() {
+			fg = pal.text
+		}
+		ui.Row(c).Gap(6).AlignItems(ui.Center).Shrink(0).Margin(0, 0, 0, 16).Children(func() {
+			ui.Text(c, action).FontSize(12.5).FontWeight(500).TextColor(fg).SingleLine()
+			ui.Icon(c, chevronIcon).Size(8, 8).TextColor(pal.textFaint)
+		})
+	})
+	if card.Clicked() {
+		open()
+	}
+}
+
+// runMark is the color of the state of a task or a workflow.
+func runMark(state string) mark {
+	switch state {
+	case "done":
+		return markGood
+	case "failed":
+		return markBad
+	case "waiting":
+		return markWarn
+	case "running", "queued":
+		return markAccent
+	}
+	return markQuiet
 }
 
 // stepsView is a group of steps: the icons of its steps and a quiet line
@@ -162,13 +234,46 @@ func (d *desktop) stepsView(c *ui.Context, pal *palette, b block) {
 		return
 	}
 	p.Panel(func() {
-		ui.Column(c).Gap(10).Margin(8, 0, 2, 5).Padding(2, 0, 2, 14).MaxWidth(stepsW).
-			BorderWidth(0, 0, 0, 1).BorderColor(pal.divider).Children(func() {
-			for _, s := range b.steps {
-				d.stepView(c, pal, s)
+		// A window of at most stepsH: it slides to the newest step while
+		// the agent works, unless the user scrolls up from the end.
+		w := &f.steps
+		w.Key = func(i int) any { return b.steps[i].id }
+		w.FollowEnd = b.live
+		w.FollowAnimation = &ui.Smooth
+		ui.Column(c).Margin(8, 0, 2, 5).MaxWidth(stepsW).BorderWidth(0, 0, 0, 1).BorderColor(pal.divider).Children(func() {
+			l := ui.List(c, w, len(b.steps), func(i int) {
+				ui.Column(c).Padding(5, 12, 5, 14).Children(func() { d.stepView(c, pal, b.steps[i]) })
+			}).MaxHeight(stepsH).Shrink(0)
+			first, _ := w.Visible()
+			if m, ok := windowFade(first > 0, !w.AtEnd()); ok {
+				l.MaskLinearGradient(m)
 			}
 		})
 	})
+}
+
+// windowFade returns the mask that fades the window of a group of steps
+// at the ends where more is hidden (top, bottom), and false when nothing
+// is.
+func windowFade(top, bottom bool) (ui.LinearGradient, bool) {
+	if !top && !bottom {
+		return ui.LinearGradient{}, false
+	}
+	// Steps hide only when the window is stepsH high.
+	at := float32(fadeH) / stepsH
+	opaque := ui.RGB(0, 0, 0)
+	g := ui.LinearGradient{Angle: 180}
+	if top {
+		g.Stops = append(g.Stops, ui.GradientStop{Color: ui.Transparent, At: 0}, ui.GradientStop{Color: opaque, At: at})
+	} else {
+		g.Stops = append(g.Stops, ui.GradientStop{Color: opaque, At: 0})
+	}
+	if bottom {
+		g.Stops = append(g.Stops, ui.GradientStop{Color: opaque, At: 1 - at}, ui.GradientStop{Color: ui.Transparent, At: 1})
+	} else {
+		g.Stops = append(g.Stops, ui.GradientStop{Color: opaque, At: 1})
+	}
+	return g, true
 }
 
 // stepIcons stacks the icons of the kinds of steps of a group, as coins:

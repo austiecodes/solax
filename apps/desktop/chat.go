@@ -136,15 +136,52 @@ func (d *desktop) superAgent() *protocol.Agent {
 	return nil
 }
 
-// taskOf returns the task ID of a "[task <id>] ..." note.
-func taskOf(text string) string {
-	rest, ok := strings.CutPrefix(text, "[task ")
+// chatEvent is a system line of the chat about a task or a workflow,
+// which the server writes as one of:
+//
+//	[task <id>] agent <name>: <state>
+//	[workflow <id>] <title>: <state>
+//	[workflow <id>] <title>: asks: <question>
+type chatEvent struct {
+	kind     string // "task" or "workflow"
+	id       string
+	name     string // the agent of a task, the title of a workflow
+	state    string // done, failed, cancelled; "waiting" when a workflow asks
+	question string // what a workflow asks
+}
+
+// parseEvent reads a system line of the chat, and reports false when it
+// does not tell of a task or a workflow.
+func parseEvent(text string) (chatEvent, bool) {
+	var ev chatEvent
+	rest, ok := strings.CutPrefix(text, "[")
 	if !ok {
-		return ""
+		return ev, false
 	}
-	id, _, ok := strings.Cut(rest, "]")
-	if !ok {
-		return ""
+	ev.kind, rest, ok = strings.Cut(rest, " ")
+	if !ok || (ev.kind != "task" && ev.kind != "workflow") {
+		return ev, false
 	}
-	return id
+	ev.id, rest, ok = strings.Cut(rest, "] ")
+	if !ok || ev.id == "" {
+		return ev, false
+	}
+	if ev.kind == "task" {
+		if rest, ok = strings.CutPrefix(rest, "agent "); !ok {
+			return ev, false
+		}
+	}
+	if name, q, ok := strings.Cut(rest, ": asks: "); ok && ev.kind == "workflow" {
+		ev.name, ev.state, ev.question = name, "waiting", q
+		return ev, true
+	}
+	i := strings.LastIndex(rest, ": ")
+	if i < 0 {
+		return ev, false
+	}
+	ev.name, ev.state = rest[:i], rest[i+2:]
+	if strings.HasPrefix(ev.state, "cancelled") { // "cancelled by the user"
+		ev.state = "cancelled"
+	}
+	return ev, true
 }

@@ -106,12 +106,25 @@ func TestStreamPushes(t *testing.T) {
 	}
 }
 
-func TestTaskOf(t *testing.T) {
-	if got := taskOf("[task tsk_9] agent coder: done"); got != "tsk_9" {
-		t.Fatalf("taskOf = %q", got)
+func TestParseEvent(t *testing.T) {
+	for _, tc := range []struct {
+		text string
+		want chatEvent
+	}{
+		{"[task tsk_9] agent coder: done", chatEvent{kind: "task", id: "tsk_9", name: "coder", state: "done"}},
+		{"[task tsk_9] agent coder: cancelled by the user", chatEvent{kind: "task", id: "tsk_9", name: "coder", state: "cancelled"}},
+		{"[workflow wfl_1] timeline-demo: done", chatEvent{kind: "workflow", id: "wfl_1", name: "timeline-demo", state: "done"}},
+		{"[workflow wfl_1] fix: tests: failed", chatEvent{kind: "workflow", id: "wfl_1", name: "fix: tests", state: "failed"}},
+		{"[workflow wfl_1] timeline-demo: asks: Ship it? Yes: or no", chatEvent{kind: "workflow", id: "wfl_1", name: "timeline-demo", state: "waiting", question: "Ship it? Yes: or no"}},
+	} {
+		if got, ok := parseEvent(tc.text); !ok || got != tc.want {
+			t.Errorf("parseEvent(%q) = %+v, %v; want %+v", tc.text, got, ok, tc.want)
+		}
 	}
-	if taskOf("hello") != "" {
-		t.Fatal("taskOf of a plain text")
+	for _, text := range []string{"hello", "[task tsk_9]", "[job j1] agent coder: done", "[task tsk_9] coder done"} {
+		if _, ok := parseEvent(text); ok {
+			t.Errorf("parseEvent(%q) reads an event", text)
+		}
 	}
 }
 

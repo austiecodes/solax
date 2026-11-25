@@ -292,6 +292,7 @@
     }
   },
   "openTask": "Open task",
+  "openWorkflow": "Open workflow",
   "scrollToEnd": "Scroll to the end",
   "stepDeclined": "declined",
   "@stepDeclined": {

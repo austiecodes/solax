@@ -96,6 +96,16 @@ func (d *desktop) upsertWorkflow(w protocol.Workflow) {
 	}
 }
 
+// workflowRun finds a run in the list.
+func (d *desktop) workflowRun(id string) (protocol.Workflow, bool) {
+	for _, w := range d.wf.list.Runs {
+		if w.ID == id {
+			return w, true
+		}
+	}
+	return protocol.Workflow{}, false
+}
+
 // workflowTask follows a task of a workflow: its steps change with it.
 func (d *desktop) workflowTask(j protocol.Task) {
 	if j.WorkflowID != "" && j.WorkflowID == d.wf.sel && d.page == pageWorkflows {

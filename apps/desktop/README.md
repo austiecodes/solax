@@ -10,6 +10,9 @@ Pages:
   did (reasoning and tool calls) folds into a group: "4 tools used". A
   group is open while the agent works and closes when it is done; a
   click opens or closes it, and a click on a tool call shows its output.
+  An open group is a window of a fixed height that slides to the newest
+  step while the agent works. A task that ends, or a workflow that ends or
+  asks a question, shows as a card; a click opens it.
   Return sends, Shift+Return breaks the line.
 - **Tasks**: the list of all tasks, or one task as the same transcript: its
   prompt, the steps of the agent, its replies and live text. It looks the

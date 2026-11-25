@@ -125,18 +125,18 @@ func TestChatBlocks(t *testing.T) {
 		done(6, ir.Item{ID: "t3", Kind: ir.ItemToolCall, Tool: shell("solax tasks")}, t0),
 	}
 	bs := chatBlocks(msgs, evs, nil, true)
-	want := []blockKind{blockUser, blockSteps, blockReply, blockNote, blockSteps, blockReply, blockSteps}
+	want := []blockKind{blockUser, blockSteps, blockReply, blockEvent, blockSteps, blockReply, blockSteps}
 	if got := kinds(bs); !slices.Equal(got, want) {
 		t.Fatalf("kinds = %v, want %v", got, want)
 	}
-	if bs[1].steps[0].id != "t1" || bs[4].steps[0].id != "t2" || bs[3].task != "tsk_1" || bs[3].text != "agent coder: done" {
+	if bs[1].steps[0].id != "t1" || bs[4].steps[0].id != "t2" || bs[3].ev != (chatEvent{kind: "task", id: "tsk_1", name: "coder", state: "done"}) {
 		t.Fatalf("blocks = %+v", bs)
 	}
 	if !bs[6].live || bs[6].key != "steps-t3" {
 		t.Fatalf("tail = %+v", bs[6])
 	}
 	// Without events (an old server), the chat is the messages alone.
-	if got := kinds(chatBlocks(msgs, nil, nil, false)); !slices.Equal(got, []blockKind{blockUser, blockReply, blockNote, blockReply}) {
+	if got := kinds(chatBlocks(msgs, nil, nil, false)); !slices.Equal(got, []blockKind{blockUser, blockReply, blockEvent, blockReply}) {
 		t.Fatalf("no events: %v", got)
 	}
 }
@@ -243,5 +243,60 @@ func TestChatFollowUpDuringReply(t *testing.T) {
 				t.Errorf("blocks = %v, want %v", keys, tc.keys)
 			}
 		})
+	}
+}
+
+func TestStepsWindowFollowsEnd(t *testing.T) {
+	// The window of a live group of steps shows its newest step as steps
+	// come, until the user scrolls up from the end.
+	d := sampleDesktop(t)
+	d.page, d.taskSel = pageTasks, "tsk_1"
+	d.tasks[0].SessionID = "ses_1"
+	now := time.Now()
+	d.events["ses_1"] = longSteps(now)
+	tt := ui.NewTester(d.view, 1000, 640)
+	tt.Advance(time.Second)
+	if !tt.HasText("solax task send tester step 8") || tt.HasText("solax task send tester step 0") {
+		t.Fatalf("the window does not show the newest step: %q", tt.Texts())
+	}
+	add := func(id, cmd string) {
+		n := uint64(len(d.events["ses_1"]) + 1)
+		d.events["ses_1"] = append(d.events["ses_1"], done(n, ir.Item{ID: id, Kind: ir.ItemToolCall, Tool: shell(cmd)}, now))
+		tt.Frame()
+		tt.Advance(time.Second)
+	}
+	add("t9", "echo newest")
+	if r, ok := tt.Find("echo newest"); !ok || r.H == 0 {
+		t.Fatalf("the window does not slide to a new step: %q", tt.Texts())
+	}
+	// Scrolled up, the window stays where the user put it.
+	r, _ := tt.Find("echo newest")
+	tt.Scroll(r.X, r.Y, 0, -400)
+	tt.Advance(time.Second)
+	add("t10", "echo hidden")
+	if tt.HasText("echo hidden") {
+		t.Fatalf("the window follows the end after the user scrolled up")
+	}
+}
+
+func TestEventCardsOpen(t *testing.T) {
+	// A card of a task opens the task; a card of a workflow opens the run.
+	d := sampleDesktop(t)
+	d.page = pageChat
+	d.messages = append(d.messages,
+		protocol.Message{ID: "e1", Seq: 10, Author: protocol.Author{Kind: "system"}, Text: "[task tsk_3] agent coder: done"},
+		protocol.Message{ID: "e2", Seq: 11, Author: protocol.Author{Kind: "system"}, Text: "[workflow wfl_1] fix-until-pass: asks: Ship it?"})
+	tt := ui.NewTester(d.view, 1000, 900)
+	tt.Advance(time.Second)
+	if !tt.HasText("Answer") || !tt.HasText("You are doing a README pass") {
+		t.Fatalf("the cards lack their lines: %q", tt.Texts())
+	}
+	if err := tt.Click("Answer"); err != nil || d.page != pageWorkflows || d.wf.sel != "wfl_1" {
+		t.Fatalf("the workflow card opens %v %q", d.page, d.wf.sel)
+	}
+	d.page = pageChat
+	tt.Frame()
+	if err := tt.Click("You are doing a README pass"); err != nil || d.page != pageTasks || d.taskSel != "tsk_3" {
+		t.Fatalf("the task card opens %v %q", d.page, d.taskSel)
 	}
 }

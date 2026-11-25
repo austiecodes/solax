@@ -25,7 +25,8 @@ const (
 	blockUser    blockKind = iota // a message from the user
 	blockReply                    // text from the agent, in markdown
 	blockSteps                    // reasoning and tool calls, folded
-	blockNote                     // one line: a task that ended, an error
+	blockNote                     // one line: an error, a compaction
+	blockEvent                    // a card: a task or a workflow that ended or asks
 	blockWorking                  // the agent works, and nothing else shows it
 )
 
@@ -37,9 +38,9 @@ type block struct {
 	key   string // stable while the block grows, for the list and the fold
 	text  string
 	steps []step
-	live  bool   // steps: the agent works on them now; reply: it streams
-	task  string // note: the task it tells of
-	warn  bool   // note: an error or a warning
+	live  bool      // steps: the agent works on them now; reply: it streams
+	warn  bool      // note: an error or a warning
+	ev    chatEvent // event: the task or the workflow it tells of
 }
 
 // step is one thing the agent did: it thought, or it called a tool.
@@ -281,9 +282,11 @@ func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveTe
 			received[m.ID] = m.CreatedAt
 			out = append(out, block{kind: blockUser, key: m.ID, text: m.Text})
 		case "system":
-			// "[task <id>] agent coder: done"
-			id := taskOf(m.Text)
-			out = append(out, block{kind: blockNote, key: m.ID, text: strings.TrimPrefix(m.Text, "[task "+id+"] "), task: id})
+			if ev, ok := parseEvent(m.Text); ok {
+				out = append(out, block{kind: blockEvent, key: m.ID, ev: ev})
+			} else {
+				out = append(out, block{kind: blockNote, key: m.ID, text: m.Text})
+			}
 		default:
 			text := strings.TrimSpace(m.Text)
 			var group []block

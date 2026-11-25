@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -33,10 +34,28 @@ func TestShots(t *testing.T) {
 				d.page, d.superWaiting = pageChat, true
 				d.messages = append(d.messages, protocol.Message{ID: "m5", Seq: 5, Author: protocol.Author{Kind: "human"}, Text: "give coder the README task"})
 			},
+			"chat-events": func(d *desktop) {
+				d.page = pageChat
+				sys := func(id, text string) protocol.Message {
+					return protocol.Message{ID: id, Seq: int64(len(d.messages) + 1), Author: protocol.Author{Kind: "system"}, Text: text}
+				}
+				d.messages = append(d.messages,
+					sys("e1", "[task tsk_3] agent coder: done"),
+					sys("e2", "[task tsk_2] agent reviewer: failed"),
+					sys("e3", "[workflow wfl_1] fix-until-pass: asks: The demo loop ran 3 rounds. Ship it?"),
+					sys("e4", "[workflow wfl_2] update-and-review: done"),
+					sys("e5", "[task tsk_1] agent coder: cancelled by the user"),
+				)
+			},
 			"tasks": func(d *desktop) { d.page = pageTasks },
 			"task": func(d *desktop) {
 				d.page, d.taskSel = pageTasks, "tsk_3"
 				d.folds["steps-r1"] = &fold{open: true, set: true}
+			},
+			"task-live": func(d *desktop) {
+				d.page, d.taskSel = pageTasks, "tsk_1"
+				d.tasks[0].SessionID = "ses_1"
+				d.events["ses_1"] = longSteps(time.Now())
 			},
 			"agents":      func(d *desktop) { d.page = pageAgents },
 			"agent-new":   func(d *desktop) { d.page, d.form.open = pageAgents, true },
@@ -151,4 +170,22 @@ func sampleDesktop(t *testing.T) *desktop {
 		done(8, ir.Item{ID: "a2", Kind: ir.ItemAgentMessage, Text: "Done. The new section links to `apps/desktop/README.md`."}, now),
 	}
 	return d
+}
+
+// longSteps is a turn in which the agent still works, with more steps
+// than the window of its group shows.
+func longSteps(now time.Time) []ir.Event {
+	evs := []ir.Event{done(1, ir.Item{ID: "u1", Kind: ir.ItemUserMessage, Text: "Add a README to the repo."}, now)}
+	thoughts := []string{
+		"The command failed: unknown command \"job\". The CLI may have changed; the help said \"task send\". Let me check the current help.",
+		"The CLI has been updated: job is now task. The command is solax task send. Let me use that.",
+		"Look at the layout of the repo first, then at the commands it has.",
+	}
+	for i := range 9 {
+		seq := uint64(2 + 2*i)
+		evs = append(evs,
+			done(seq, ir.Item{ID: fmt.Sprintf("r%d", i), Kind: ir.ItemReasoning, Text: thoughts[i%len(thoughts)]}, now),
+			done(seq+1, ir.Item{ID: fmt.Sprintf("t%d", i), Kind: ir.ItemToolCall, Tool: shell(fmt.Sprintf("solax task send tester step %d", i))}, now))
+	}
+	return evs
 }
