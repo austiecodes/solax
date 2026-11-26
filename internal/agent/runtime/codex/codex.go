@@ -26,7 +26,7 @@ var Caps = ir.Caps{
 		ir.ModeNote:      false, // emulated; thread/inject_items takes raw Responses items
 		ir.ModeInterrupt: true,  // turn/interrupt
 	},
-	Requests: false, // approvalPolicy "never"; stray requests are approved
+	Requests: false, // the session approves each approval request
 	Deltas:   true,
 	Subagent: false,
 }
@@ -69,10 +69,8 @@ func (d *Runtime) Probe(ctx context.Context) (agent.Probe, error) {
 }
 
 // Start runs "codex app-server", sends initialize + initialized, then
-// thread/start (or thread/resume) with cwd, model and the access of
-// --dangerously-bypass-approvals-and-sandbox: approvalPolicy "never" and
-// sandbox "danger-full-access". The app-server has no such flag, so the
-// thread params carry it.
+// thread/start (or thread/resume) with cwd, model and full access (see
+// fullAccess).
 func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
 	dir, err := proc.NewSessionDir(d.cfg.StateDir, spec.SessionID)
 	if err != nil {
@@ -152,11 +150,26 @@ func (s *session) handshake(ctx context.Context, spec agent.SessionSpec) (thread
 	return res.Thread, nil
 }
 
-// fullAccess returns thread params that never ask for approval and run
-// without a sandbox. A resumed thread needs them too: without them it
-// takes the policy of the user's config.toml.
+// fullAccess returns thread params that run without a sandbox and send
+// every approval prompt to the session, which approves it. This is the
+// access of --dangerously-bypass-approvals-and-sandbox, which app-server
+// does not take. Approval policy "never" is not used: it rejects MCP
+// elicitations, such as an MCP tool call approval, before the session
+// sees them. A granular field set to false also rejects its prompts.
+//
+// A resumed thread needs the params too: without them it takes the
+// policy of the user's config.toml. Granular needs Codex 0.115 or later.
 func fullAccess() map[string]any {
-	return map[string]any{"approvalPolicy": "never", "sandbox": "danger-full-access"}
+	return map[string]any{
+		"approvalPolicy": map[string]any{"granular": map[string]bool{
+			"sandbox_approval":    true,
+			"rules":               true,
+			"skill_approval":      true,
+			"request_permissions": true,
+			"mcp_elicitations":    true,
+		}},
+		"sandbox": "danger-full-access",
+	}
 }
 
 type session struct {
@@ -279,14 +292,22 @@ func (s *session) HandleNotification(ctx context.Context, method string, params 
 
 // HandleRequest approves every approval request for the rest of the
 // session: a worker runs without a person, and a declined request fails
-// the tool call. With approvalPolicy "never" none should come.
+// the tool call. An MCP elicitation is accepted when the session can fill
+// its form; else it is cancelled, with a warning.
 func (s *session) HandleRequest(ctx context.Context, method string, params json.RawMessage) (any, error) {
+	if method == "mcpServer/elicitation/request" {
+		res, why := answerElicitation(params)
+		if why != "" {
+			_, turn := s.state()
+			s.em.Emit(agent.Notice(turn, "warn", "elicitation_cancelled", why))
+		}
+		return res, nil
+	}
 	res, ok := approve(method, params)
 	if !ok {
 		return nil, &framing.RPCError{Code: -32601, Message: "solax: unsupported request " + method}
 	}
-	_, turn := s.state()
-	s.em.Emit(agent.Notice(turn, "info", "approval_auto", "approved request "+method))
+	fmt.Fprintf(s.log, "solax: approved %s\n", method)
 	return res, nil
 }
 

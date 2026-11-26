@@ -10,7 +10,8 @@ import (
 
 // Decoder maps stream-json records to IR events.
 //
-//	system/init                       → dropped (the session emits session.started)
+//	system/init                       → notice when the permission mode is not Mode
+//	                                    (else dropped: the session emits session.started)
 //	first output after input          → turn.started (synthesized)
 //	output with no input              → turn.started, cause auto
 //	stream_event content_block_start  → item.started (text, thinking)
@@ -29,6 +30,12 @@ import (
 // The decoder is not safe for concurrent use. The session calls NoteInput
 // and Interrupted under its own lock.
 type Decoder struct {
+	// Mode is the permission mode the session asked for. When system/init
+	// reports another one, the decoder gives one warning: settings, the
+	// account or the model made Claude Code fall back. "" skips the check.
+	Mode string
+
+	modeSeen    bool
 	turns       int
 	turn        string // open turn, "" when idle
 	pending     int    // inputs written and not yet answered by a result
@@ -75,6 +82,7 @@ type record struct {
 	MaxRetries      int             `json:"max_retries"`
 	Error           json.RawMessage `json:"error"`
 	APIMessageID    string          `json:"api_message_id"`
+	PermissionMode  string          `json:"permissionMode"`
 }
 
 type streamEvent struct {
@@ -312,6 +320,17 @@ func (d *Decoder) result(r record) []ir.Event {
 
 func (d *Decoder) system(r record) []ir.Event {
 	switch r.Subtype {
+	case "init":
+		if d.Mode == "" || d.modeSeen || r.PermissionMode == "" {
+			return nil
+		}
+		d.modeSeen = true
+		if r.PermissionMode == d.Mode {
+			return nil
+		}
+		return []ir.Event{agent.Notice(d.turn, "warn", "permission_mode", fmt.Sprintf(
+			"Claude Code runs in %s mode, not %s. Its settings, account or model can cause this. Solax approves each permission request.",
+			r.PermissionMode, d.Mode))}
 	case "compact_boundary":
 		out := d.open()
 		return append(out, agent.ItemCompleted(d.turn, ir.Item{ID: fmt.Sprintf("compact-%d", d.turns), Kind: ir.ItemCompaction, Native: "compact_boundary"}))

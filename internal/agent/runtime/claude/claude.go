@@ -4,10 +4,13 @@
 package claude
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +33,7 @@ var Caps = ir.Caps{
 		ir.ModeNote:      false, // emulated: prepend to the next input
 		ir.ModeInterrupt: true,  // control_request subtype "interrupt"
 	},
-	Requests: false, // --dangerously-skip-permissions: nothing waits for a person
+	Requests: false, // bypass, and the session approves what Claude Code still asks
 	Deltas:   true,  // --include-partial-messages
 	Subagent: true,  // parent_tool_use_id
 }
@@ -83,13 +86,16 @@ func (d *Runtime) Probe(ctx context.Context) (agent.Probe, error) {
 //
 //	claude -p --input-format stream-json --output-format stream-json
 //	   --verbose --include-partial-messages
-//	   --dangerously-skip-permissions
+//	   [--dangerously-skip-permissions] --permission-mode default
+//	   --permission-prompt-tool stdio
 //	   [--model M] [--allowedTools ...] [--append-system-prompt-file F]
 //	   --session-id <uuid> | --resume <id>
 //
-// The session has no approval surface, so Claude Code skips all
-// permission checks. A permission mode such as "auto" can fall back to
-// "default" and deny every write.
+// The session has no person to approve tool calls, so it runs with full
+// access. Claude Code takes the first mode it allows: bypassPermissions,
+// then default. Settings can turn bypass off, and as root it is left out.
+// In default mode Claude Code sends each permission request on stdout
+// (can_use_tool), and the session approves it.
 //
 // Solax picks the session ID, so the session ref is known before the first
 // prompt. Claude Code prints system/init only after the first input.
@@ -98,8 +104,16 @@ func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sess
 	args := []string{
 		"-p", "--input-format", "stream-json", "--output-format", "stream-json",
 		"--verbose", "--include-partial-messages",
-		"--dangerously-skip-permissions",
 	}
+	bypass := bypassAllowed(spec.Env)
+	mode := "default"
+	if bypass {
+		args = append(args, "--dangerously-skip-permissions")
+		mode = "bypassPermissions"
+	}
+	// An explicit default keeps a settings defaultMode such as dontAsk,
+	// which denies without asking, from taking over when bypass is off.
+	args = append(args, "--permission-mode", "default", "--permission-prompt-tool", "stdio")
 	if spec.Resume != nil && spec.Resume.NativeID != "" {
 		native = spec.Resume.NativeID
 		args = append(args, "--resume", native)
@@ -139,12 +153,18 @@ func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sess
 	if err != nil {
 		return nil, err
 	}
+	dec := NewDecoder()
+	dec.Mode = mode
 	s := &session{
 		ref: ir.SessionRef{Kind: d.cfg.Kind, NativeID: native},
 		p:   p, w: framing.NewWriter(p.Stdin), em: proc.NewEmitter(spec.SessionID),
-		dec: NewDecoder(), seen: map[string]bool{}, log: logw,
+		dec: dec, seen: map[string]bool{}, log: logw,
 	}
 	s.em.Emit(agent.SessionStarted(s.ref, spec.Model, Caps))
+	if !bypass {
+		s.em.Emit(agent.Notice("", "warn", "permission_mode",
+			"Claude Code refuses --dangerously-skip-permissions as root. It runs in default mode, and solax approves each permission request."))
+	}
 	go s.pump()
 	return s, nil
 }
@@ -217,7 +237,7 @@ func userMessage(in ir.Input) map[string]any {
 	return map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": content}}
 }
 
-// Resolve is not supported: Claude Code runs with --dangerously-skip-permissions.
+// Resolve is not supported: the session approves each request itself.
 func (s *session) Resolve(ctx context.Context, requestID string, d ir.Decision) error {
 	return fmt.Errorf("claude: no open requests: %w", errs.ErrInvalid)
 }
@@ -236,6 +256,10 @@ func (s *session) pump() {
 		rec, err := r.Next()
 		if err != nil {
 			break
+		}
+		if req, ok := controlRequest(rec); ok {
+			s.answer(req)
+			continue
 		}
 		s.mu.Lock()
 		evs, derr := s.dec.Decode(rec)
@@ -257,9 +281,81 @@ func (s *session) pump() {
 		tail = append(tail, agent.TurnCompleted(s.dec.turn, ir.TurnFailed, "agent process exited", nil))
 	}
 	s.mu.Unlock()
-	reason := s.p.StderrTail()
-	s.em.Emit(append(tail, agent.SessionExited(s.ref, code, proc.LastLine(reason)))...)
+	reason := proc.LastLine(s.p.StderrTail())
+	if strings.Contains(reason, rootRefusal) {
+		reason = "Claude Code refuses --dangerously-skip-permissions as root: run solax as a normal user, or set IS_SANDBOX=1"
+	}
+	s.em.Emit(append(tail, agent.SessionExited(s.ref, code, reason))...)
 	s.em.Close()
+}
+
+// rootRefusal is what Claude Code prints on stderr before it exits when
+// it gets --dangerously-skip-permissions as root.
+const rootRefusal = "--dangerously-skip-permissions cannot be used with root/sudo privileges"
+
+// geteuid is os.Geteuid; tests replace it.
+var geteuid = os.Geteuid
+
+// bypassAllowed reports whether Claude Code accepts
+// --dangerously-skip-permissions. It refuses it as root, unless
+// IS_SANDBOX is 1 or CLAUDE_CODE_BUBBLEWRAP is set. env adds to the
+// environment of the solax process, as for the child.
+func bypassAllowed(env map[string]string) bool {
+	if geteuid() != 0 {
+		return true // also Windows, where geteuid is -1
+	}
+	get := func(k string) string {
+		if v, ok := env[k]; ok {
+			return v
+		}
+		return os.Getenv(k)
+	}
+	switch strings.ToLower(strings.TrimSpace(get("CLAUDE_CODE_BUBBLEWRAP"))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return get("IS_SANDBOX") == "1"
+}
+
+// control is a control_request record from Claude Code.
+type control struct {
+	Type      string `json:"type"`
+	RequestID string `json:"request_id"`
+	Request   struct {
+		Subtype  string          `json:"subtype"`
+		ToolName string          `json:"tool_name"`
+		Input    json.RawMessage `json:"input"`
+	} `json:"request"`
+}
+
+// controlRequest decodes rec when it is a control_request.
+func controlRequest(rec []byte) (control, bool) {
+	var c control
+	if !bytes.Contains(rec, []byte(`"control_request"`)) || json.Unmarshal(rec, &c) != nil {
+		return control{}, false
+	}
+	return c, c.Type == "control_request"
+}
+
+// answer approves a permission request (can_use_tool) with its input
+// unchanged. Other control requests get an error, so Claude Code does not
+// wait for an answer that never comes.
+func (s *session) answer(c control) {
+	res := map[string]any{"subtype": "success", "request_id": c.RequestID}
+	switch c.Request.Subtype {
+	case "can_use_tool":
+		input := c.Request.Input
+		if len(input) == 0 || string(input) == "null" {
+			input = json.RawMessage(`{}`)
+		}
+		res["response"] = map[string]any{"behavior": "allow", "updatedInput": input}
+		fmt.Fprintf(s.log, "solax: approved %s\n", c.Request.ToolName)
+	default:
+		res = map[string]any{"subtype": "error", "request_id": c.RequestID, "error": "solax: unsupported control request " + c.Request.Subtype}
+	}
+	if err := s.w.Write(map[string]any{"type": "control_response", "response": res}); err != nil {
+		fmt.Fprintf(s.log, "solax: answer %s: %v\n", c.Request.Subtype, err)
+	}
 }
 
 func newUUID() string {

@@ -54,3 +54,36 @@ func TestPermissionDenied(t *testing.T) {
 		t.Fatalf("last event = %+v, want a failed toolu_1", last)
 	}
 }
+
+// system/init with another permission mode than the session asked for
+// gives one warning; the same mode gives none.
+func TestPermissionModeWarning(t *testing.T) {
+	tests := []struct {
+		mode, init string
+		want       int
+	}{
+		{"bypassPermissions", "default", 1},
+		{"bypassPermissions", "bypassPermissions", 0},
+		{"", "default", 0},
+	}
+	for _, tt := range tests {
+		d := NewDecoder()
+		d.Mode = tt.mode
+		rec := `{"type":"system","subtype":"init","permissionMode":"` + tt.init + `","session_id":"s"}`
+		var got int
+		for range 2 { // one warning per session, not per init
+			evs, err := d.Decode([]byte(rec))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, e := range evs {
+				if e.Type == ir.NoticeEmitted && e.Notice.Code == "permission_mode" {
+					got++
+				}
+			}
+		}
+		if got != tt.want {
+			t.Errorf("mode %q, init %q: %d warnings, want %d", tt.mode, tt.init, got, tt.want)
+		}
+	}
+}
