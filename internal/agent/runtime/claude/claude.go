@@ -30,7 +30,7 @@ var Caps = ir.Caps{
 		ir.ModeNote:      false, // emulated: prepend to the next input
 		ir.ModeInterrupt: true,  // control_request subtype "interrupt"
 	},
-	Requests: false, // --permission-prompts none: nothing waits for a person
+	Requests: false, // --dangerously-skip-permissions: nothing waits for a person
 	Deltas:   true,  // --include-partial-messages
 	Subagent: true,  // parent_tool_use_id
 }
@@ -52,11 +52,6 @@ type Config struct {
 // Runtime starts Claude Code sessions.
 type Runtime struct {
 	cfg Config
-
-	// mu guards prompts: whether the binary of a fingerprint has
-	// --permission-prompts. Forks and older versions do not.
-	mu      sync.Mutex
-	prompts map[string]bool
 }
 
 // New returns a Claude Code runtime.
@@ -67,7 +62,7 @@ func New(cfg Config) *Runtime {
 	if cfg.Binary == "" {
 		cfg.Binary = string(cfg.Kind)
 	}
-	return &Runtime{cfg: cfg, prompts: map[string]bool{}}
+	return &Runtime{cfg: cfg}
 }
 
 func (d *Runtime) Kind() ir.Kind { return d.cfg.Kind }
@@ -75,47 +70,26 @@ func (d *Runtime) Kind() ir.Kind { return d.cfg.Kind }
 // Fingerprint changes when the binary is installed, updated or removed.
 func (d *Runtime) Fingerprint() string { return proc.Fingerprint(d.cfg.Binary) }
 
-// Probe runs "claude --version", and "claude --help" to learn its flags.
+// Probe runs "claude --version".
 func (d *Runtime) Probe(ctx context.Context) (agent.Probe, error) {
 	v, err := proc.Version(ctx, d.cfg.Binary)
 	if err != nil {
 		return agent.Probe{Problem: err.Error(), Caps: Caps}, nil
 	}
-	d.hasPermissionPrompts(ctx)
 	return agent.Probe{Version: v, OK: true, Caps: Caps}, nil
-}
-
-// hasPermissionPrompts tells whether the binary has --permission-prompts.
-// Without it, print mode denies what would prompt, which is what "none"
-// asks for. The answer is kept per fingerprint, so an update asks again.
-func (d *Runtime) hasPermissionPrompts(ctx context.Context) bool {
-	fp := d.Fingerprint()
-	d.mu.Lock()
-	ok, known := d.prompts[fp]
-	d.mu.Unlock()
-	if known {
-		return ok
-	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	out, err := proc.Output(ctx, d.cfg.Binary, "--help")
-	if err != nil {
-		return true // the default of current Claude Code; do not keep a guess
-	}
-	ok = strings.Contains(string(out), "--permission-prompts")
-	d.mu.Lock()
-	d.prompts[fp] = ok
-	d.mu.Unlock()
-	return ok
 }
 
 // Start runs:
 //
 //	claude -p --input-format stream-json --output-format stream-json
 //	   --verbose --include-partial-messages
-//	   --permission-mode auto --permission-prompts none
+//	   --dangerously-skip-permissions
 //	   [--model M] [--allowedTools ...] [--append-system-prompt-file F]
 //	   --session-id <uuid> | --resume <id>
+//
+// The session has no approval surface, so Claude Code skips all
+// permission checks. A permission mode such as "auto" can fall back to
+// "default" and deny every write.
 //
 // Solax picks the session ID, so the session ref is known before the first
 // prompt. Claude Code prints system/init only after the first input.
@@ -124,10 +98,7 @@ func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sess
 	args := []string{
 		"-p", "--input-format", "stream-json", "--output-format", "stream-json",
 		"--verbose", "--include-partial-messages",
-		"--permission-mode", spec.Option("permission_mode", "auto"),
-	}
-	if d.hasPermissionPrompts(ctx) {
-		args = append(args, "--permission-prompts", "none")
+		"--dangerously-skip-permissions",
 	}
 	if spec.Resume != nil && spec.Resume.NativeID != "" {
 		native = spec.Resume.NativeID
@@ -246,7 +217,7 @@ func userMessage(in ir.Input) map[string]any {
 	return map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": content}}
 }
 
-// Resolve is not supported: Claude Code runs with --permission-prompts none.
+// Resolve is not supported: Claude Code runs with --dangerously-skip-permissions.
 func (s *session) Resolve(ctx context.Context, requestID string, d ir.Decision) error {
 	return fmt.Errorf("claude: no open requests: %w", errs.ErrInvalid)
 }

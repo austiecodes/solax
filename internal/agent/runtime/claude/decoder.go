@@ -20,6 +20,7 @@ import (
 //	user (tool_result block)          → item.completed (by tool_use_id)
 //	system/compact_boundary           → item.completed (compaction)
 //	system/api_retry                  → notice
+//	system/permission_denied          → dropped (the tool_result carries the denial)
 //	result                            → usage.updated, turn.completed
 //
 // Item IDs of text and thinking blocks are "<message.id>:<block index>".
@@ -63,7 +64,7 @@ type record struct {
 	SessionID       string          `json:"session_id"`
 	ParentToolUseID string          `json:"parent_tool_use_id"`
 	Event           *streamEvent    `json:"event"`
-	Message         *message        `json:"message"`
+	Message         json.RawMessage `json:"message"` // object in assistant and user, string in system/permission_denied
 	StopReason      string          `json:"stop_reason"`
 	Result          string          `json:"result"`
 	IsError         bool            `json:"is_error"`
@@ -191,15 +192,11 @@ func (d *Decoder) stream(r record) []ir.Event {
 // Claude Code sends one record per content block, before its
 // content_block_stop, so the open block index names the item.
 func (d *Decoder) assistant(r record) []ir.Event {
-	if r.Message == nil {
-		return nil
-	}
-	var blocks []block
-	if json.Unmarshal(r.Message.Content, &blocks) != nil {
+	msgID, blocks, ok := content(r)
+	if !ok {
 		return nil
 	}
 	out := d.open()
-	msgID := r.Message.ID
 	for i, b := range blocks {
 		idx, ok := d.block[msgID]
 		if !ok || len(blocks) > 1 {
@@ -224,6 +221,16 @@ func (d *Decoder) assistant(r record) []ir.Event {
 	return out
 }
 
+// content decodes the message of an assistant or user record. Echoed user
+// text has a string content, which gives ok false.
+func content(r record) (id string, blocks []block, ok bool) {
+	var m message
+	if json.Unmarshal(r.Message, &m) != nil || json.Unmarshal(m.Content, &blocks) != nil {
+		return "", nil, false
+	}
+	return m.ID, blocks, true
+}
+
 func (d *Decoder) hasStream(msgID string) bool {
 	_, ok := d.block[msgID]
 	return ok
@@ -232,11 +239,8 @@ func (d *Decoder) hasStream(msgID string) bool {
 // user handles tool results. Echoed user text is dropped: the session
 // emits the user message itself.
 func (d *Decoder) user(r record) []ir.Event {
-	if r.Message == nil {
-		return nil
-	}
-	var blocks []block
-	if json.Unmarshal(r.Message.Content, &blocks) != nil {
+	_, blocks, ok := content(r)
+	if !ok {
 		return nil
 	}
 	var out []ir.Event

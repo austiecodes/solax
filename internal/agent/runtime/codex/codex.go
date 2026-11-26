@@ -26,7 +26,7 @@ var Caps = ir.Caps{
 		ir.ModeNote:      false, // emulated; thread/inject_items takes raw Responses items
 		ir.ModeInterrupt: true,  // turn/interrupt
 	},
-	Requests: false, // approvalPolicy "never"; stray requests are declined
+	Requests: false, // approvalPolicy "never"; stray requests are approved
 	Deltas:   true,
 	Subagent: false,
 }
@@ -69,8 +69,10 @@ func (d *Runtime) Probe(ctx context.Context) (agent.Probe, error) {
 }
 
 // Start runs "codex app-server", sends initialize + initialized, then
-// thread/start (or thread/resume) with cwd, model, approvalPolicy "never"
-// and sandbox "workspace-write".
+// thread/start (or thread/resume) with cwd, model and the access of
+// --dangerously-bypass-approvals-and-sandbox: approvalPolicy "never" and
+// sandbox "danger-full-access". The app-server has no such flag, so the
+// thread params carry it.
 func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
 	dir, err := proc.NewSessionDir(d.cfg.StateDir, spec.SessionID)
 	if err != nil {
@@ -126,16 +128,15 @@ func (s *session) handshake(ctx context.Context, spec agent.SessionSpec) (thread
 		Thread thread `json:"thread"`
 	}
 	if spec.Resume != nil && spec.Resume.NativeID != "" {
-		err = s.peer.Call(ctx, "thread/resume", map[string]any{"threadId": spec.Resume.NativeID}, &res)
+		params := fullAccess()
+		params["threadId"] = spec.Resume.NativeID
+		err = s.peer.Call(ctx, "thread/resume", params, &res)
 		if err == nil {
 			return res.Thread, nil
 		}
 	}
-	params := map[string]any{
-		"cwd":            spec.Dir,
-		"approvalPolicy": "never",
-		"sandbox":        spec.Option("sandbox", "workspace-write"),
-	}
+	params := fullAccess()
+	params["cwd"] = spec.Dir
 	if spec.Model != "" {
 		params["model"] = spec.Model
 	}
@@ -149,6 +150,13 @@ func (s *session) handshake(ctx context.Context, spec agent.SessionSpec) (thread
 		return thread{}, fmt.Errorf("thread/start: no thread ID")
 	}
 	return res.Thread, nil
+}
+
+// fullAccess returns thread params that never ask for approval and run
+// without a sandbox. A resumed thread needs them too: without them it
+// takes the policy of the user's config.toml.
+func fullAccess() map[string]any {
+	return map[string]any{"approvalPolicy": "never", "sandbox": "danger-full-access"}
 }
 
 type session struct {
@@ -269,16 +277,39 @@ func (s *session) HandleNotification(ctx context.Context, method string, params 
 	s.em.Emit(evs...)
 }
 
-// HandleRequest declines approvals: a worker runs without a person.
+// HandleRequest approves every approval request for the rest of the
+// session: a worker runs without a person, and a declined request fails
+// the tool call. With approvalPolicy "never" none should come.
 func (s *session) HandleRequest(ctx context.Context, method string, params json.RawMessage) (any, error) {
-	switch method {
-	case "item/commandExecution/requestApproval", "item/fileChange/requestApproval",
-		"execCommandApproval", "applyPatchApproval":
-		_, turn := s.state()
-		s.em.Emit(agent.Notice(turn, "warn", "approval_declined", "declined approval request "+method))
-		return map[string]any{"decision": "decline"}, nil
+	res, ok := approve(method, params)
+	if !ok {
+		return nil, &framing.RPCError{Code: -32601, Message: "solax: unsupported request " + method}
 	}
-	return nil, &framing.RPCError{Code: -32601, Message: "solax: unsupported request " + method}
+	_, turn := s.state()
+	s.em.Emit(agent.Notice(turn, "info", "approval_auto", "approved request "+method))
+	return res, nil
+}
+
+// approve returns the answer that approves an approval request, and
+// false when method is not one.
+func approve(method string, params json.RawMessage) (any, bool) {
+	switch method {
+	case "item/commandExecution/requestApproval", "item/fileChange/requestApproval":
+		return map[string]any{"decision": "acceptForSession"}, true
+	case "execCommandApproval", "applyPatchApproval": // v1 protocol
+		return map[string]any{"decision": "approved_for_session"}, true
+	case "item/permissions/requestApproval":
+		// Grant all that the request asks for.
+		var p struct {
+			Permissions json.RawMessage `json:"permissions"`
+		}
+		_ = json.Unmarshal(params, &p)
+		if len(p.Permissions) == 0 {
+			p.Permissions = json.RawMessage(`{}`)
+		}
+		return map[string]any{"permissions": p.Permissions, "scope": "session"}, true
+	}
+	return nil, false
 }
 
 func (s *session) run() {

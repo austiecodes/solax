@@ -13,17 +13,13 @@ import (
 )
 
 // fakeCLI writes a Claude Code stand-in that writes its arguments to
-// args.txt and has --permission-prompts in its help only when prompts.
-func fakeCLI(t *testing.T, prompts bool) (bin, argsFile string) {
+// args.txt.
+func fakeCLI(t *testing.T) (bin, argsFile string) {
 	t.Helper()
 	dir := t.TempDir()
 	argsFile = filepath.Join(dir, "args.txt")
-	help := "  --permission-mode <mode>"
-	if prompts {
-		help += "\n  --permission-prompts <target>"
-	}
 	script := "#!/bin/sh\n" +
-		"case \"$1\" in --version) echo '9.9.9 (fake)'; exit 0;; --help) printf '%s\\n' '" + help + "'; exit 0;; esac\n" +
+		"case \"$1\" in --version) echo '9.9.9 (fake)'; exit 0;; esac\n" +
 		"echo \"$@\" > " + argsFile + "\n"
 	bin = filepath.Join(dir, "fakecc")
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
@@ -52,23 +48,20 @@ func startArgs(t *testing.T, d *Runtime, argsFile string) string {
 	return string(b)
 }
 
-// A fork without --permission-prompts runs without it; print mode denies
-// what would prompt anyway.
-func TestPermissionPromptsOnlyWhenSupported(t *testing.T) {
-	for _, prompts := range []bool{true, false} {
-		bin, argsFile := fakeCLI(t, prompts)
-		d := New(Config{Kind: "fakecc", Binary: bin})
-		p, err := d.Probe(context.Background())
-		if err != nil || !p.OK || p.Version != "9.9.9 (fake)" {
-			t.Fatalf("probe = %+v, %v", p, err)
-		}
-		args := startArgs(t, d, argsFile)
-		if got := strings.Contains(args, "--permission-prompts none"); got != prompts {
-			t.Errorf("prompts=%t: args %q", prompts, args)
-		}
-		if !strings.Contains(args, "--permission-mode auto") {
-			t.Errorf("args %q have no --permission-mode", args)
-		}
+// The session has no approval surface, so it skips all permission checks.
+func TestSkipPermissions(t *testing.T) {
+	bin, argsFile := fakeCLI(t)
+	d := New(Config{Kind: "fakecc", Binary: bin})
+	p, err := d.Probe(context.Background())
+	if err != nil || !p.OK || p.Version != "9.9.9 (fake)" {
+		t.Fatalf("probe = %+v, %v", p, err)
+	}
+	args := startArgs(t, d, argsFile)
+	if !strings.Contains(args, "--dangerously-skip-permissions") {
+		t.Errorf("args %q have no --dangerously-skip-permissions", args)
+	}
+	if strings.Contains(args, "--permission-mode") || strings.Contains(args, "--permission-prompts") {
+		t.Errorf("args %q still set a permission mode", args)
 	}
 }
 
@@ -76,7 +69,7 @@ func TestPermissionPromptsOnlyWhenSupported(t *testing.T) {
 // fork that adds its own --append-system-prompt needs.
 func TestPromptFileOrInline(t *testing.T) {
 	for _, inline := range []bool{false, true} {
-		bin, argsFile := fakeCLI(t, true)
+		bin, argsFile := fakeCLI(t)
 		d := New(Config{Kind: "fakecc", Binary: bin, StateDir: t.TempDir(), InlinePrompt: inline})
 		args := startArgs(t, d, argsFile)
 		if got := strings.Contains(args, "--append-system-prompt-file "); got == inline {
@@ -99,7 +92,7 @@ func TestKindDefaults(t *testing.T) {
 
 // A session with a plugin starts with --plugin-dir.
 func TestPluginDir(t *testing.T) {
-	bin, argsFile := fakeCLI(t, true)
+	bin, argsFile := fakeCLI(t)
 	d := New(Config{Kind: "fakecc", Binary: bin, StateDir: t.TempDir()})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
