@@ -31,12 +31,33 @@ func (c *Client) DeleteAgent(ctx context.Context, agent string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/agents/"+esc(agent), nil, nil, nil)
 }
 
+// Projects.
+
+func (c *Client) Projects(ctx context.Context) ([]protocol.Project, error) {
+	var out []protocol.Project
+	return out, c.do(ctx, http.MethodGet, "/v1/projects", nil, nil, &out)
+}
+
+func (c *Client) CreateProject(ctx context.Context, r protocol.CreateProjectRequest) (protocol.Project, error) {
+	var out protocol.Project
+	return out, c.do(ctx, http.MethodPost, "/v1/projects", nil, r, &out)
+}
+
+func (c *Client) UpdateProject(ctx context.Context, project string, r protocol.UpdateProjectRequest) (protocol.Project, error) {
+	var out protocol.Project
+	return out, c.do(ctx, http.MethodPatch, "/v1/projects/"+esc(project), nil, r, &out)
+}
+
+func (c *Client) DeleteProject(ctx context.Context, project string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/projects/"+esc(project), nil, nil, nil)
+}
+
 // Tasks.
 
 // Dispatch gives a task to an agent. It returns at once with the queued task.
-func (c *Client) Dispatch(ctx context.Context, agent, prompt string) (protocol.Task, error) {
+func (c *Client) Dispatch(ctx context.Context, r protocol.DispatchRequest) (protocol.Task, error) {
 	var out protocol.Task
-	return out, c.do(ctx, http.MethodPost, "/v1/tasks", nil, protocol.DispatchRequest{Agent: agent, Prompt: prompt}, &out)
+	return out, c.do(ctx, http.MethodPost, "/v1/tasks", nil, r, &out)
 }
 
 func (c *Client) Tasks(ctx context.Context, limit int) ([]protocol.Task, error) {
@@ -74,6 +95,13 @@ func (c *Client) sendTask(ctx context.Context, id string, r protocol.FollowUpReq
 func (c *Client) CancelTask(ctx context.Context, id string) (protocol.Task, error) {
 	var out protocol.Task
 	return out, c.do(ctx, http.MethodPost, "/v1/tasks/"+esc(id)+"/cancel", nil, nil, &out)
+}
+
+// InterruptTask stops the running turn of a task. The task fails as
+// interrupted; more input starts it again.
+func (c *Client) InterruptTask(ctx context.Context, id string) (protocol.Task, error) {
+	var out protocol.Task
+	return out, c.do(ctx, http.MethodPost, "/v1/tasks/"+esc(id)+"/interrupt", nil, nil, &out)
 }
 
 // SessionEvents returns the stored IR events of a session with seq > after.

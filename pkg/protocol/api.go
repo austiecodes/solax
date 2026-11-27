@@ -63,7 +63,6 @@ type Agent struct {
 	Online       bool           `json:"online"`  // the machine is connected and has the runtime
 	Runtime      ir.Kind        `json:"runtime"`
 	Role         string         `json:"role,omitempty"` // "" or "super"
-	Dir          string         `json:"dir"`
 	Model        string         `json:"model,omitempty"`
 	Options      map[string]any `json:"options,omitempty"`
 	// SessionID is the conversation session of the Super Agent, to read
@@ -78,7 +77,6 @@ type CreateAgentRequest struct {
 	Description  string         `json:"description"`
 	Instructions string         `json:"instructions,omitempty"`
 	Runtime      ir.Kind        `json:"runtime"`
-	Dir          string         `json:"dir"`
 	Model        string         `json:"model,omitempty"`
 	Options      map[string]any `json:"options,omitempty"`
 	Super        bool           `json:"super,omitempty"`
@@ -89,7 +87,6 @@ type CreateAgentRequest struct {
 type UpdateAgentRequest struct {
 	Description  *string        `json:"description,omitempty"`
 	Instructions *string        `json:"instructions,omitempty"`
-	Dir          *string        `json:"dir,omitempty"`
 	Model        *string        `json:"model,omitempty"`
 	Options      map[string]any `json:"options,omitempty"`
 	Super        *bool          `json:"super,omitempty"`
@@ -100,6 +97,8 @@ type Task struct {
 	ID          string    `json:"id"`
 	Agent       string    `json:"agent"` // agent name
 	AgentID     string    `json:"agent_id"`
+	Project     string    `json:"project,omitempty"`    // project name; "" for an old task with no project
+	ProjectID   string    `json:"project_id,omitempty"` // "" for an old task with no project
 	SessionID   string    `json:"session_id"`
 	RequestedBy string    `json:"requested_by"`          // human | super: who created the task
 	TurnBy      string    `json:"turn_by"`               // human | super: who started the current turn and gets its result
@@ -123,8 +122,43 @@ type FollowUpRequest struct {
 
 // DispatchRequest is the body of POST /v1/tasks.
 type DispatchRequest struct {
-	Agent  string `json:"agent"` // agent name or ID
-	Prompt string `json:"prompt"`
+	Agent string `json:"agent"` // agent name or ID
+	// Project is the project name or ID to work in. Empty: Solax launches
+	// a new managed project for the task, on the machine of the agent.
+	Project string `json:"project,omitempty"`
+	Prompt  string `json:"prompt"`
+}
+
+// Project is where agents work: a folder on a machine. Several agents can
+// work in one project. A person sets up a local project in a folder that
+// exists. Solax launches a managed project for a task that names no
+// project; the daemon makes its folder in ManagedRoot.
+type Project struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Kind        string `json:"kind"`                 // local | managed
+	MachineID   string `json:"machine_id,omitempty"` // the machine with the folder
+	Machine     string `json:"machine,omitempty"`    // machine name
+	Path        string `json:"path,omitempty"`       // the folder on that machine
+	Online      bool   `json:"online"`               // an agent can work in it now
+}
+
+// CreateProjectRequest is the body of POST /v1/projects.
+type CreateProjectRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Kind        string `json:"kind,omitempty"` // default local
+	Machine     string `json:"machine"`        // local: machine ID or name
+	Path        string `json:"path"`           // local: the folder on that machine
+}
+
+// UpdateProjectRequest is the body of PATCH /v1/projects/{project}.
+// Absent fields stay as they are.
+type UpdateProjectRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Path        *string `json:"path,omitempty"`
 }
 
 // SessionEventNote is the client push of one IR event of a session.

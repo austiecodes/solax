@@ -27,6 +27,7 @@ const (
 	pageTasks     = "tasks"
 	pageWorkflows = "workflows"
 	pageAgents    = "agents"
+	pageProjects  = "projects"
 	pageMachines  = "machines"
 	pageSettings  = "settings"
 )
@@ -44,6 +45,7 @@ var navPages = []navPage{
 	{pageTasks, "nav.tasks", tasksIcon},
 	{pageWorkflows, "nav.workflows", workflowIcon},
 	{pageAgents, "nav.agents", agentIcon},
+	{pageProjects, "nav.projects", folderIcon},
 	{pageMachines, "nav.machines", machineIcon},
 }
 
@@ -95,6 +97,7 @@ type desktop struct {
 	messages  []protocol.Message
 	draft     string
 	sending   bool
+	stopping  bool // an interrupt of a turn is on its way
 	chatList  ui.ListState
 	superBusy bool // its session runs a turn
 	// superWaiting is true from a send until the turn after it ends, so
@@ -115,12 +118,15 @@ type desktop struct {
 	// Workflows (workflows.go).
 	wf wfState
 
-	// Agents and machines.
+	// Agents, projects and machines.
 	agents     []protocol.Agent
+	projects   []protocol.Project
 	machines   []protocol.Machine
 	agentSel   string // the agent the Agents page shows, by name
+	projectSel string // the project the Projects page shows, by ID
 	machineSel string // the machine the Machines page shows, by ID
 	form       agentForm
+	pform      projectForm
 	instr      instrDraft
 	pairCode   string
 
@@ -140,10 +146,10 @@ type desktop struct {
 
 // agentForm is the "new agent" form.
 type agentForm struct {
-	Name, Machine, Runtime, Dir, Model, Desc, Instructions string
-	Super                                                  bool
-	open                                                   bool // it shows in place of the chosen agent
-	busy                                                   bool
+	Name, Machine, Runtime, Model, Desc, Instructions string
+	Super                                             bool
+	open                                              bool // it shows in place of the chosen agent
+	busy                                              bool
 }
 
 // instrDraft edits the instructions of the agent that the Agents page
@@ -260,7 +266,7 @@ func (d *desktop) connect() {
 	d.mu.Unlock()
 	d.update(func() {
 		d.setName, d.setServer = p.Name, p.Server
-		d.messages, d.tasks, d.agents, d.machines = nil, nil, nil, nil
+		d.messages, d.tasks, d.agents, d.projects, d.machines = nil, nil, nil, nil, nil
 		d.wf.list, d.wf.item = protocol.WorkflowList{}, protocol.WorkflowItem{}
 		d.loaded = false // the first load of this server marks what ended since SeenAt
 		// taskSel stays: after a restart it names the task last open, and
@@ -348,11 +354,13 @@ type snapshot struct {
 	messages  []protocol.Message
 	tasks     []protocol.Task
 	agents    []protocol.Agent
+	projects  []protocol.Project
 	machines  []protocol.Machine
 	workflows protocol.WorkflowList
 }
 
-// reloadAll reads the conversation, tasks, workflows, agents and machines.
+// reloadAll reads the conversation, tasks, workflows, agents, projects and
+// machines.
 // It runs on the UI thread. Pushes that come while it reads are held and
 // applied after the snapshot: a push can be newer than the snapshot, and
 // the snapshot must not hide it.
@@ -387,6 +395,9 @@ func readSnapshot(ctx context.Context, c *client.Client) (snapshot, error) {
 	if s.agents, err = c.Agents(ctx); err != nil {
 		return s, err
 	}
+	if s.projects, err = c.Projects(ctx); err != nil {
+		return s, err
+	}
 	if s.machines, err = c.Machines(ctx); err != nil {
 		return s, err
 	}
@@ -405,7 +416,7 @@ func (d *desktop) synced(gen int, s snapshot, err error) {
 		d.status = errText(err)
 	} else {
 		d.status = ""
-		d.messages, d.agents, d.machines, d.wf.list = s.messages, s.agents, s.machines, s.workflows
+		d.messages, d.agents, d.projects, d.machines, d.wf.list = s.messages, s.agents, s.projects, s.machines, s.workflows
 		d.setTasks(s.tasks)
 		if sa := d.superAgent(); sa != nil && sa.SessionID != "" {
 			d.superSes = sa.SessionID
@@ -435,14 +446,20 @@ func (d *desktop) push(p protocol.Push) {
 	d.apply(p)
 }
 
-func (d *desktop) reloadAgents() {
+// reloadSetup reads the agents, projects and machines. They change
+// together: a project and an agent are online when their machine is.
+func (d *desktop) reloadSetup() {
 	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 		agents, err := c.Agents(ctx)
 		if err != nil {
 			return nil, err
 		}
+		projects, err := c.Projects(ctx)
+		if err != nil {
+			return nil, err
+		}
 		machines, err := c.Machines(ctx)
-		return func() { d.agents, d.machines = agents, machines }, err
+		return func() { d.agents, d.projects, d.machines = agents, projects, machines }, err
 	})
 }
 
@@ -470,8 +487,8 @@ func (d *desktop) apply(p protocol.Push) {
 		if json.Unmarshal(p.Payload, &n) == nil {
 			d.sessionEvent(n)
 		}
-	case "agents.changed", "machines.changed":
-		d.reloadAgents()
+	case "agents.changed", "projects.changed", "machines.changed":
+		d.reloadSetup()
 	}
 }
 

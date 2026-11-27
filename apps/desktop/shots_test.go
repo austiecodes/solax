@@ -57,14 +57,17 @@ func TestShots(t *testing.T) {
 				d.tasks[0].SessionID = "ses_1"
 				d.events["ses_1"] = longSteps(time.Now())
 			},
-			"agents":      func(d *desktop) { d.page = pageAgents },
-			"agent-new":   func(d *desktop) { d.page, d.form.open = pageAgents, true },
-			"machines":    func(d *desktop) { d.page = pageMachines },
-			"settings":    func(d *desktop) { d.page = pageSettings },
-			"tasks-agent": func(d *desktop) { d.page, d.prefs.TaskGroups = pageTasks, "agent" },
-			"tasks-empty": func(d *desktop) { d.page, d.tasks = pageTasks, nil },
-			"chat-unset":  func(d *desktop) { d.page, d.agents, d.messages = pageChat, nil, nil },
-			"palette":     func(d *desktop) { d.openPalette() },
+			"agents":          func(d *desktop) { d.page = pageAgents },
+			"agent-new":       func(d *desktop) { d.page, d.form.open = pageAgents, true },
+			"projects":        func(d *desktop) { d.page = pageProjects },
+			"project-new":     func(d *desktop) { d.page, d.pform.open = pageProjects, true },
+			"project-managed": func(d *desktop) { d.page, d.projectSel = pageProjects, "prj_3" },
+			"machines":        func(d *desktop) { d.page = pageMachines },
+			"settings":        func(d *desktop) { d.page = pageSettings },
+			"tasks-agent":     func(d *desktop) { d.page, d.prefs.TaskGroups = pageTasks, "agent" },
+			"tasks-empty":     func(d *desktop) { d.page, d.tasks = pageTasks, nil },
+			"chat-unset":      func(d *desktop) { d.page, d.agents, d.messages = pageChat, nil, nil },
+			"palette":         func(d *desktop) { d.openPalette() },
 			"confirm": func(d *desktop) {
 				d.page, d.taskSel = pageTasks, "tsk_1"
 				d.ask("Cancel this task?", `coder stops work on "Add a README to the repo". You cannot resume it.`, "Cancel task", true, func() {}).keep = "Keep task"
@@ -126,8 +129,8 @@ func writePNG(t *testing.T, path string, tt *ui.Tester) {
 	}
 }
 
-// sampleDesktop is a desktop with two machines, two agents, a few tasks and
-// a short chat.
+// sampleDesktop is a desktop with two machines, three agents, two
+// projects, a few tasks and a short chat.
 func sampleDesktop(t *testing.T) *desktop {
 	d := testDesktop(t)
 	now := time.Now()
@@ -138,17 +141,24 @@ func sampleDesktop(t *testing.T) *desktop {
 		{ID: "mac_2", Name: "build-box", State: protocol.MachinePending, LastSeen: now.Add(-3 * time.Hour)},
 	}
 	d.agents = []protocol.Agent{
-		{ID: "a1", Name: "coder", Runtime: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local", Dir: "/Users/austie/codes",
+		{ID: "a1", Name: "coder", Runtime: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local",
 			Description: "General coder: implements features, refactors and fixes code"},
-		{ID: "a2", Name: "solax", Role: "super", Runtime: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local", Dir: "~/codes"},
-		{ID: "a3", Name: "reviewer", Runtime: "claude", Machine: "build-box", Dir: "~/src/app", Model: "haiku",
+		{ID: "a2", Name: "solax", Role: "super", Runtime: "pi", Online: true, Machine: "AustiedeMacBook-Pro.local"},
+		{ID: "a3", Name: "reviewer", Runtime: "claude", Machine: "build-box", Model: "haiku",
 			Description:  "Reads diffs and points out bugs before merge",
 			Instructions: "Review only the diff. Report each bug with a failing test; do not change the style."},
 	}
+	d.projects = []protocol.Project{
+		{ID: "prj_1", Name: "solax", Kind: "local", MachineID: "mac_1", Machine: "AustiedeMacBook-Pro.local", Path: "~/codes/solax", Online: true,
+			Description: "The Solax server, daemon and desktop app"},
+		{ID: "prj_2", Name: "app", Kind: "local", MachineID: "mac_2", Machine: "build-box", Path: "~/src/app"},
+		{ID: "prj_3", Name: "you-are-doing-a-readme-pass", Kind: "managed", MachineID: "mac_1", Machine: "AustiedeMacBook-Pro.local",
+			Path: "~/.solax/projects/you-are-doing-a-readme-pass", Online: true, Description: "You are doing a README pass"},
+	}
 	d.tasks = []protocol.Task{
-		{ID: "tsk_1", Agent: "coder", State: "running", Title: "Add a README to the repo", CreatedAt: now.Add(-2 * time.Minute)},
-		{ID: "tsk_2", Agent: "reviewer", State: "failed", Title: "Review the auth change", CreatedAt: now.Add(-50 * time.Minute)},
-		{ID: "tsk_3", Agent: "coder", State: "done", Title: "You are doing a README pass", CreatedAt: now.Add(-time.Hour), SessionID: "ses_3",
+		{ID: "tsk_1", Agent: "coder", Project: "solax", ProjectID: "prj_1", State: "running", Title: "Add a README to the repo", CreatedAt: now.Add(-2 * time.Minute)},
+		{ID: "tsk_2", Agent: "reviewer", Project: "app", ProjectID: "prj_2", State: "failed", Title: "Review the auth change", CreatedAt: now.Add(-50 * time.Minute)},
+		{ID: "tsk_3", Agent: "coder", Project: "you-are-doing-a-readme-pass", ProjectID: "prj_3", State: "done", Title: "You are doing a README pass", CreatedAt: now.Add(-time.Hour), SessionID: "ses_3",
 			Prompt: "Read the repo and write a short README."},
 	}
 	d.unread["tsk_2"] = true

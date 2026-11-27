@@ -139,6 +139,11 @@ func (c *Client) SendToSuper(ctx context.Context, text string) (protocol.Message
 	return out, c.do(ctx, http.MethodPost, "/v1/super/messages", nil, protocol.TextRequest{Text: text}, &out)
 }
 
+// InterruptSuper stops the running turn of the Super Agent.
+func (c *Client) InterruptSuper(ctx context.Context) error {
+	return c.do(ctx, http.MethodPost, "/v1/super/interrupt", nil, nil, nil)
+}
+
 // Ping checks the server and the token.
 func (c *Client) Ping(ctx context.Context) error {
 	if err := c.do(ctx, http.MethodGet, "/healthz", nil, nil, nil); err != nil {

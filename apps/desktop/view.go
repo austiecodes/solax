@@ -71,6 +71,8 @@ func (d *desktop) pageView(c *ui.Context) {
 		d.workflowsPage(c)
 	case pageAgents:
 		d.agentsPage(c)
+	case pageProjects:
+		d.projectsPage(c)
 	case pageMachines:
 		d.machinesPage(c)
 	case pageSettings:

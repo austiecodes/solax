@@ -107,6 +107,11 @@ func eventBlocks(evs []ir.Event, live map[string]*liveText, busy bool) []block {
 		if e.Type == ir.TurnCompleted || e.Type == ir.SessionExitedEvent {
 			work = nil
 		}
+		// The agent read a message of the user. What it does next answers
+		// that message too, even inside the same turn (a steer).
+		if e.Type == ir.ItemCompleted && e.Item != nil && e.Item.Kind == ir.ItemUserMessage {
+			work = nil
+		}
 	}
 	// What streams in comes last, in the order of the item IDs.
 	for _, id := range slices.Sorted(maps.Keys(live)) {
@@ -220,31 +225,38 @@ func took(from, to time.Time) time.Duration {
 // messages, with the steps of the agent folded above the reply they led
 // to. The messages are the truth; the events of its session add the
 // steps. A reply message matches the agent message it came from by its
-// text (the server makes one from the other). Steps that lead to no reply
-// yet come at the end.
+// text (the server makes one from the other). Where the agent read a
+// message of the user during its work (a steer), the steps before that
+// point stay above the message. Steps that lead to no reply yet come at
+// the end.
 func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveText, busy bool) []block {
-	// lead is a reply of the events and the steps before it.
+	// A lead is a run of steps of the events, and the reply it led to. A
+	// lead with no text ends where the agent read a message of the user.
 	type lead struct {
 		start *ir.Event
 		text  string
 		steps []step
 	}
 	var (
-		leads        []lead
-		pendingStart *ir.Event
-		pending      []step
-		tail         []block
+		leads   []lead
+		pending lead // steps that lead to no reply yet
+		tail    []block
 	)
 	for _, b := range eventBlocks(evs, live, busy) {
 		switch {
 		case b.kind == blockSteps:
-			if len(pending) == 0 {
-				pendingStart = b.start
+			if len(pending.steps) == 0 {
+				pending.start = b.start
 			}
-			pending = append(pending, b.steps...)
+			pending.steps = append(pending.steps, b.steps...)
+		case b.kind == blockUser:
+			if len(pending.steps) > 0 {
+				leads = append(leads, pending)
+				pending = lead{}
+			}
 		case b.kind == blockReply && !b.live:
-			leads = append(leads, lead{b.start, b.text, pending})
-			pending = nil
+			leads = append(leads, lead{b.start, b.text, pending.steps})
+			pending = lead{}
 		case b.kind == blockReply:
 			tail = append(tail, b) // it streams: no message yet
 		}
@@ -275,6 +287,34 @@ func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveTe
 		}
 		out = slices.Insert(out, at, blocks...)
 	}
+	// carried collects the steps of leads up to the next reply or steer.
+	var carried lead
+	carry := func(l lead) {
+		if len(carried.steps) == 0 {
+			carried.start = l.start
+		}
+		carried.steps = append(carried.steps, l.steps...)
+	}
+	// take returns the carried steps as a group, or nothing.
+	take := func(live bool) []block {
+		steps := carried.steps
+		carried = lead{}
+		if len(steps) == 0 {
+			return nil
+		}
+		live = live || slices.ContainsFunc(steps, step.running)
+		return []block{{kind: blockSteps, key: "steps-" + steps[0].id, steps: steps, live: live}}
+	}
+	// walk carries leads, and puts the steps before each steer in place.
+	walk := func(ls []lead) {
+		for _, l := range ls {
+			carry(l)
+			if l.text == "" {
+				start := carried.start
+				insertWork(start, take(false)...)
+			}
+		}
+	}
 	next := 0 // the first lead not used
 	for _, m := range msgs {
 		switch m.Author.Kind {
@@ -289,36 +329,24 @@ func chatBlocks(msgs []protocol.Message, evs []ir.Event, live map[string]*liveTe
 			}
 		default:
 			text := strings.TrimSpace(m.Text)
-			var group []block
-			var start *ir.Event
-			if k := slices.IndexFunc(leads[next:], func(l lead) bool { return l.text == text }); k >= 0 {
-				var steps []step
-				for _, l := range leads[next : next+k+1] {
-					steps = append(steps, l.steps...)
-				}
-				start = leads[next+k].start
-				next += k + 1
-				if len(steps) > 0 {
-					group = append(group, block{kind: blockSteps, key: "steps-" + steps[0].id, steps: steps})
-				}
+			reply := block{kind: blockReply, key: m.ID, text: m.Text}
+			k := slices.IndexFunc(leads[next:], func(l lead) bool { return l.text == text })
+			if k < 0 {
+				insertWork(nil, reply)
+				continue
 			}
-			group = append(group, block{kind: blockReply, key: m.ID, text: m.Text})
-			insertWork(start, group...)
+			l := leads[next+k]
+			walk(leads[next : next+k])
+			carry(l)
+			next += k + 1
+			insertWork(l.start, append(take(false), reply)...)
 		}
 	}
 	// The steps of replies that have no message yet, and those after them.
-	var rest []step
-	for _, l := range leads[next:] {
-		rest = append(rest, l.steps...)
-	}
-	rest = append(rest, pending...)
-	if len(rest) > 0 {
-		if next < len(leads) {
-			pendingStart = leads[next].start
-		}
-		insertWork(pendingStart, block{kind: blockSteps, key: "steps-" + rest[0].id, steps: rest,
-			live: busy || slices.ContainsFunc(rest, step.running)})
-	}
+	walk(leads[next:])
+	carry(pending)
+	start := carried.start
+	insertWork(start, take(busy)...)
 	for _, b := range tail {
 		insertWork(b.start, b)
 	}

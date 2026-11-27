@@ -88,6 +88,7 @@ func mustJSON(v any) json.RawMessage {
 // Client stream events (pushes). The payloads are protocol types.
 const (
 	PushAgents   = "agents.changed"   // no payload: reload the agent list
+	PushProjects = "projects.changed" // no payload: reload the project list
 	PushMachines = "machines.changed" // no payload: reload the machine list
 	PushTask     = "task"             // protocol.Task
 	PushSession  = "session.event"    // protocol.SessionEventNote

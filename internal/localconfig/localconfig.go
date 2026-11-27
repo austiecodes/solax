@@ -46,6 +46,13 @@ func (p Paths) PID() string         { return filepath.Join(p.Dir, "daemon.pid") 
 func (p Paths) Log() string         { return filepath.Join(p.Dir, "daemon.log") }
 func (p Paths) State() string       { return filepath.Join(p.Dir, "state") }
 
+// Projects is the folder of the managed projects: Solax makes a folder in
+// it for each project that it launches on this machine.
+func (p Paths) Projects() string { return filepath.Join(p.Dir, "projects") }
+
+// Super is the work folder of the Super Agent.
+func (p Paths) Super() string { return filepath.Join(p.Dir, "super") }
+
 // Server files. The server secret is ServerDB() + ".secret".
 func (p Paths) ServerDir() string { return filepath.Join(p.Dir, "server") }
 func (p Paths) ServerDB() string  { return filepath.Join(p.ServerDir(), "solax.db") }

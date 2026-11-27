@@ -87,9 +87,11 @@ type SessionEnsure struct {
 	AgentToken string         `json:"agent_token"`
 	Resume     *ir.SessionRef `json:"resume,omitempty"`
 	Runtime    ir.Kind        `json:"runtime"`
-	Dir        string         `json:"dir"`
-	Model      string         `json:"model,omitempty"`
-	Options    map[string]any `json:"options,omitempty"`
+	// Workspace is where the session works. The daemon prepares the
+	// folder from it.
+	Workspace Workspace      `json:"workspace"`
+	Model     string         `json:"model,omitempty"`
+	Options   map[string]any `json:"options,omitempty"`
 	// Instructions are the system prompt of the agent. The daemon puts
 	// them after the Solax role prompt.
 	Instructions string `json:"instructions,omitempty"`
@@ -147,3 +149,28 @@ type Ack struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
 }
+
+// Workspace tells the daemon where a session works. Kind selects the
+// fields that apply. A new kind (a Git repository) adds its own fields.
+type Workspace struct {
+	Kind WorkspaceKind `json:"kind"`
+	// Path is the folder on the machine (local). It may start with "~".
+	Path string `json:"path,omitempty"`
+	// Name is the folder of a managed project in the projects folder of
+	// the daemon (managed).
+	Name string `json:"name,omitempty"`
+}
+
+// WorkspaceKind is the kind of a workspace.
+type WorkspaceKind string
+
+const (
+	WorkspaceLocal   WorkspaceKind = "local"   // the folder of a local project; it must exist
+	WorkspaceManaged WorkspaceKind = "managed" // the folder of a managed project; the daemon makes it
+	WorkspaceSuper   WorkspaceKind = "super"   // the folder of the Super Agent; the daemon makes it
+)
+
+// ManagedRoot is where a daemon keeps the folders of managed projects,
+// with the default SOLAX_HOME. A daemon with another SOLAX_HOME keeps them
+// in its projects folder.
+const ManagedRoot = "~/.solax/projects"

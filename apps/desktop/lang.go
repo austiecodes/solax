@@ -26,6 +26,7 @@ var actionTitles = map[string]func() string{
 	"nav.tasks":      locales.NavTasks,
 	"nav.workflows":  locales.NavWorkflows,
 	"nav.agents":     locales.NavAgents,
+	"nav.projects":   locales.NavProjects,
 	"nav.machines":   locales.NavMachines,
 	"sidebar.toggle": locales.ActionToggleSidebar,
 	"theme.toggle":   locales.ActionToggleDark,

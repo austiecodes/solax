@@ -71,17 +71,17 @@ func agentAddCmd(g *globals) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <name>",
 		Short: T("Set up an agent on a machine"),
-		Example: `  solax agent add reviewer --machine mac --runtime claude --dir ~/src/app \
+		Example: `  solax agent add reviewer --machine mac --runtime claude \
       --desc "Reviews Go code and finds bugs" --instructions-file review.md
-  solax agent add router --machine mac --runtime pi --dir ~ --super
-  solax agent add coder --machine dev --runtime codex --dir /src --option sandbox=danger-full-access`,
+  solax agent add router --machine mac --runtime pi --super
+  solax agent add coder --machine dev --runtime codex --option sandbox=danger-full-access`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := g.client()
 			if err != nil {
 				return err
 			}
-			r.Name, r.Runtime, r.Dir = args[0], ir.Kind(runtime), expandDir(r.Dir)
+			r.Name, r.Runtime = args[0], ir.Kind(runtime)
 			if r.Instructions, _, err = instr.read(cmd); err != nil {
 				return err
 			}
@@ -105,24 +105,22 @@ func agentAddCmd(g *globals) *cobra.Command {
 	f.StringVar(&r.Machine, "machine", "", T("machine ID or name (default: this machine)"))
 	f.StringVar(&runtime, "runtime", "", T("claude, codex, pi, or a fork of Claude Code that the machine reports"))
 	f.StringVar(&r.Description, "desc", "", T("what this agent is good at; the Super Agent routes by it"))
-	f.StringVar(&r.Dir, "dir", "", T("work folder on the machine"))
 	f.StringVar(&r.Model, "model", "", T("model (default: the CLI default)"))
 	f.BoolVar(&r.Super, "super", false, T("make this agent the Super Agent (the router)"))
 	instr.add(cmd)
 	opts.add(cmd)
 	_ = cmd.MarkFlagRequired("runtime")
-	_ = cmd.MarkFlagRequired("dir")
 	return cmd
 }
 
 func agentEditCmd(g *globals) *cobra.Command {
-	var desc, dir, model string
+	var desc, model string
 	var super bool
 	var instr instructionsFlags
 	var opts optionsFlags
 	cmd := &cobra.Command{
 		Use:   "edit <agent>",
-		Short: T("Change the description, instructions, folder, model or role of an agent"),
+		Short: T("Change the description, instructions, model or role of an agent"),
 		Example: `  solax agent edit reviewer --instructions-file review.md
   solax agent edit reviewer --instructions ""   # remove the instructions`,
 		Args: cobra.ExactArgs(1),
@@ -140,9 +138,6 @@ func agentEditCmd(g *globals) *cobra.Command {
 				return err
 			} else if ok {
 				r.Instructions = &text
-			}
-			if f.Changed("dir") {
-				r.Dir = &dir
 			}
 			if f.Changed("model") {
 				r.Model = &model
@@ -162,7 +157,6 @@ func agentEditCmd(g *globals) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringVar(&desc, "desc", "", T("new description"))
-	f.StringVar(&dir, "dir", "", T("new work folder"))
 	f.StringVar(&model, "model", "", T("new model"))
 	f.BoolVar(&super, "super", false, T("make it the Super Agent (--super=false to undo)"))
 	instr.add(cmd)

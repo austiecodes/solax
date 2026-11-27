@@ -84,6 +84,7 @@ interface TaskOpts {
    * additionalProperties.
    */
   schema?: object;
+  project?: string;        // wf.task only: project name or ID to work in; default: a new project
   phase?: string;          // progress group; default: the current phase
   label?: string;          // short name in `solax workflow list <wfl_id>`
   loop?: string;           // loop name; default: the loop of wf.round
@@ -97,6 +98,7 @@ interface TaskOutcome {
   id: string;              // tsk_...
   sessionId: string;       // ses_...
   agent: string;
+  project: string;         // the project the task works in
   state: "done" | "failed" | "cancelled";
   result: string;          // the last message of the agent (up to 16 KiB)
   data?: any;              // the checked JSON, when opts.schema is set

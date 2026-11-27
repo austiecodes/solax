@@ -21,6 +21,7 @@ import (
 	"github.com/austiecodes/solax/internal/daemon/conn"
 	"github.com/austiecodes/solax/internal/daemon/control"
 	"github.com/austiecodes/solax/internal/daemon/supervisor"
+	"github.com/austiecodes/solax/internal/daemon/workspace"
 	"github.com/austiecodes/solax/internal/localconfig"
 	"github.com/austiecodes/solax/internal/locale"
 	"github.com/austiecodes/solax/internal/svc"
@@ -119,7 +120,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 		Prompt:   func(role protocol.SessionRole) (string, error) { return assets.Prompt(d.assets, role) },
 		Plugin:   func(kind ir.Kind) string { return assets.Plugin(d.assets, kind) },
 		Env:      d.sessionEnv,
-		Dir:      localconfig.ExpandHome,
+		Workspace: workspace.Sources{
+			protocol.WorkspaceLocal:   workspace.Local{Expand: localconfig.ExpandHome},
+			protocol.WorkspaceManaged: workspace.Managed{Root: d.paths.Projects()},
+			protocol.WorkspaceSuper:   workspace.Fixed{Dir: d.paths.Super()},
+		}.Prepare,
 		MaxSlots: d.config().Machine.MaxSessions,
 		Send:     d.conn.Send,
 		Log:      d.log,

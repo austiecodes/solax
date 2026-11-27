@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"path"
+
 	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/internal/server/service"
 	"github.com/austiecodes/solax/pkg/protocol"
@@ -25,9 +27,20 @@ func wireEnrolled(m model.Machine) protocol.MachineEnrolled {
 func wireAgent(v service.AgentView) protocol.Agent {
 	return protocol.Agent{
 		ID: string(v.ID), Name: v.Name, Description: v.Description, Instructions: v.Instructions, MachineID: string(v.MachineID), Machine: v.MachineName,
-		Online: v.Online, Runtime: v.Runtime, Role: string(v.Role), Dir: v.Dir, Model: v.Model, Options: v.Options,
+		Online: v.Online, Runtime: v.Runtime, Role: string(v.Role), Model: v.Model, Options: v.Options,
 		SessionID: string(v.SessionID),
 	}
+}
+
+func wireProject(v service.ProjectView) protocol.Project {
+	p := protocol.Project{
+		ID: string(v.ID), Name: v.Name, Description: v.Description, Kind: string(v.Source.Kind),
+		MachineID: string(v.Source.MachineID), Machine: v.MachineName, Path: v.Source.Path, Online: v.Online,
+	}
+	if v.Source.Kind == model.SourceManaged {
+		p.Path = path.Join(protocol.ManagedRoot, v.Source.Path)
+	}
+	return p
 }
 
 // mapAll maps a slice; it never returns nil, so JSON is [] and not null.

@@ -10,9 +10,9 @@ import (
 // and the API returns them.
 
 // WireTask converts a task to its wire form.
-func WireTask(j Task, agentName string) protocol.Task {
+func WireTask(j Task, agentName, projectName string) protocol.Task {
 	return protocol.Task{
-		ID: string(j.ID), Agent: agentName, AgentID: string(j.AgentID), SessionID: string(j.SessionID),
+		ID: string(j.ID), Agent: agentName, AgentID: string(j.AgentID), Project: projectName, ProjectID: string(j.ProjectID), SessionID: string(j.SessionID),
 		RequestedBy: string(j.RequestedBy), TurnBy: string(j.TurnBy), WorkflowID: string(j.WorkflowID), Title: j.Title, Prompt: j.Prompt, State: string(j.State),
 		Result: j.Result, Error: j.Error, CreatedAt: j.CreatedAt, UpdatedAt: j.UpdatedAt,
 	}

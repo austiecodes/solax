@@ -28,12 +28,19 @@ paths:
   /v1/agents/{agent}:
     patch: { summary: Change an agent (client token) }
     delete: { summary: Delete an agent (client token) }
+  /v1/projects:
+    get: { summary: "List the projects: where agents work (client or Super Agent)" }
+    post: { summary: "Set up a project: {name, description, kind: local, machine, path}" }
+  /v1/projects/{project}:
+    patch: { summary: "Change a project: {name, description, path}" }
+    delete: { summary: Remove a project; its tasks and files stay }
   /v1/tasks:
     get: { summary: List tasks, newest first }
-    post: { summary: Give a task to an agent; returns at once }
+    post: { summary: "Give a task to an agent: {agent, project, prompt}; no project launches a new managed project; returns at once" }
   /v1/tasks/{task}: { get: { summary: Show a task } }
   /v1/tasks/{task}/messages: { post: { summary: "Send more input to a task: {text, mode: follow_up (default) | steer}" } }
   /v1/tasks/{task}/cancel: { post: { summary: Cancel a task } }
+  /v1/tasks/{task}/interrupt: { post: { summary: "Stop the running turn of a task; more input starts it again" } }
   /v1/workflows:
     get: { summary: List the saved workflows and the recent runs }
     post: { summary: "Start a workflow: {source | name, args, resume}; returns at once" }
@@ -45,6 +52,7 @@ paths:
   /v1/super/messages:
     get: { summary: Read the Super Agent conversation }
     post: { summary: Send a user message to the Super Agent }
+  /v1/super/interrupt: { post: { summary: Stop the running turn of the Super Agent } }
   /v1/super/replies: { post: { summary: Super Agent reply (Super Agent token only) } }
   /v1/objects/{id}: { get: { summary: Recall an object by ID } }
   /v1/stream: { get: { summary: Client event stream (WebSocket) } }

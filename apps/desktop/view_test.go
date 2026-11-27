@@ -265,7 +265,7 @@ func TestPalette(t *testing.T) {
 func TestConfirm(t *testing.T) {
 	d := testDesktop(t)
 	d.page = pageAgents
-	d.agents = []protocol.Agent{{ID: "a1", Name: "coder", Runtime: "claude", Machine: "mbp", Dir: "~/src"}}
+	d.agents = []protocol.Agent{{ID: "a1", Name: "coder", Runtime: "claude", Machine: "mbp"}}
 	tt := ui.NewTester(d.view, 1240, 820)
 	if err := tt.Click("Remove"); err != nil {
 		t.Fatal(err)
@@ -401,8 +401,8 @@ func TestAgentsPage(t *testing.T) {
 	d := testDesktop(t)
 	d.page = pageAgents
 	d.agents = []protocol.Agent{
-		{ID: "a1", Name: "coder", Runtime: "pi", Dir: "~/codes", Description: "Writes code"},
-		{ID: "a2", Name: "solax", Runtime: "pi", Role: "super", Dir: "~/codes"},
+		{ID: "a1", Name: "coder", Runtime: "pi", Description: "Writes code"},
+		{ID: "a2", Name: "solax", Runtime: "pi", Role: "super"},
 	}
 	tt := ui.NewTester(d.view, 1240, 820)
 	if !tt.HasText("Make it Solax") || tt.HasText("Add agent") {
@@ -425,5 +425,71 @@ func TestAgentsPage(t *testing.T) {
 	}
 	if d.agentSel != "solax" || tt.HasText("Make it Solax") {
 		t.Fatalf("solax not shown: sel %q", d.agentSel)
+	}
+}
+
+// The Projects page shows the first project until the user chooses one.
+// Edit opens the form with the values of the project, and the machine of
+// a project does not change.
+func TestProjectsPage(t *testing.T) {
+	d := testDesktop(t)
+	d.page = pageProjects
+	d.machines = []protocol.Machine{{ID: "mac_1", Name: "mbp", State: protocol.MachineApproved}}
+	d.projects = []protocol.Project{
+		{ID: "prj_1", Name: "solax", Machine: "mbp", Path: "~/codes/solax", Description: "The server"},
+		{ID: "prj_2", Name: "app", Machine: "mbp", Path: "~/src/app"},
+	}
+	tt := ui.NewTester(d.view, 1240, 820)
+	if !tt.HasText("~/codes/solax") || tt.HasText("Add project") {
+		t.Fatalf("want the detail of solax, got %q", tt.Texts())
+	}
+	if err := tt.Click("Edit"); err != nil {
+		t.Fatal(err)
+	}
+	f := d.pform
+	if !f.open || f.editing != "prj_1" || f.Name != "solax" || f.Path != "~/codes/solax" || !tt.HasText("Edit project") {
+		t.Fatalf("edit form = %+v: %q", f, tt.Texts())
+	}
+	if err := tt.Click("Cancel"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("New project"); err != nil {
+		t.Fatal(err)
+	}
+	if !d.pform.open || d.pform.editing != "" || d.pform.Machine != "mbp" || !tt.HasText("Add project") {
+		t.Fatalf("new form = %+v: %q", d.pform, tt.Texts())
+	}
+	if err := tt.Click("Close"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("app"); err != nil {
+		t.Fatal(err)
+	}
+	if d.projectSel != "prj_2" || d.pform.open || !tt.HasText("~/src/app") {
+		t.Fatalf("app not shown: sel %q", d.projectSel)
+	}
+
+	// The folder of a managed project does not move: its form shows it as
+	// text, with no field.
+	d.projects = append(d.projects, protocol.Project{ID: "prj_3", Name: "notes", Kind: "managed", Machine: "mbp", Path: "~/.solax/projects/notes"})
+	d.projectSel = "prj_3"
+	tt.Frame()
+	if err := tt.Click("Edit"); err != nil {
+		t.Fatal(err)
+	}
+	if !d.pform.managed || !tt.HasText("~/.solax/projects/notes") || tt.HasText("~/src/my-app") {
+		t.Fatalf("managed edit form = %+v: %q", d.pform, tt.Texts())
+	}
+}
+
+// An edit sends only the fields that changed.
+func TestProjectPatch(t *testing.T) {
+	old := protocol.Project{Name: "solax", Path: "~/codes/solax", Description: "The server"}
+	r := projectPatch(old, "solax", "~/src/solax", "The server")
+	if r.Name != nil || r.Description != nil || r.Path == nil || *r.Path != "~/src/solax" {
+		t.Fatalf("patch = %+v", r)
+	}
+	if r := projectPatch(old, old.Name, old.Path, old.Description); r != (protocol.UpdateProjectRequest{}) {
+		t.Fatalf("no change gave %+v", r)
 	}
 }

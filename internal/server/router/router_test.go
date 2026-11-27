@@ -96,8 +96,8 @@ func TestTopologyOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, a := range []protocol.CreateAgentRequest{
-		{Machine: "mac", Name: "backend", Runtime: ir.KindClaude, Dir: "/api", Description: "Go backend"},
-		{Machine: reg.MachineID, Name: "infra", Runtime: ir.KindCodex, Dir: "/infra"},
+		{Machine: "mac", Name: "backend", Runtime: ir.KindClaude, Description: "Go backend"},
+		{Machine: reg.MachineID, Name: "infra", Runtime: ir.KindCodex},
 	} {
 		if _, err := c.CreateAgent(ctx, a); err != nil {
 			t.Fatalf("create agent %s: %v", a.Name, err)
@@ -127,7 +127,7 @@ func TestTopologyOverHTTP(t *testing.T) {
 	if ags, err := worker.Agents(ctx); err != nil || len(ags) != 2 {
 		t.Fatalf("worker agents = %+v, %v", ags, err)
 	}
-	if _, err := worker.Dispatch(ctx, "infra", "x"); status(t, err) != http.StatusForbidden {
+	if _, err := worker.Dispatch(ctx, protocol.DispatchRequest{Agent: "infra", Prompt: "x"}); status(t, err) != http.StatusForbidden {
 		t.Fatalf("worker dispatch: %v", err)
 	}
 	if _, err := worker.Tasks(ctx, 0); status(t, err) != http.StatusForbidden {

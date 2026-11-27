@@ -22,7 +22,6 @@ type Agent struct {
 	Instructions string
 	Runtime      ir.Kind
 	Role         AgentRole
-	Dir          string
 	Model        string
 	Options      map[string]any // runtime-specific, for example pi "thinking"
 	Deleted      bool
@@ -37,7 +36,7 @@ const (
 	RoleSuper  AgentRole = "super"
 )
 
-const agentCols = `id, machine_id, name, description, instructions, runtime, role, dir, model, options, deleted, created_at`
+const agentCols = `id, machine_id, name, description, instructions, runtime, role, model, options, deleted, created_at`
 
 // GetAgent returns the agent with this ID, deleted or not.
 func GetAgent(ctx context.Context, db Querier, id ID) (Agent, error) {
@@ -59,11 +58,11 @@ func SaveAgent(ctx context.Context, db Executor, a Agent) error {
 	if a.Options == nil {
 		opts = "{}"
 	}
-	_, err = exec(ctx, db, `INSERT INTO agents(`+agentCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err = exec(ctx, db, `INSERT INTO agents(`+agentCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET machine_id = excluded.machine_id, name = excluded.name,
-			description = excluded.description, instructions = excluded.instructions, runtime = excluded.runtime, role = excluded.role, dir = excluded.dir,
+			description = excluded.description, instructions = excluded.instructions, runtime = excluded.runtime, role = excluded.role,
 			model = excluded.model, options = excluded.options, deleted = excluded.deleted`,
-		a.ID, a.MachineID, a.Name, a.Description, a.Instructions, a.Runtime, a.Role, a.Dir, a.Model, opts, b2i(a.Deleted), ms(a.CreatedAt))
+		a.ID, a.MachineID, a.Name, a.Description, a.Instructions, a.Runtime, a.Role, a.Model, opts, b2i(a.Deleted), ms(a.CreatedAt))
 	return err
 }
 
@@ -78,7 +77,7 @@ func scanAgent(s scanner) (Agent, error) {
 	var runtime, role, opts string
 	var deleted int
 	var created int64
-	if err := s.Scan(&a.ID, &a.MachineID, &a.Name, &a.Description, &a.Instructions, &runtime, &role, &a.Dir, &a.Model, &opts, &deleted, &created); err != nil {
+	if err := s.Scan(&a.ID, &a.MachineID, &a.Name, &a.Description, &a.Instructions, &runtime, &role, &a.Model, &opts, &deleted, &created); err != nil {
 		return a, mapErr(err)
 	}
 	a.Runtime, a.Role, a.Deleted, a.CreatedAt = ir.Kind(runtime), AgentRole(role), deleted != 0, tm(created)

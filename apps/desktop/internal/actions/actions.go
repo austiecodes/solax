@@ -32,7 +32,8 @@ var All = []Action{
 	{ID: "nav.tasks", Title: "Tasks", Menu: MenuGo, Keys: "CmdOrCtrl+2"},
 	{ID: "nav.workflows", Title: "Workflows", Menu: MenuGo, Keys: "CmdOrCtrl+3"},
 	{ID: "nav.agents", Title: "Agents", Menu: MenuGo, Keys: "CmdOrCtrl+4"},
-	{ID: "nav.machines", Title: "Machines", Menu: MenuGo, Keys: "CmdOrCtrl+5"},
+	{ID: "nav.projects", Title: "Projects", Menu: MenuGo, Keys: "CmdOrCtrl+5"},
+	{ID: "nav.machines", Title: "Machines", Menu: MenuGo, Keys: "CmdOrCtrl+6"},
 
 	{ID: "sidebar.toggle", Title: "Toggle Sidebar", Menu: MenuView, Keys: "CmdOrCtrl+B"},
 	{ID: "theme.toggle", Title: "Toggle Dark Mode", Menu: MenuView, Keys: "CmdOrCtrl+Shift+L"},

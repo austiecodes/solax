@@ -176,6 +176,30 @@ func TestComposer(t *testing.T) {
 	}
 }
 
+// While the agent works, the button stops it when the draft is empty, and
+// sends a steer when the draft has text.
+func TestComposerStop(t *testing.T) {
+	var sent []string
+	stops := 0
+	draft := ""
+	view := func(c *ui.Context) {
+		composer{key: "c", placeholder: "Write", draft: &draft, focus: true,
+			send: func(s string) { sent = append(sent, s); draft = "" }, stop: func() { stops++ }}.view(c, paletteFor(c))
+	}
+	tt := ui.NewTester(view, 800, 300)
+	if err := tt.Click("Stop"); err != nil || stops != 1 {
+		t.Fatalf("click Stop: err %v, stops %d", err, stops)
+	}
+	draft = "also do this"
+	tt.Frame()
+	if err := tt.Click("Send"); err != nil || len(sent) != 1 || sent[0] != "also do this" || stops != 1 {
+		t.Fatalf("click Send: err %v, sent %q, stops %d", err, sent, stops)
+	}
+	if err := tt.Click("Stop"); err != nil || stops != 2 {
+		t.Fatalf("Stop after the steer: err %v, stops %d", err, stops)
+	}
+}
+
 func TestWithWorking(t *testing.T) {
 	user := block{kind: blockUser, key: "u"}
 	cases := []struct {
@@ -201,7 +225,8 @@ func TestWithWorking(t *testing.T) {
 }
 
 // A follow-up arrives after the first tool but before its answer. The
-// same order must hold during streaming, on completion, and on reload.
+// agent reads it when the answer is complete. The same order must hold
+// during streaming, on completion, and on reload.
 func TestChatFollowUpDuringReply(t *testing.T) {
 	t0 := time.Unix(1000, 0)
 	at := func(n int) time.Time { return t0.Add(time.Duration(n) * time.Second) }
@@ -216,9 +241,9 @@ func TestChatFollowUpDuringReply(t *testing.T) {
 		done(1, ir.Item{ID: "u1", Kind: ir.ItemUserMessage, Text: "[user] list agents"}, at(0)),
 		{Seq: 2, Type: ir.TurnStarted, At: at(1)},
 		done(3, ir.Item{ID: "t1", Kind: ir.ItemToolCall, Tool: shell("solax agents")}, at(2)),
-		done(4, ir.Item{ID: "u2", Kind: ir.ItemUserMessage, Text: "[user] say hi"}, at(3)),
-		{Seq: 5, Type: ir.ItemStarted, Item: &ir.Item{ID: "a1", Kind: ir.ItemAgentMessage}, At: at(4)},
-		done(6, ir.Item{ID: "a1", Kind: ir.ItemAgentMessage, Text: "Three agents."}, at(5)),
+		{Seq: 4, Type: ir.ItemStarted, Item: &ir.Item{ID: "a1", Kind: ir.ItemAgentMessage}, At: at(4)},
+		done(5, ir.Item{ID: "a1", Kind: ir.ItemAgentMessage, Text: "Three agents."}, at(5)),
+		done(6, ir.Item{ID: "u2", Kind: ir.ItemUserMessage, Text: "[user] say hi"}, at(5)),
 		done(7, ir.Item{ID: "t2", Kind: ir.ItemToolCall, Tool: shell("solax task send tester")}, at(6)),
 		done(8, ir.Item{ID: "a2", Kind: ir.ItemAgentMessage, Text: "Hi!"}, at(7)),
 	}
@@ -229,7 +254,7 @@ func TestChatFollowUpDuringReply(t *testing.T) {
 		keys         []string
 	}{
 		{"queued", 2, 3, nil, []string{"m1", "steps-t1", "m2"}},
-		{"streaming", 2, 5, map[string]*liveText{"a1": {kind: "text", text: "Three"}}, []string{"m1", "steps-t1", "a1", "m2"}},
+		{"streaming", 2, 4, map[string]*liveText{"a1": {kind: "text", text: "Three"}}, []string{"m1", "steps-t1", "a1", "m2"}},
 		{"completed", 3, 6, nil, []string{"m1", "steps-t1", "m3", "m2"}},
 		{"reloaded", 4, 8, nil, []string{"m1", "steps-t1", "m3", "m2", "steps-t2", "m4"}},
 	} {
@@ -241,6 +266,59 @@ func TestChatFollowUpDuringReply(t *testing.T) {
 			}
 			if !slices.Equal(keys, tc.keys) {
 				t.Errorf("blocks = %v, want %v", keys, tc.keys)
+			}
+		})
+	}
+}
+
+// A steer arrives while a tool runs. The agent reads it after the tool,
+// and goes on in the same turn. The steps before the steer stay above it;
+// those after it, and the reply, come below it.
+func TestChatSteerDuringTurn(t *testing.T) {
+	t0 := time.Unix(1000, 0)
+	at := func(n int) time.Time { return t0.Add(time.Duration(n) * time.Second) }
+	msg := func(id, author, text string, n int) protocol.Message {
+		return protocol.Message{ID: id, Author: protocol.Author{Kind: author}, Text: text, CreatedAt: at(n)}
+	}
+	msgs := []protocol.Message{
+		msg("m1", "human", "run sleep", 0), msg("m2", "human", "echo second too", 2),
+		msg("m3", "super", "first, second", 6),
+	}
+	evs := []ir.Event{
+		done(1, ir.Item{ID: "u1", Kind: ir.ItemUserMessage, Text: "[user] run sleep"}, at(0)),
+		{Seq: 2, Type: ir.TurnStarted, At: at(1)},
+		{Seq: 3, Type: ir.ItemStarted, Item: &ir.Item{ID: "t1", Kind: ir.ItemToolCall, Status: ir.StatusInProgress, Tool: shell("sleep 6")}, At: at(1)},
+		done(4, ir.Item{ID: "t1", Kind: ir.ItemToolCall, Tool: shell("sleep 6")}, at(3)),
+		done(5, ir.Item{ID: "u2", Kind: ir.ItemUserMessage, Text: "[user] echo second too"}, at(3)),
+		{Seq: 6, Type: ir.ItemStarted, Item: &ir.Item{ID: "t2", Kind: ir.ItemToolCall, Status: ir.StatusInProgress, Tool: shell("echo second")}, At: at(4)},
+		done(7, ir.Item{ID: "t2", Kind: ir.ItemToolCall, Tool: shell("echo second")}, at(5)),
+		done(8, ir.Item{ID: "a1", Kind: ir.ItemAgentMessage, Text: "first, second"}, at(6)),
+		{Seq: 9, Type: ir.TurnCompleted, Turn: &ir.Turn{Status: ir.TurnOK}, At: at(6)},
+	}
+	for _, tc := range []struct {
+		name         string
+		msgs, events int
+		busy         bool
+		keys         []string
+		live         string // the key of the live block, if any
+	}{
+		{"sent during the tool", 2, 3, true, []string{"m1", "steps-t1", "m2"}, "steps-t1"},
+		{"read after the tool", 2, 5, true, []string{"m1", "steps-t1", "m2"}, ""},
+		{"next tool runs", 2, 6, true, []string{"m1", "steps-t1", "m2", "steps-t2"}, "steps-t2"},
+		{"replied", 3, 9, false, []string{"m1", "steps-t1", "m2", "steps-t2", "m3"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bs := chatBlocks(msgs[:tc.msgs], evs[:tc.events], nil, tc.busy)
+			var keys []string
+			live := ""
+			for _, b := range bs {
+				keys = append(keys, b.key)
+				if b.live {
+					live = b.key
+				}
+			}
+			if !slices.Equal(keys, tc.keys) || live != tc.live {
+				t.Errorf("blocks = %v, live %q; want %v, live %q", keys, live, tc.keys, tc.live)
 			}
 		})
 	}

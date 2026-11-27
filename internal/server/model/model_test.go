@@ -336,3 +336,73 @@ func TestNotesWaitForAWakingInput(t *testing.T) {
 		t.Fatalf("task = %+v, %v; want requested by super, turn by human", got, err)
 	}
 }
+
+// Schema v10 makes a project of each folder of the worker agents, and
+// links old tasks to it. Folders with the same last name get the machine
+// name after it; "~" is "home"; the Super Agent folder makes no project.
+func TestMigrateMakesProjects(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "solax.db")
+	db, err := sql.Open("sqlite", dsn(path, "immediate", false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stmts := []string{`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at INTEGER NOT NULL)`}
+	for _, m := range ms[:9] {
+		stmts = append(stmts, m.sql, fmt.Sprintf(`INSERT INTO schema_migrations VALUES (%d, '%s', 0)`, m.version, m.name))
+	}
+	stmts = append(stmts,
+		`INSERT INTO owners(id, super_seq, created_at) VALUES ('own_1', 0, 0)`,
+		`INSERT INTO machines(id, owner_id, name, state, token_hash) VALUES
+			('mch_1', 'own_1', 'mac', 'approved', 'h1'), ('mch_2', 'own_1', 'dev', 'approved', 'h2')`,
+		`INSERT INTO agents(id, machine_id, name, runtime, role, dir, created_at) VALUES
+			('agt_000000001aa', 'mch_1', 'router', 'claude', 'super', '~/codes', 1),
+			('agt_000000002aa', 'mch_1', 'coder', 'claude', '', '/src/app/', 2),
+			('agt_000000003aa', 'mch_1', 'reviewer', 'codex', '', '/src/app', 3),
+			('agt_000000004aa', 'mch_2', 'builder', 'codex', '', '/srv/app', 4),
+			('agt_000000005aa', 'mch_1', 'helper', 'pi', '', '~', 5)`,
+		`INSERT INTO tasks(id, owner_id, agent_id, session_id, prompt, state, created_at, updated_at) VALUES
+			('tsk_1', 'own_1', 'agt_000000003aa', 'ses_1', 'review', 'done', 0, 0),
+			('tsk_2', 'own_1', 'agt_000000004aa', 'ses_2', 'build', 'done', 0, 0)`,
+	)
+	for _, q := range stmts {
+		if _, err := db.ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	db.Close()
+
+	if err := Open(ctx, path); err != nil {
+		t.Fatal(err)
+	}
+	defer Close()
+	ps, err := ListProjects(ctx, ReadDB, "own_1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, p := range ps {
+		got[p.Name] = string(p.Source.MachineID) + ":" + p.Source.Path
+		if p.Source.Kind != SourceLocal || p.ID.Prefix() != PrefixProject {
+			t.Errorf("project %+v", p)
+		}
+	}
+	want := map[string]string{"app": "mch_1:/src/app", "app-dev": "mch_2:/srv/app", "home": "mch_1:~"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("projects = %v, want %v", got, want)
+	}
+	for id, name := range map[ID]string{"tsk_1": "app", "tsk_2": "app-dev"} {
+		j, err := GetTask(ctx, ReadDB, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := GetProject(ctx, ReadDB, j.ProjectID)
+		if err != nil || p.Name != name {
+			t.Errorf("project of %s = %+v, %v; want %s", id, p, err, name)
+		}
+	}
+}

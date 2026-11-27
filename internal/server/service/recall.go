@@ -66,6 +66,19 @@ func recall(ctx context.Context, db model.Querier, a model.Actor, id model.ID) (
 		}
 		obj.Type = "machine"
 		obj.Summary = fmt.Sprintf("Machine %q (%s, %s, %d free slots).", m.Name, m.State, onlineWord(m.Online), m.Slots)
+	case model.PrefixProject:
+		p, err := model.GetProject(ctx, db, id)
+		if err != nil {
+			return obj, err
+		}
+		if err := owned(a, p.OwnerID); err != nil {
+			return obj, err
+		}
+		obj.Type = "project"
+		obj.Summary = fmt.Sprintf("Project %q (%s %s).", p.Name, p.Source.Kind, p.Source.Path)
+		if p.Source.MachineID != "" {
+			obj.Links["machine"] = string(p.Source.MachineID)
+		}
 	default:
 		return obj, fmt.Errorf("%w: cannot recall %q", errs.ErrNotFound, id)
 	}

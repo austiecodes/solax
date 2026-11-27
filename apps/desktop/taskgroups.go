@@ -1,9 +1,6 @@
 package main
 
 import (
-	"path/filepath"
-	"strings"
-
 	"github.com/egoist/mygo/ui"
 
 	"github.com/austiecodes/solax/apps/desktop/locales"
@@ -11,7 +8,7 @@ import (
 )
 
 // How the sidebar groups the recent tasks, as the Codex app groups its
-// threads: by project (the work folder of the task's agent), by agent, or
+// threads: by project (the folder that the task works in), by agent, or
 // not at all. The prefs keep the choice. No UI here, so the tests cover
 // the rules; sidebar.go draws the groups.
 
@@ -73,7 +70,7 @@ type taskGroup struct {
 // groupTasks groups tasks by the grouping id. The groups and the tasks in
 // them keep the order of tasks, newest first, so the group with the newest
 // task comes first.
-func groupTasks(tasks []protocol.Task, agents []protocol.Agent, id string) []taskGroup {
+func groupTasks(tasks []protocol.Task, agents []protocol.Agent, projects []protocol.Project, id string) []taskGroup {
 	if id == "none" {
 		if len(tasks) == 0 {
 			return nil
@@ -83,7 +80,7 @@ func groupTasks(tasks []protocol.Task, agents []protocol.Agent, id string) []tas
 	var out []taskGroup
 	at := map[string]int{}
 	for _, j := range tasks {
-		g := groupOf(j, agents, id)
+		g := groupOf(j, agents, projects, id)
 		i, ok := at[g.key]
 		if !ok {
 			i = len(out)
@@ -96,29 +93,28 @@ func groupTasks(tasks []protocol.Task, agents []protocol.Agent, id string) []tas
 }
 
 // groupOf is the group of a task, without its tasks.
-func groupOf(j protocol.Task, agents []protocol.Agent, id string) taskGroup {
-	a, found := agentOf(j, agents)
+func groupOf(j protocol.Task, agents []protocol.Agent, projects []protocol.Project, id string) taskGroup {
 	if id == "agent" {
 		g := taskGroup{key: "agent:" + j.Agent, title: j.Agent, icon: agentIcon}
-		if found {
-			g.tip = locales.DirOn(a.Dir, a.Machine)
+		if a, ok := agentOf(j, agents); ok {
+			g.tip = string(a.Runtime) + " · " + a.Machine
 			if a.Role == "super" {
 				g.icon = sparklesIcon
 			}
 		}
 		return g
 	}
-	if !found || a.Dir == "" {
-		// The agent was removed: its folder is not known any more.
-		return taskGroup{key: "project:", title: locales.GroupOther(), tip: locales.GroupOtherTip(), icon: folderIcon}
+	if j.ProjectID == "" {
+		return taskGroup{key: "project:", title: locales.GroupNoProject(), tip: locales.GroupNoProjectTip(), icon: folderIcon}
 	}
-	dir := strings.TrimRight(a.Dir, "/") // "~/codes/" is "~/codes"
-	return taskGroup{
-		key:   "project:" + a.Machine + ":" + dir,
-		title: folderName(a.Dir),
-		tip:   locales.DirOn(a.Dir, a.Machine),
-		icon:  folderIcon,
+	g := taskGroup{key: "project:" + j.ProjectID, title: j.Project, icon: folderIcon}
+	// A removed project is not in the list: the task still names it.
+	for _, p := range projects {
+		if p.ID == j.ProjectID {
+			g.tip = locales.DirOn(p.Path, p.Machine)
+		}
 	}
+	return g
 }
 
 // agentOf finds the agent of a task: by ID, else by name.
@@ -134,16 +130,6 @@ func agentOf(j protocol.Task, agents []protocol.Agent) (protocol.Agent, bool) {
 		}
 	}
 	return protocol.Agent{}, false
-}
-
-// folderName is the last element of a folder path: "app" for
-// "~/src/app", "~" for "~".
-func folderName(dir string) string {
-	dir = strings.TrimRight(dir, "/")
-	if dir == "" {
-		return "/"
-	}
-	return filepath.Base(dir)
 }
 
 // sidebarTasks are the tasks in the order the sidebar shows them.

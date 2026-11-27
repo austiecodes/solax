@@ -13,51 +13,97 @@ import (
 )
 
 // Dispatch gives a task to an agent and returns at once. The task runs in a
-// new session of the agent. A person or the Super Agent may dispatch.
-func Dispatch(ctx context.Context, a model.Actor, agentRef, prompt string) (model.Task, error) {
+// new session of the agent, in the folder of the project projectRef. When
+// projectRef is "", Solax launches a new managed project for the task. A
+// person or the Super Agent may dispatch.
+func Dispatch(ctx context.Context, a model.Actor, agentRef, projectRef, prompt string) (model.Task, error) {
 	if err := requireManager(a); err != nil {
 		return model.Task{}, err
 	}
-	var j model.Task
+	var (
+		j        model.Task
+		launched bool
+	)
 	err := model.Atomic(ctx, func(tx *sql.Tx) (err error) {
-		j, err = dispatch(ctx, tx, a, agentRef, prompt, "")
+		j, launched, err = dispatch(ctx, tx, a, agentRef, projectRef, prompt, "")
 		return err
 	})
 	if err != nil {
 		return model.Task{}, err
 	}
-	publishTask(ctx, j)
-	Wake()
+	dispatched(ctx, j, launched)
 	return j, nil
 }
 
 // dispatch creates a task, its session and its first input. workflow is
-// the workflow that starts the task, or "".
-func dispatch(ctx context.Context, tx *sql.Tx, a model.Actor, agentRef, prompt string, workflow model.ID) (model.Task, error) {
+// the workflow that starts the task, or "". launched is true when the task
+// got a new managed project.
+func dispatch(ctx context.Context, tx *sql.Tx, a model.Actor, agentRef, projectRef, prompt string, workflow model.ID) (j model.Task, launched bool, err error) {
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
-		return model.Task{}, fmt.Errorf("%w: empty prompt", errs.ErrInvalid)
+		return model.Task{}, false, fmt.Errorf("%w: empty prompt", errs.ErrInvalid)
 	}
 	ag, err := resolveAgentRef(ctx, tx, a, agentRef)
 	if err != nil {
-		return model.Task{}, err
+		return model.Task{}, false, err
 	}
 	if ag.Role == model.RoleSuper {
-		return model.Task{}, fmt.Errorf("%w: %q is the Super Agent; send it a message instead", errs.ErrInvalid, ag.Name)
+		return model.Task{}, false, fmt.Errorf("%w: %q is the Super Agent; send it a message instead", errs.ErrInvalid, ag.Name)
+	}
+	title := clip(firstLine(prompt), 80)
+	var p model.Project
+	if strings.TrimSpace(projectRef) == "" {
+		if p, err = launchProject(ctx, tx, a, ag, title); err != nil {
+			return model.Task{}, false, err
+		}
+		launched = true
+	} else if p, err = projectFor(ctx, tx, a, ag, projectRef); err != nil {
+		return model.Task{}, false, err
 	}
 	now := clock()
-	j := model.Task{
-		ID: model.NewIDAt(model.PrefixTask, now), OwnerID: a.OwnerID, AgentID: ag.ID, SessionID: model.NewIDAt(model.PrefixSession, now),
-		RequestedBy: a.Kind, TurnBy: a.Kind, WorkflowID: workflow, Title: clip(firstLine(prompt), 80), Prompt: prompt, State: model.TaskQueued,
+	j = model.Task{
+		ID: model.NewIDAt(model.PrefixTask, now), OwnerID: a.OwnerID, AgentID: ag.ID, ProjectID: p.ID, SessionID: model.NewIDAt(model.PrefixSession, now),
+		RequestedBy: a.Kind, TurnBy: a.Kind, WorkflowID: workflow, Title: title, Prompt: prompt, State: model.TaskQueued,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	if err := model.SaveSession(ctx, tx, model.Session{ID: j.SessionID, AgentID: ag.ID, TaskID: j.ID, State: model.SessionStopped, UpdatedAt: now}); err != nil {
-		return model.Task{}, err
+		return model.Task{}, false, err
 	}
 	if err := model.SaveTask(ctx, tx, j); err != nil {
-		return model.Task{}, err
+		return model.Task{}, false, err
 	}
-	return j, model.AddInput(ctx, tx, model.Input{ID: model.NewIDAt(model.PrefixInput, now), SessionID: j.SessionID, Text: prompt, CreatedAt: now})
+	return j, launched, model.AddInput(ctx, tx, model.Input{ID: model.NewIDAt(model.PrefixInput, now), SessionID: j.SessionID, Text: prompt, CreatedAt: now})
+}
+
+// projectFor finds the project projectRef and checks that agent ag can
+// work in it.
+func projectFor(ctx context.Context, tx *sql.Tx, a model.Actor, ag model.Agent, projectRef string) (model.Project, error) {
+	p, err := resolveProjectRef(ctx, tx, a, projectRef)
+	if err != nil {
+		return model.Project{}, err
+	}
+	src, err := sourceOf(p.Source)
+	if err != nil {
+		return model.Project{}, err
+	}
+	m, err := model.GetMachine(ctx, tx, ag.MachineID)
+	if err != nil {
+		return model.Project{}, err
+	}
+	if err := src.check(m); err != nil {
+		return model.Project{}, fmt.Errorf("agent %s in project %s: %w", ag.Name, p.Name, err)
+	}
+	return p, nil
+}
+
+// dispatched tells the clients about a new task, after its commit, and
+// wakes the delivery.
+func dispatched(ctx context.Context, j model.Task, launched bool) {
+	if launched {
+		Publish(ctx, j.OwnerID, PushProjects, nil)
+	}
+	publishTask(ctx, j)
+	Wake()
 }
 
 // FollowUp sends more input to the session of a task. mode is
@@ -183,7 +229,7 @@ func cancelTask(ctx context.Context, tx *sql.Tx, a model.Actor, j model.Task, po
 			env := protocol.Envelope{Type: protocol.TypeSessionStop, Payload: mustJSON(protocol.SessionStop{SessionID: string(cancelled.SessionID), Reason: "task cancelled"})}
 			_, _ = Send(ctx, ag.MachineID, env)
 		}
-		Publish(ctx, cancelled.OwnerID, PushTask, model.WireTask(cancelled, ag.Name))
+		Publish(ctx, cancelled.OwnerID, PushTask, wireTask(ctx, cancelled))
 		if cancelled.WorkflowID != "" {
 			WakeWorkflow(cancelled.WorkflowID)
 		}
@@ -222,8 +268,19 @@ func ownedTask(ctx context.Context, db model.Querier, a model.Actor, id model.ID
 }
 
 func publishTask(ctx context.Context, j model.Task) {
+	Publish(ctx, j.OwnerID, PushTask, wireTask(ctx, j))
+}
+
+// wireTask is the wire form of a task, with the names of its agent and
+// project.
+func wireTask(ctx context.Context, j model.Task) protocol.Task {
 	ag, _ := model.GetAgent(ctx, model.ReadDB, j.AgentID)
-	Publish(ctx, j.OwnerID, PushTask, model.WireTask(j, ag.Name))
+	var project string
+	if j.ProjectID != "" {
+		p, _ := model.GetProject(ctx, model.ReadDB, j.ProjectID)
+		project = p.Name
+	}
+	return model.WireTask(j, ag.Name, project)
 }
 
 // applyTaskEvent moves a task with one event of its session. It reports

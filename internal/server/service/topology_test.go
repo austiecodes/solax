@@ -75,7 +75,7 @@ func (e *env) machine(t *testing.T, name string, h byte, agents ...agentDef) mod
 	}
 	for _, a := range agents {
 		_, err := service.CreateAgent(ctx, e.human, service.AgentSpec{
-			Machine: string(m.ID), Name: a.Name, Runtime: a.Runtime, Dir: "/src", Super: a.Role == "super",
+			Machine: string(m.ID), Name: a.Name, Runtime: a.Runtime, Super: a.Role == "super",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -203,7 +203,7 @@ func TestMachineConnectedStoresRuntimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.CreateAgent(ctx, e.human, service.AgentSpec{Machine: "linux", Name: "backend", Runtime: ir.KindCodex, Dir: "/x"})
+	_, err = service.CreateAgent(ctx, e.human, service.AgentSpec{Machine: "linux", Name: "backend", Runtime: ir.KindCodex})
 	is(t, err, errs.ErrConflict)
 	machines, _ := service.Machines(ctx, e.human)
 	if len(machines) != 2 || other.Online {
@@ -231,7 +231,7 @@ func TestCreateAgentRuntimes(t *testing.T) {
 		t.Fatal(err)
 	}
 	add := func(name string, k ir.Kind) error {
-		_, err := service.CreateAgent(ctx, e.human, service.AgentSpec{Machine: "mac", Name: name, Runtime: k, Dir: "~"})
+		_, err := service.CreateAgent(ctx, e.human, service.AgentSpec{Machine: "mac", Name: name, Runtime: k})
 		return err
 	}
 	if err := add("cc", ir.KindClaude); err != nil {
@@ -268,7 +268,7 @@ func TestScopesAndRecall(t *testing.T) {
 	worker := model.Actor{Kind: model.AuthorAgent, ID: backend.ID, OwnerID: e.owner.ID}
 	_, err = service.Machines(ctx, worker)
 	is(t, err, errs.ErrForbidden)
-	_, err = service.Dispatch(ctx, worker, "backend", "x")
+	_, err = service.Dispatch(ctx, worker, "backend", "", "x")
 	is(t, err, errs.ErrForbidden)
 	_, err = service.Tasks(ctx, worker, 0)
 	is(t, err, errs.ErrForbidden)

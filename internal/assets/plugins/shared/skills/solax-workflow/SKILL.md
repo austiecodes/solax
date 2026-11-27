@@ -9,7 +9,7 @@ A workflow is a short TypeScript script that the **server** runs. The script sta
 
 ## When to use a workflow
 
-- **One task**: do not write a workflow. Use `solax task send <agent> "<prompt>"`.
+- **One task**: do not write a workflow. Use `solax task send <agent> --project <project> "<prompt>"`.
 - **Two or more tasks that depend on each other, parallel tasks, or a loop** (code → review → fix until the review passes): write a workflow.
 
 ## Steps
@@ -18,11 +18,12 @@ A workflow is a short TypeScript script that the **server** runs. The script sta
 2. **Else write a script** (rules below) and start it from stdin. Do not write files:
 
    ```bash
-   solax workflow run - --args '{"pkgs":["internal/auth"]}' <<'EOF'
+   solax workflow run - --args '{"project":"app","pkgs":["internal/auth"]}' <<'EOF'
    export const meta = { name: "update-and-review", description: "Update packages, then review them" };
    export async function run(wf, args) {
-     const changes = await wf.parallel(args.pkgs.map((p) => () => wf.task("coder", "Update " + p + ". Run its tests.")));
-     const review = await wf.task("reviewer", "Review these changes:\n" + changes.map((c) => c.result).join("\n\n"));
+     const at = { project: args.project };
+     const changes = await wf.parallel(args.pkgs.map((p) => () => wf.task("coder", "Update " + p + ". Run its tests.", at)));
+     const review = await wf.task("reviewer", "Review these changes:\n" + changes.map((c) => c.result).join("\n\n"), at);
      return review.result;
    }
    EOF
@@ -40,7 +41,7 @@ Other commands: `solax workflow list <wfl_id>` shows the steps, log, and result 
 - Export `async function run(wf, args)`. `args` is the JSON of `--args`. Return a JSON value: it is the result you get back.
 - Export `const meta = { name, description }` when you will save the script. `meta` holds plain data only.
 - The full API is in [references/workflow.d.ts](references/workflow.d.ts). Patterns are in [references/patterns.md](references/patterns.md). Read them before your first workflow.
-- `wf.task` starts a task in a **new** session of the agent. `wf.reply(taskId, text)` continues the **same** session, so the agent keeps its context. Reply only to a task that has finished.
+- `wf.task` starts a task in a **new** session of the agent, in the folder of `opts.project` (`solax project list`). Without `project`, Solax launches a new empty project for the task; `outcome.project` names it. Agents that must see each other's work need the same project: pass `{ project: outcome.project }` to the next task. `wf.reply(taskId, text)` continues the **same** session, so the agent keeps its context. Reply only to a task that has finished.
 - **Make the next step depend on data, not on words.** When code must read an agent's answer, pass `{ schema }` and read `outcome.data`. The server makes the agent answer with JSON that matches the schema.
 - Each task prompt must stand alone: the agents do not see this conversation or each other. Say the goal, the context, the files, and what the answer must contain. When agents must see each other's work, tell them where it is (the same folder, or a git branch).
 - `Date.now()`, `new Date()`, `Math.random()`, and timers throw: a replayed script must take the same path. Pass time values in `args`; wait with `wf.sleep(ms)`.

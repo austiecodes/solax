@@ -24,6 +24,7 @@ const (
 	PrefixTask     Prefix = "tsk"
 	PrefixInput    Prefix = "in"
 	PrefixWorkflow Prefix = "wfl"
+	PrefixProject  Prefix = "prj"
 )
 
 // idTimeWidth is the width of the base-36 timestamp in an ID. It is fixed

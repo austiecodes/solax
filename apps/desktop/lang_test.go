@@ -62,7 +62,7 @@ func TestCatalogsComplete(t *testing.T) {
 	if got := locales.In("en").ToolsUsed(1); got != "1 tool used" {
 		t.Errorf("ToolsUsed(1) = %q", got)
 	}
-	for _, id := range []string{"settings.open", "palette.open", "nav.chat", "nav.tasks", "nav.workflows", "nav.agents", "nav.machines", "sidebar.toggle", "theme.toggle", "data.reload"} {
+	for _, id := range []string{"settings.open", "palette.open", "nav.chat", "nav.tasks", "nav.workflows", "nav.agents", "nav.projects", "nav.machines", "sidebar.toggle", "theme.toggle", "data.reload"} {
 		if _, ok := actionTitles[id]; !ok {
 			t.Errorf("action %q has no title", id)
 		}
@@ -76,7 +76,8 @@ func TestPagesInChinese(t *testing.T) {
 		pageChat:      {"Solax 尚未设置", "任务", "机器"},
 		pageTasks:     {"还没有任务", "给 Solax 发消息"},
 		pageWorkflows: {"还没有工作流", "工作流"},
-		pageAgents:    {"还没有 Agent。在下方添加一个。", "添加 Agent", "工作目录"},
+		pageAgents:    {"还没有 Agent。在下方添加一个。", "添加 Agent"},
+		pageProjects:  {"还没有项目。在下方添加一个。", "添加项目", "目录"},
 		pageMachines:  {"审批机器", "刷新"},
 		pageSettings:  {"外观", "语言", "跟随系统", "保存并连接"},
 	} {
@@ -142,6 +143,7 @@ func TestPopulatedPagesInChinese(t *testing.T) {
 		{"new-agent", func(d *desktop) { d.page, d.form.open = pageAgents, true }, []string{"新建 Agent", "名称", "运行时", "描述", "指令", "添加 Agent"}},
 		{"workflows", func(d *desktop) { d.page = pageWorkflows }, []string{"运行记录", "已保存", "提问", "等待中"}},
 		{"workflow-run", func(d *desktop) { d.page, d.wf.sel, d.wf.item = pageWorkflows, "wfl_1", sampleRun(time.Now()) }, []string{"工作流提问", "进度", "图", "轨道", "2/3 轮", "日志", "脚本", "取消工作流"}},
+		{"projects", func(d *desktop) { d.page = pageProjects }, []string{"项目", "状态", "在线", "目录", "编辑", "删除"}},
 		{"machines", func(d *desktop) { d.page = pageMachines }, []string{"配对码", "最近在线", "机器 ID", "就绪", "不可用"}},
 		{"settings", func(d *desktop) { d.page = pageSettings }, []string{"外观", "语言", "侧边栏", "任务分组方式", "项目", "保存并连接"}},
 		{"palette", func(d *desktop) { d.openPalette() }, []string{"搜索", "移动", "打开", "关闭"}},
@@ -204,8 +206,8 @@ func TestGroupLabelsFollowLocale(t *testing.T) {
 	if got := groupingLabel("project"); got != "项目" {
 		t.Fatalf("Chinese label = %q", got)
 	}
-	if got := groupOf(protocol.Task{}, nil, "project"); got.title != "其他" || got.key != "project:" {
-		t.Fatalf("orphaned task group = %+v", got)
+	if got := groupOf(protocol.Task{}, nil, nil, "project"); got.title != "无项目" || got.key != "project:" {
+		t.Fatalf("no-project task group = %+v", got)
 	}
 	if got := suggestions[0].text(); got != "让 coder 给仓库加一个 README" {
 		t.Fatalf("suggestion = %q", got)

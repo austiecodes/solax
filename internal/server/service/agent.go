@@ -21,7 +21,6 @@ type AgentSpec struct {
 	Description  string
 	Instructions string // system prompt after the Solax role prompt
 	Runtime      ir.Kind
-	Dir          string
 	Model        string
 	Options      map[string]any
 	Super        bool // the Super Agent: the router that talks to the user
@@ -31,7 +30,6 @@ type AgentSpec struct {
 type AgentPatch struct {
 	Description  *string
 	Instructions *string
-	Dir          *string
 	Model        *string
 	Options      map[string]any
 	Super        *bool
@@ -56,9 +54,6 @@ func CreateAgent(ctx context.Context, a model.Actor, spec AgentSpec) (model.Agen
 	if !agentName.MatchString(string(spec.Runtime)) {
 		return model.Agent{}, fmt.Errorf("%w: runtime must be one of %s, or one that the machine reports", errs.ErrInvalid, kindList())
 	}
-	if strings.TrimSpace(spec.Dir) == "" {
-		return model.Agent{}, fmt.Errorf("%w: an agent needs a work folder (dir)", errs.ErrInvalid)
-	}
 	var ag model.Agent
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		m, err := resolveMachine(ctx, tx, a, spec.Machine)
@@ -77,7 +72,7 @@ func CreateAgent(ctx context.Context, a model.Actor, spec AgentSpec) (model.Agen
 		now := clock()
 		ag = model.Agent{
 			ID: model.NewIDAt(model.PrefixAgent, now), MachineID: m.ID, Name: spec.Name, Description: strings.TrimSpace(spec.Description),
-			Instructions: strings.TrimSpace(spec.Instructions), Runtime: spec.Runtime, Dir: spec.Dir, Model: spec.Model, Options: spec.Options, CreatedAt: now,
+			Instructions: strings.TrimSpace(spec.Instructions), Runtime: spec.Runtime, Model: spec.Model, Options: spec.Options, CreatedAt: now,
 		}
 		if spec.Super {
 			if err := clearSuper(ctx, tx); err != nil {
@@ -110,12 +105,6 @@ func UpdateAgent(ctx context.Context, a model.Actor, ref string, p AgentPatch) (
 		}
 		if p.Instructions != nil {
 			ag.Instructions = strings.TrimSpace(*p.Instructions)
-		}
-		if p.Dir != nil {
-			if strings.TrimSpace(*p.Dir) == "" {
-				return fmt.Errorf("%w: dir cannot be empty", errs.ErrInvalid)
-			}
-			ag.Dir = *p.Dir
 		}
 		if p.Model != nil {
 			ag.Model = *p.Model

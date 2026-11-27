@@ -16,7 +16,8 @@ import (
 func (d *desktop) chatPage(c *ui.Context) {
 	pal := paletteFor(c)
 	sa := d.superAgent()
-	busy := d.sending || d.superWaiting || d.superBusy
+	working := d.superWaiting || d.superBusy
+	busy := d.sending || working
 	sub := ""
 	switch {
 	case sa == nil:
@@ -31,7 +32,7 @@ func (d *desktop) chatPage(c *ui.Context) {
 	blocks := withWorking(chatBlocks(d.messages, d.events[d.superSes], d.live[d.superSes], d.superBusy), busy)
 	d.transcriptView(c, pal, &d.chatList, blocks, func() { d.chatEmpty(c, pal, sa != nil) })
 
-	composer{
+	cm := composer{
 		key: "composer", placeholder: locales.ChatPlaceholder(), draft: &d.draft,
 		disabled: sa == nil, busy: d.sending, focus: true, send: d.send,
 		info: func() {
@@ -43,7 +44,11 @@ func (d *desktop) chatPage(c *ui.Context) {
 				ui.Text(c, locales.ChatAgentOn(sa.Name, sa.Machine)).FontSize(12.5).TextColor(pal.textMuted).SingleLine().Ellipsis("…").MinWidth(0)
 			})
 		},
-	}.view(c, pal)
+	}
+	if working && sa != nil {
+		cm.stop = d.interruptSuper
+	}
+	cm.view(c, pal)
 }
 
 // suggestion is a prompt that starts an empty chat, in the language
@@ -124,6 +129,25 @@ func (d *desktop) send(text string) {
 	})
 	if _, err := d.api(); err != nil {
 		d.sending, d.superWaiting = false, false
+	}
+}
+
+// interruptSuper stops the turn of the Super Agent. The turn ends on the
+// stream. With no turn to stop, the chat stops waiting for one.
+func (d *desktop) interruptSuper() {
+	if d.stopping {
+		return
+	}
+	d.stopping = true
+	d.do(func(ctx context.Context, c *client.Client) (func(), error) {
+		if err := c.InterruptSuper(ctx); err != nil {
+			d.update(func() { d.stopping = false })
+			return nil, err
+		}
+		return func() { d.stopping, d.superWaiting = false, false }, nil
+	})
+	if _, err := d.api(); err != nil {
+		d.stopping = false
 	}
 }
 

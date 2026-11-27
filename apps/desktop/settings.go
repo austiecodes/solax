@@ -22,7 +22,7 @@ func (d *desktop) machinesPage(c *ui.Context) {
 		section(c, "machines", sectionSpec{
 			title: locales.NavMachines(), count: countText(len(d.machines)), rows: listRows,
 			desc:    locales.MachinesHelp(),
-			actions: func() { iconButton(c, "refresh", reloadIcon, locales.Refresh(), pal, d.reloadAgents) },
+			actions: func() { iconButton(c, "refresh", reloadIcon, locales.Refresh(), pal, d.reloadSetup) },
 		}, func() {
 			if len(d.machines) == 0 {
 				note(c, locales.MachinesEmpty())
@@ -44,7 +44,7 @@ func (d *desktop) machinesPage(c *ui.Context) {
 					code := strings.TrimSpace(d.pairCode)
 					d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 						_, err := c.ApproveMachine(ctx, code)
-						return func() { d.pairCode = ""; d.reloadAgents() }, err
+						return func() { d.pairCode = ""; d.reloadSetup() }, err
 					})
 				}
 			})

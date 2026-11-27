@@ -25,7 +25,7 @@ func CreateAgent(c *gin.Context) {
 	}
 	ag, err := service.CreateAgent(c.Request.Context(), middleware.Actor(c), service.AgentSpec{
 		Machine: r.Machine, Name: r.Name, Description: r.Description, Instructions: r.Instructions, Runtime: r.Runtime,
-		Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
+		Model: r.Model, Options: r.Options, Super: r.Super,
 	})
 	replyAgent(c, http.StatusCreated, ag, err)
 }
@@ -37,7 +37,7 @@ func UpdateAgent(c *gin.Context) {
 		return
 	}
 	ag, err := service.UpdateAgent(c.Request.Context(), middleware.Actor(c), c.Param("agent"), service.AgentPatch{
-		Description: r.Description, Instructions: r.Instructions, Dir: r.Dir, Model: r.Model, Options: r.Options, Super: r.Super,
+		Description: r.Description, Instructions: r.Instructions, Model: r.Model, Options: r.Options, Super: r.Super,
 	})
 	replyAgent(c, http.StatusOK, ag, err)
 }

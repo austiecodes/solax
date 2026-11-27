@@ -18,7 +18,7 @@ func DispatchTask(c *gin.Context) {
 	if !bind(c, &r) {
 		return
 	}
-	j, err := service.Dispatch(c.Request.Context(), middleware.Actor(c), r.Agent, r.Prompt)
+	j, err := service.Dispatch(c.Request.Context(), middleware.Actor(c), r.Agent, r.Project, r.Prompt)
 	replyTask(c, http.StatusAccepted, j, err)
 }
 
@@ -36,8 +36,10 @@ func ListTasks(c *gin.Context) {
 		middleware.Abort(c, err)
 		return
 	}
-	names := agentNames(c)
-	reply(c, http.StatusOK, mapAll(js, func(j model.Task) protocol.Task { return model.WireTask(j, names[j.AgentID]) }), nil)
+	agents, projects := agentNames(c), projectNames(c)
+	reply(c, http.StatusOK, mapAll(js, func(j model.Task) protocol.Task {
+		return model.WireTask(j, agents[j.AgentID], projects[j.ProjectID])
+	}), nil)
 }
 
 // GetTask returns one task.
@@ -63,12 +65,18 @@ func CancelTask(c *gin.Context) {
 	replyTask(c, http.StatusOK, j, err)
 }
 
+// InterruptTask stops the running turn of a task.
+func InterruptTask(c *gin.Context) {
+	j, err := service.InterruptTask(c.Request.Context(), middleware.Actor(c), model.ID(c.Param("task")))
+	replyTask(c, http.StatusOK, j, err)
+}
+
 func replyTask(c *gin.Context, code int, j model.Task, err error) {
 	if err != nil {
 		middleware.Abort(c, err)
 		return
 	}
-	reply(c, code, model.WireTask(j, agentNames(c)[j.AgentID]), nil)
+	reply(c, code, model.WireTask(j, agentNames(c)[j.AgentID], projectNames(c)[j.ProjectID]), nil)
 }
 
 // agentNames maps agent IDs to names, deleted agents included.
@@ -78,5 +86,11 @@ func agentNames(c *gin.Context) map[model.ID]string {
 	for _, v := range views {
 		out[v.ID] = v.Name
 	}
+	return out
+}
+
+// projectNames maps project IDs to names, deleted projects included.
+func projectNames(c *gin.Context) map[model.ID]string {
+	out, _ := service.ProjectNames(c.Request.Context(), middleware.Actor(c))
 	return out
 }

@@ -23,27 +23,7 @@ import (
 func taskCmd(g *globals) *cobra.Command {
 	cmd := &cobra.Command{Use: "task", Short: T("Give work to an agent; the result comes back later")}
 	cmd.AddCommand(
-		&cobra.Command{
-			Use:   "send <agent> <prompt>",
-			Short: T("Give a task to an agent and return at once"),
-			Long: T(`Send gives a task to an agent and returns the task ID at once. It does not
-wait. When the agent finishes, the task is done and has a result. If the
-Super Agent sent the task, the result comes back to it as a new message.`),
-			Args: cobra.ExactArgs(2),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				c, err := g.client()
-				if err != nil {
-					return err
-				}
-				j, err := c.Dispatch(cmd.Context(), args[0], args[1])
-				if err != nil {
-					return err
-				}
-				return g.print(cmd.OutOrStdout(), j, func(w io.Writer) {
-					fmt.Fprintf(w, T("task %s queued for agent %s. Do not wait for it: the result comes back when the task is done.\n"), j.ID, j.Agent)
-				})
-			},
-		},
+		taskSendCmd(g),
 		&cobra.Command{
 			Use:   "list",
 			Short: T("List recent tasks"),
@@ -58,9 +38,9 @@ Super Agent sent the task, the result comes back to it as a new message.`),
 				}
 				return g.print(cmd.OutOrStdout(), js, func(w io.Writer) {
 					tw := table(w)
-					fmt.Fprintln(tw, T("ID\tAGENT\tSTATE\tAGE\tTITLE"))
+					fmt.Fprintln(tw, T("ID\tAGENT\tPROJECT\tSTATE\tAGE\tTITLE"))
 					for _, j := range js {
-						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", j.ID, j.Agent, T(j.State), age(j.CreatedAt), j.Title)
+						fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", j.ID, j.Agent, orDash(j.Project), T(j.State), age(j.CreatedAt), j.Title)
 					}
 					tw.Flush()
 				})
@@ -344,4 +324,46 @@ does not run gets a steer as a normal reply.`),
 	}
 	cmd.Flags().BoolVar(&steer, "steer", false, T("add the input to the running turn"))
 	return cmd
+}
+
+func taskSendCmd(g *globals) *cobra.Command {
+	var project string
+	cmd := &cobra.Command{
+		Use:   "send <agent> <prompt>",
+		Short: T("Give a task to an agent and return at once"),
+		Long: T(`Send gives a task to an agent and returns the task ID at once. It does not
+wait. When the agent finishes, the task is done and has a result. If the
+Super Agent sent the task, the result comes back to it as a new message.
+
+The task works in the folder of --project. Without --project, Solax
+launches a new project for the task in ~/.solax/projects on the machine of
+the agent. The output names the project; give it to later tasks with
+--project.`),
+		Example: `  solax task send coder --project app "fix the failing test in ./auth"
+  solax task send writer "draft a release note for v2"`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := g.client()
+			if err != nil {
+				return err
+			}
+			j, err := c.Dispatch(cmd.Context(), protocol.DispatchRequest{Agent: args[0], Project: project, Prompt: args[1]})
+			if err != nil {
+				return err
+			}
+			return g.print(cmd.OutOrStdout(), j, func(w io.Writer) {
+				fmt.Fprintf(w, T("task %s queued for agent %s in project %s. Do not wait for it: the result comes back when the task is done.\n"), j.ID, j.Agent, j.Project)
+			})
+		},
+	}
+	cmd.Flags().StringVar(&project, "project", "", T("project to work in, by name or ID (default: a new project)"))
+	return cmd
+}
+
+// orDash is s, or "-" when s is empty.
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }

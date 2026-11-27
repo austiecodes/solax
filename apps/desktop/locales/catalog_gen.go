@@ -872,16 +872,6 @@ func (msgs Messages) FieldRuntimeHelp() string {
 	return Catalog.Format(msgs.locale, "fieldRuntimeHelp", nil)
 }
 
-// FieldDir says "Work folder"
-// in the language the app shows.
-func FieldDir() string { return In(i18n.Locale()).FieldDir() }
-
-// FieldDir says "Work folder"
-// in the language of msgs.
-func (msgs Messages) FieldDir() string {
-	return Catalog.Format(msgs.locale, "fieldDir", nil)
-}
-
 // FieldModel says "Model"
 // in the language the app shows.
 func FieldModel() string { return In(i18n.Locale()).FieldModel() }
@@ -1746,14 +1736,24 @@ func (msgs Messages) Send() string {
 	return Catalog.Format(msgs.locale, "send", nil)
 }
 
-// AgentDirHelp says "The agent works in this folder."
+// Stop says "Stop"
 // in the language the app shows.
-func AgentDirHelp() string { return In(i18n.Locale()).AgentDirHelp() }
+func Stop() string { return In(i18n.Locale()).Stop() }
 
-// AgentDirHelp says "The agent works in this folder."
+// Stop says "Stop"
 // in the language of msgs.
-func (msgs Messages) AgentDirHelp() string {
-	return Catalog.Format(msgs.locale, "agentDirHelp", nil)
+func (msgs Messages) Stop() string {
+	return Catalog.Format(msgs.locale, "stop", nil)
+}
+
+// StopTip says "Stop the agent\nWrite a message to steer it as it works"
+// in the language the app shows.
+func StopTip() string { return In(i18n.Locale()).StopTip() }
+
+// StopTip says "Stop the agent\nWrite a message to steer it as it works"
+// in the language of msgs.
+func (msgs Messages) StopTip() string {
+	return Catalog.Format(msgs.locale, "stopTip", nil)
 }
 
 // AgentNoDesc says "No description. Solax routes by the description, so it does not give tasks to this agent by itself."
@@ -1936,16 +1936,6 @@ func (msgs Messages) Save() string {
 	return Catalog.Format(msgs.locale, "save", nil)
 }
 
-// FieldDirHelp says "The agent works in this folder on its machine."
-// in the language the app shows.
-func FieldDirHelp() string { return In(i18n.Locale()).FieldDirHelp() }
-
-// FieldDirHelp says "The agent works in this folder on its machine."
-// in the language of msgs.
-func (msgs Messages) FieldDirHelp() string {
-	return Catalog.Format(msgs.locale, "fieldDirHelp", nil)
-}
-
 // FieldLastSeen says "Last seen"
 // in the language the app shows.
 func FieldLastSeen() string { return In(i18n.Locale()).FieldLastSeen() }
@@ -2026,11 +2016,11 @@ func (msgs Messages) GroupTasksBy() string {
 	return Catalog.Format(msgs.locale, "groupTasksBy", nil)
 }
 
-// GroupTasksHelp says "How the sidebar lists the recent tasks. A project is the work folder of the task's agent."
+// GroupTasksHelp says "How the sidebar lists the recent tasks. A project is the folder that a task works in."
 // in the language the app shows.
 func GroupTasksHelp() string { return In(i18n.Locale()).GroupTasksHelp() }
 
-// GroupTasksHelp says "How the sidebar lists the recent tasks. A project is the work folder of the task's agent."
+// GroupTasksHelp says "How the sidebar lists the recent tasks. A project is the folder that a task works in."
 // in the language of msgs.
 func (msgs Messages) GroupTasksHelp() string {
 	return Catalog.Format(msgs.locale, "groupTasksHelp", nil)
@@ -2094,26 +2084,6 @@ func GroupByNone() string { return In(i18n.Locale()).GroupByNone() }
 // in the language of msgs.
 func (msgs Messages) GroupByNone() string {
 	return Catalog.Format(msgs.locale, "groupByNone", nil)
-}
-
-// GroupOther says "Other"
-// in the language the app shows.
-func GroupOther() string { return In(i18n.Locale()).GroupOther() }
-
-// GroupOther says "Other"
-// in the language of msgs.
-func (msgs Messages) GroupOther() string {
-	return Catalog.Format(msgs.locale, "groupOther", nil)
-}
-
-// GroupOtherTip says "Tasks of agents that were removed"
-// in the language the app shows.
-func GroupOtherTip() string { return In(i18n.Locale()).GroupOtherTip() }
-
-// GroupOtherTip says "Tasks of agents that were removed"
-// in the language of msgs.
-func (msgs Messages) GroupOtherTip() string {
-	return Catalog.Format(msgs.locale, "groupOtherTip", nil)
 }
 
 // LocalNotSetUp says "Not set up"
@@ -3014,4 +2984,224 @@ func WorkflowPhase(n int, title string) string { return In(i18n.Locale()).Workfl
 // in the language of msgs.
 func (msgs Messages) WorkflowPhase(n int, title string) string {
 	return Catalog.Format(msgs.locale, "workflowPhase", map[string]any{"n": n, "title": title})
+}
+
+// NavProjects says "Projects"
+// in the language the app shows.
+func NavProjects() string { return In(i18n.Locale()).NavProjects() }
+
+// NavProjects says "Projects"
+// in the language of msgs.
+func (msgs Messages) NavProjects() string {
+	return Catalog.Format(msgs.locale, "navProjects", nil)
+}
+
+// ProjectsSubtitle says "Folders where your agents work"
+// in the language the app shows.
+func ProjectsSubtitle() string { return In(i18n.Locale()).ProjectsSubtitle() }
+
+// ProjectsSubtitle says "Folders where your agents work"
+// in the language of msgs.
+func (msgs Messages) ProjectsSubtitle() string {
+	return Catalog.Format(msgs.locale, "projectsSubtitle", nil)
+}
+
+// ProjectsHelp says "Several agents can work in one project. When no project fits a task, Solax makes a new one for it in ~/.solax/projects."
+// in the language the app shows.
+func ProjectsHelp() string { return In(i18n.Locale()).ProjectsHelp() }
+
+// ProjectsHelp says "Several agents can work in one project. When no project fits a task, Solax makes a new one for it in ~/.solax/projects."
+// in the language of msgs.
+func (msgs Messages) ProjectsHelp() string {
+	return Catalog.Format(msgs.locale, "projectsHelp", nil)
+}
+
+// ProjectsEmpty says "No projects yet. Add one below."
+// in the language the app shows.
+func ProjectsEmpty() string { return In(i18n.Locale()).ProjectsEmpty() }
+
+// ProjectsEmpty says "No projects yet. Add one below."
+// in the language of msgs.
+func (msgs Messages) ProjectsEmpty() string {
+	return Catalog.Format(msgs.locale, "projectsEmpty", nil)
+}
+
+// NewProject says "New project"
+// in the language the app shows.
+func NewProject() string { return In(i18n.Locale()).NewProject() }
+
+// NewProject says "New project"
+// in the language of msgs.
+func (msgs Messages) NewProject() string {
+	return Catalog.Format(msgs.locale, "newProject", nil)
+}
+
+// NewProjectHelp says "A project is a folder on one machine. The agents on that machine can work in it."
+// in the language the app shows.
+func NewProjectHelp() string { return In(i18n.Locale()).NewProjectHelp() }
+
+// NewProjectHelp says "A project is a folder on one machine. The agents on that machine can work in it."
+// in the language of msgs.
+func (msgs Messages) NewProjectHelp() string {
+	return Catalog.Format(msgs.locale, "newProjectHelp", nil)
+}
+
+// EditProject says "Edit project"
+// in the language the app shows.
+func EditProject() string { return In(i18n.Locale()).EditProject() }
+
+// EditProject says "Edit project"
+// in the language of msgs.
+func (msgs Messages) EditProject() string {
+	return Catalog.Format(msgs.locale, "editProject", nil)
+}
+
+// ProjectAdd says "Add project"
+// in the language the app shows.
+func ProjectAdd() string { return In(i18n.Locale()).ProjectAdd() }
+
+// ProjectAdd says "Add project"
+// in the language of msgs.
+func (msgs Messages) ProjectAdd() string {
+	return Catalog.Format(msgs.locale, "projectAdd", nil)
+}
+
+// ProjectEdit says "Edit"
+// in the language the app shows.
+func ProjectEdit() string { return In(i18n.Locale()).ProjectEdit() }
+
+// ProjectEdit says "Edit"
+// in the language of msgs.
+func (msgs Messages) ProjectEdit() string {
+	return Catalog.Format(msgs.locale, "projectEdit", nil)
+}
+
+// ProjectRemove says "Remove"
+// in the language the app shows.
+func ProjectRemove() string { return In(i18n.Locale()).ProjectRemove() }
+
+// ProjectRemove says "Remove"
+// in the language of msgs.
+func (msgs Messages) ProjectRemove() string {
+	return Catalog.Format(msgs.locale, "projectRemove", nil)
+}
+
+// ProjectRemoveQuestion says "Remove {name}?"
+// in the language the app shows.
+func ProjectRemoveQuestion(name string) string { return In(i18n.Locale()).ProjectRemoveQuestion(name) }
+
+// ProjectRemoveQuestion says "Remove {name}?"
+// in the language of msgs.
+func (msgs Messages) ProjectRemoveQuestion(name string) string {
+	return Catalog.Format(msgs.locale, "projectRemoveQuestion", map[string]any{"name": name})
+}
+
+// ProjectRemoveDetail says "Solax can no longer give tasks in {name}. Its past tasks stay. The folder stays on the machine."
+// in the language the app shows.
+func ProjectRemoveDetail(name string) string { return In(i18n.Locale()).ProjectRemoveDetail(name) }
+
+// ProjectRemoveDetail says "Solax can no longer give tasks in {name}. Its past tasks stay. The folder stays on the machine."
+// in the language of msgs.
+func (msgs Messages) ProjectRemoveDetail(name string) string {
+	return Catalog.Format(msgs.locale, "projectRemoveDetail", map[string]any{"name": name})
+}
+
+// ProjectNoDesc says "No description. Solax reads the description to choose the project for a task."
+// in the language the app shows.
+func ProjectNoDesc() string { return In(i18n.Locale()).ProjectNoDesc() }
+
+// ProjectNoDesc says "No description. Solax reads the description to choose the project for a task."
+// in the language of msgs.
+func (msgs Messages) ProjectNoDesc() string {
+	return Catalog.Format(msgs.locale, "projectNoDesc", nil)
+}
+
+// ProjectStatusHelp says "Online when its machine is connected."
+// in the language the app shows.
+func ProjectStatusHelp() string { return In(i18n.Locale()).ProjectStatusHelp() }
+
+// ProjectStatusHelp says "Online when its machine is connected."
+// in the language of msgs.
+func (msgs Messages) ProjectStatusHelp() string {
+	return Catalog.Format(msgs.locale, "projectStatusHelp", nil)
+}
+
+// FieldPath says "Folder"
+// in the language the app shows.
+func FieldPath() string { return In(i18n.Locale()).FieldPath() }
+
+// FieldPath says "Folder"
+// in the language of msgs.
+func (msgs Messages) FieldPath() string {
+	return Catalog.Format(msgs.locale, "fieldPath", nil)
+}
+
+// FieldPathHelp says "An absolute path or ~/…. The folder must be on the machine already."
+// in the language the app shows.
+func FieldPathHelp() string { return In(i18n.Locale()).FieldPathHelp() }
+
+// FieldPathHelp says "An absolute path or ~/…. The folder must be on the machine already."
+// in the language of msgs.
+func (msgs Messages) FieldPathHelp() string {
+	return Catalog.Format(msgs.locale, "fieldPathHelp", nil)
+}
+
+// FieldProjectNameHelp says "Letters, digits, dots, dashes and underscores."
+// in the language the app shows.
+func FieldProjectNameHelp() string { return In(i18n.Locale()).FieldProjectNameHelp() }
+
+// FieldProjectNameHelp says "Letters, digits, dots, dashes and underscores."
+// in the language of msgs.
+func (msgs Messages) FieldProjectNameHelp() string {
+	return Catalog.Format(msgs.locale, "fieldProjectNameHelp", nil)
+}
+
+// FieldProjectDescHelp says "Optional. What is in the project. Solax reads it to choose the project for a task."
+// in the language the app shows.
+func FieldProjectDescHelp() string { return In(i18n.Locale()).FieldProjectDescHelp() }
+
+// FieldProjectDescHelp says "Optional. What is in the project. Solax reads it to choose the project for a task."
+// in the language of msgs.
+func (msgs Messages) FieldProjectDescHelp() string {
+	return Catalog.Format(msgs.locale, "fieldProjectDescHelp", nil)
+}
+
+// FieldProjectMachineHelp says "The machine with the folder. Only the agents on it can work in the project."
+// in the language the app shows.
+func FieldProjectMachineHelp() string { return In(i18n.Locale()).FieldProjectMachineHelp() }
+
+// FieldProjectMachineHelp says "The machine with the folder. Only the agents on it can work in the project."
+// in the language of msgs.
+func (msgs Messages) FieldProjectMachineHelp() string {
+	return Catalog.Format(msgs.locale, "fieldProjectMachineHelp", nil)
+}
+
+// GroupNoProject says "No project"
+// in the language the app shows.
+func GroupNoProject() string { return In(i18n.Locale()).GroupNoProject() }
+
+// GroupNoProject says "No project"
+// in the language of msgs.
+func (msgs Messages) GroupNoProject() string {
+	return Catalog.Format(msgs.locale, "groupNoProject", nil)
+}
+
+// GroupNoProjectTip says "Tasks from before projects"
+// in the language the app shows.
+func GroupNoProjectTip() string { return In(i18n.Locale()).GroupNoProjectTip() }
+
+// GroupNoProjectTip says "Tasks from before projects"
+// in the language of msgs.
+func (msgs Messages) GroupNoProjectTip() string {
+	return Catalog.Format(msgs.locale, "groupNoProjectTip", nil)
+}
+
+// ProjectManagedHelp says "Solax made this folder. It does not move."
+// in the language the app shows.
+func ProjectManagedHelp() string { return In(i18n.Locale()).ProjectManagedHelp() }
+
+// ProjectManagedHelp says "Solax made this folder. It does not move."
+// in the language of msgs.
+func (msgs Messages) ProjectManagedHelp() string {
+	return Catalog.Format(msgs.locale, "projectManagedHelp", nil)
 }

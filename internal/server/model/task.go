@@ -24,9 +24,12 @@ func (s TaskState) Terminal() bool { return s == TaskDone || s == TaskFailed || 
 // agent completes, the task is done and the result goes back to whoever
 // asked (the Super Agent inbox, or the person).
 type Task struct {
-	ID          ID
-	OwnerID     ID
-	AgentID     ID
+	ID      ID
+	OwnerID ID
+	AgentID ID
+	// ProjectID is the project the task works in. Only an old task, from
+	// before projects, can have none.
+	ProjectID   ID
 	SessionID   ID
 	RequestedBy AuthorKind // who created the task: human or super; never changes
 	// TurnBy is who started the current or queued turn. The result of the
@@ -45,7 +48,7 @@ type Task struct {
 	UpdatedAt  time.Time
 }
 
-const taskCols = `id, owner_id, agent_id, session_id, requested_by, turn_by, workflow_id, title, prompt, state, result, error, created_at, updated_at`
+const taskCols = `id, owner_id, agent_id, project_id, session_id, requested_by, turn_by, workflow_id, title, prompt, state, result, error, created_at, updated_at`
 
 // GetTask returns the task with this ID.
 func GetTask(ctx context.Context, db Querier, id ID) (Task, error) {
@@ -54,10 +57,10 @@ func GetTask(ctx context.Context, db Querier, id ID) (Task, error) {
 
 // SaveTask inserts or updates a task by ID.
 func SaveTask(ctx context.Context, db Executor, j Task) error {
-	_, err := exec(ctx, db, `INSERT INTO tasks(`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := exec(ctx, db, `INSERT INTO tasks(`+taskCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET turn_by = excluded.turn_by, state = excluded.state, result = excluded.result, error = excluded.error,
 			title = excluded.title, updated_at = excluded.updated_at`,
-		j.ID, j.OwnerID, j.AgentID, j.SessionID, j.RequestedBy, j.TurnBy, j.WorkflowID, j.Title, j.Prompt, j.State, j.Result, j.Error,
+		j.ID, j.OwnerID, j.AgentID, j.ProjectID, j.SessionID, j.RequestedBy, j.TurnBy, j.WorkflowID, j.Title, j.Prompt, j.State, j.Result, j.Error,
 		ms(j.CreatedAt), ms(j.UpdatedAt))
 	return err
 }
@@ -73,7 +76,7 @@ func scanTask(s scanner) (Task, error) {
 	var j Task
 	var by, turn, state string
 	var created, updated int64
-	if err := s.Scan(&j.ID, &j.OwnerID, &j.AgentID, &j.SessionID, &by, &turn, &j.WorkflowID, &j.Title, &j.Prompt, &state, &j.Result, &j.Error, &created, &updated); err != nil {
+	if err := s.Scan(&j.ID, &j.OwnerID, &j.AgentID, &j.ProjectID, &j.SessionID, &by, &turn, &j.WorkflowID, &j.Title, &j.Prompt, &state, &j.Result, &j.Error, &created, &updated); err != nil {
 		return j, mapErr(err)
 	}
 	j.RequestedBy, j.TurnBy, j.State, j.CreatedAt, j.UpdatedAt = AuthorKind(by), AuthorKind(turn), TaskState(state), tm(created), tm(updated)

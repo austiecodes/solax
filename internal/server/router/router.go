@@ -46,6 +46,13 @@ func New(daemon http.Handler, st *stream.Stream) *gin.Engine {
 	agents.POST("", controller.CreateAgent)
 	agents.PATCH("/:agent", controller.UpdateAgent)
 	agents.DELETE("/:agent", controller.DeleteAgent)
+	// Projects are set up by a person, apart from agents; the Super Agent
+	// reads them to choose where a task works.
+	v1.GET("/projects", middleware.RequireClientOrSuper(), controller.ListProjects)
+	projects := v1.Group("/projects", middleware.RequireKind(auth.KindClient))
+	projects.POST("", controller.CreateProject)
+	projects.PATCH("/:project", controller.UpdateProject)
+	projects.DELETE("/:project", controller.DeleteProject)
 
 	// Tasks: a person or the Super Agent dispatches work to an agent. The
 	// call returns at once; the result arrives on the stream (and in the
@@ -56,6 +63,7 @@ func New(daemon http.Handler, st *stream.Stream) *gin.Engine {
 	tasks.GET("/:task", controller.GetTask)
 	tasks.POST("/:task/messages", controller.FollowUpTask)
 	tasks.POST("/:task/cancel", controller.CancelTask)
+	tasks.POST("/:task/interrupt", controller.InterruptTask)
 	v1.GET("/sessions/:session/events", middleware.RequireClientOrSuper(), controller.ListSessionEvents)
 	workflows := v1.Group("/workflows", middleware.RequireClientOrSuper())
 	workflows.POST("", controller.StartWorkflow)
@@ -69,6 +77,7 @@ func New(daemon http.Handler, st *stream.Stream) *gin.Engine {
 	super := v1.Group("/super")
 	super.GET("/messages", middleware.RequireKind(auth.KindClient), controller.ListSuperMessages)
 	super.POST("/messages", middleware.RequireKind(auth.KindClient), controller.SendToSuper)
+	super.POST("/interrupt", middleware.RequireKind(auth.KindClient), controller.InterruptSuper)
 	super.POST("/replies", middleware.RequireSuper(), controller.SuperReply)
 
 	// Any object by ID, with the IDs of related objects.

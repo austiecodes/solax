@@ -18,6 +18,7 @@ import (
 	"github.com/austiecodes/solax/internal/auth"
 	"github.com/austiecodes/solax/internal/daemon/conn"
 	"github.com/austiecodes/solax/internal/daemon/supervisor"
+	"github.com/austiecodes/solax/internal/daemon/workspace"
 	"github.com/austiecodes/solax/internal/server"
 	"github.com/austiecodes/solax/internal/server/model"
 	"github.com/austiecodes/solax/internal/server/service"
@@ -32,6 +33,7 @@ type rig struct {
 	url    string
 	client *client.Client
 	fake   *agenttest.FakeRuntime
+	home   string // the SOLAX_HOME of the daemon: its projects and super folders
 
 	mu     sync.Mutex
 	pushes []protocol.Push
@@ -66,7 +68,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &rig{url: srv.URL, client: client.New(srv.URL, token)}
+	r := &rig{url: srv.URL, client: client.New(srv.URL, token), home: t.TempDir()}
 
 	// The machine, as "solax daemon start" sets it up.
 	mtoken, _ := auth.NewToken(auth.PrefixMachine)
@@ -96,6 +98,11 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 		Env: func(e protocol.SessionEnsure) map[string]string {
 			return map[string]string{"SOLAX_SERVER": srv.URL, "SOLAX_TOKEN": e.AgentToken, "SOLAX_TASK": e.Task}
 		},
+		Workspace: workspace.Sources{
+			protocol.WorkspaceLocal:   workspace.Local{},
+			protocol.WorkspaceManaged: workspace.Managed{Root: filepath.Join(r.home, "projects")},
+			protocol.WorkspaceSuper:   workspace.Fixed{Dir: filepath.Join(r.home, "super")},
+		}.Prepare,
 		MaxSlots: 4, Send: cn.Send, Log: log,
 	})
 	go cn.Run(ctx)
@@ -112,7 +119,7 @@ func newRig(t *testing.T, reply func(r *rig, spec agent.SessionSpec, text string
 func (r *rig) addAgent(t *testing.T, name string, super bool) {
 	t.Helper()
 	_, err := r.client.CreateAgent(context.Background(), protocol.CreateAgentRequest{
-		Machine: "mac", Name: name, Runtime: ir.KindClaude, Dir: "/src", Description: name + " agent", Super: super,
+		Machine: "mac", Name: name, Runtime: ir.KindClaude, Description: name + " agent", Super: super,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +157,7 @@ func TestTaskRoundTrip(t *testing.T) {
 	r.addAgent(t, "coder", false)
 	ctx := context.Background()
 
-	j, err := r.client.Dispatch(ctx, "coder", "fix the bug")
+	j, err := r.client.Dispatch(ctx, protocol.DispatchRequest{Agent: "coder", Prompt: "fix the bug"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +209,7 @@ func TestSuperAgentRoutesAsync(t *testing.T) {
 		me := client.New(r.url, spec.Env["SOLAX_TOKEN"])
 		switch {
 		case strings.HasPrefix(text, "[user]"):
-			j, err := me.Dispatch(context.Background(), "coder", strings.TrimPrefix(text, "[user] "))
+			j, err := me.Dispatch(context.Background(), protocol.DispatchRequest{Agent: "coder", Prompt: strings.TrimPrefix(text, "[user] ")})
 			if err != nil {
 				return "dispatch failed: " + err.Error()
 			}
@@ -241,6 +248,172 @@ func TestSuperAgentRoutesAsync(t *testing.T) {
 	if len(tasks) != 1 || tasks[0].RequestedBy != "super" || tasks[0].State != "done" {
 		t.Fatalf("tasks = %+v", tasks)
 	}
+	// The Super Agent has no project: it works in a folder of its own. Its
+	// task named no project, so Solax launched one.
+	for _, s := range r.fake.Starts() {
+		if s.Env["SOLAX_TASK"] == "" && s.Dir != filepath.Join(r.home, "super") {
+			t.Fatalf("the Super Agent works in %q", s.Dir)
+		}
+	}
+	if tasks[0].Project != "write-the-readme" {
+		t.Fatalf("task project = %q", tasks[0].Project)
+	}
+}
+
+// The user stops the Super Agent: the interrupt reaches its live session.
+// Before the session runs, there is nothing to stop.
+func TestInterruptSuper(t *testing.T) {
+	r := newRig(t, func(_ *rig, _ agent.SessionSpec, text string) string { return "ok" })
+	r.addAgent(t, "router", true)
+	ctx := context.Background()
+
+	if err := r.client.InterruptSuper(ctx); err != nil || r.fake.Interrupts() != 0 {
+		t.Fatalf("interrupt with no session: err %v, interrupts %d", err, r.fake.Interrupts())
+	}
+	if _, err := r.client.SendToSuper(ctx, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "a reply", func() bool {
+		msgs, _ := r.client.SuperMessages(ctx, 0)
+		return len(msgs) == 2
+	})
+	if err := r.client.InterruptSuper(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := r.fake.Interrupts(); n != 1 {
+		t.Fatalf("interrupts = %d, want 1", n)
+	}
+}
+
+// The user stops the running turn of a task: the interrupt reaches its
+// session. A task that does not run has nothing to stop.
+func TestInterruptTask(t *testing.T) {
+	r := newRig(t, func(_ *rig, _ agent.SessionSpec, text string) string { return "ok" },
+		func(f *agenttest.FakeRuntime) { f.TurnDelay = 2 * time.Second })
+	r.addAgent(t, "coder", false)
+	ctx := context.Background()
+
+	j, err := r.client.Dispatch(ctx, protocol.DispatchRequest{Agent: "coder", Prompt: "write the README"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the task runs", func() bool {
+		j, _ = r.client.Task(ctx, j.ID)
+		return j.State == "running"
+	})
+	if _, err := r.client.InterruptTask(ctx, j.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n := r.fake.Interrupts(); n != 1 {
+		t.Fatalf("interrupts = %d, want 1", n)
+	}
+	waitFor(t, "the turn ends", func() bool {
+		j, _ = r.client.Task(ctx, j.ID)
+		return j.State != "running"
+	})
+	if _, err := r.client.InterruptTask(ctx, j.ID); err != nil || r.fake.Interrupts() != 1 {
+		t.Fatalf("interrupt of a task that does not run: err %v, interrupts %d", err, r.fake.Interrupts())
+	}
+}
+
+// A task works in the folder of its project. A task that names no project
+// gets a new managed project, in the projects folder of the daemon. Several agents share a project; a local project needs an agent
+// on its machine.
+func TestTaskWorksInItsProject(t *testing.T) {
+	r := newRig(t, func(_ *rig, _ agent.SessionSpec, text string) string { return "ok" })
+	r.addAgent(t, "coder", false)
+	r.addAgent(t, "reviewer", false)
+	ctx := context.Background()
+
+	dir := t.TempDir()
+	p, err := r.client.CreateProject(ctx, protocol.CreateProjectRequest{Name: "app", Machine: "mac", Path: dir, Description: "the app"})
+	if err != nil || p.Kind != "local" || p.Machine != "mac" || !p.Online {
+		t.Fatalf("project = %+v, %v", p, err)
+	}
+	if _, err := r.client.CreateProject(ctx, protocol.CreateProjectRequest{Name: "app", Machine: "mac", Path: dir}); err == nil {
+		t.Fatal("a second project named app: no error")
+	}
+	if _, err := r.client.CreateProject(ctx, protocol.CreateProjectRequest{Name: "rel", Machine: "mac", Path: "src/app"}); err == nil {
+		t.Fatal("a relative folder: no error")
+	}
+
+	dirOf := map[string]string{} // task ID -> work folder of its session
+	run := func(req protocol.DispatchRequest) protocol.Task {
+		t.Helper()
+		j, err := r.client.Dispatch(ctx, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, "task "+j.ID+" done", func() bool {
+			j, _ = r.client.Task(ctx, j.ID)
+			return j.State == "done"
+		})
+		for _, s := range r.fake.Starts() {
+			if s.Env["SOLAX_TASK"] == j.ID {
+				dirOf[j.ID] = s.Dir
+			}
+		}
+		return j
+	}
+	a := run(protocol.DispatchRequest{Agent: "coder", Project: "app", Prompt: "fix the bug"})
+	b := run(protocol.DispatchRequest{Agent: "reviewer", Project: p.ID, Prompt: "review the fix"})
+	c := run(protocol.DispatchRequest{Agent: "coder", Prompt: "draft a note"})
+	if a.Project != "app" || a.ProjectID != p.ID || dirOf[a.ID] != dir || dirOf[b.ID] != dir {
+		t.Fatalf("project tasks: %+v in %q, %+v in %q; want %q", a, dirOf[a.ID], b, dirOf[b.ID], dir)
+	}
+	if c.Project != "draft-a-note" || c.ProjectID == "" || dirOf[c.ID] != filepath.Join(r.home, "projects", "draft-a-note") {
+		t.Fatalf("task without a project: %+v in %q", c, dirOf[c.ID])
+	}
+	// The next task with the same title gets a project of its own; a task
+	// that names the managed project works in its folder.
+	d := run(protocol.DispatchRequest{Agent: "coder", Prompt: "draft a note"})
+	e := run(protocol.DispatchRequest{Agent: "reviewer", Project: c.Project, Prompt: "review the note"})
+	if d.Project != "draft-a-note-2" || dirOf[e.ID] != dirOf[c.ID] {
+		t.Fatalf("second task %+v; reviewer in %q, want %q", d, dirOf[e.ID], dirOf[c.ID])
+	}
+	ps, _ := r.client.Projects(ctx)
+	var managed protocol.Project
+	for _, q := range ps {
+		if q.ID == c.ProjectID {
+			managed = q
+		}
+	}
+	if managed.Kind != "managed" || managed.Path != "~/.solax/projects/draft-a-note" || managed.Machine != "mac" || managed.Description != "draft a note" {
+		t.Fatalf("managed project = %+v", managed)
+	}
+	moved := "/tmp/elsewhere"
+	if _, err := r.client.UpdateProject(ctx, c.Project, protocol.UpdateProjectRequest{Path: &moved}); err == nil {
+		t.Fatal("moved the folder of a managed project: no error")
+	}
+
+	// A folder on another machine needs an agent there.
+	mtoken, _ := auth.NewToken(auth.PrefixMachine)
+	if _, err := r.client.RegisterMachine(ctx, protocol.MachineEnrollment{Name: "dev", TokenHash: auth.Hash(mtoken)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.client.CreateProject(ctx, protocol.CreateProjectRequest{Name: "infra", Machine: "dev", Path: "/srv/infra"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.client.Dispatch(ctx, protocol.DispatchRequest{Agent: "coder", Project: "infra", Prompt: "x"}); err == nil ||
+		!strings.Contains(err.Error(), "another machine") {
+		t.Fatalf("dispatch to a project on another machine: err = %v", err)
+	}
+
+	// A removed project leaves the list; its tasks still name it.
+	if err := r.client.DeleteProject(ctx, "app"); err != nil {
+		t.Fatal(err)
+	}
+	ps, _ = r.client.Projects(ctx)
+	var names []string
+	for _, q := range ps {
+		names = append(names, q.Name)
+	}
+	if strings.Join(names, ",") != "draft-a-note,draft-a-note-2,infra" {
+		t.Fatalf("projects = %v", names)
+	}
+	if j, _ := r.client.Task(ctx, a.ID); j.Project != "app" {
+		t.Fatalf("task of a removed project = %+v", j)
+	}
 }
 
 // The instructions of an agent reach the system prompt of its sessions.
@@ -249,7 +422,7 @@ func TestAgentInstructionsReachSession(t *testing.T) {
 	r := newRig(t, func(_ *rig, _ agent.SessionSpec, text string) string { return "ok" })
 	ctx := context.Background()
 	a, err := r.client.CreateAgent(ctx, protocol.CreateAgentRequest{
-		Machine: "mac", Name: "reviewer", Runtime: ir.KindClaude, Dir: "/src",
+		Machine: "mac", Name: "reviewer", Runtime: ir.KindClaude,
 		Instructions: "  Review Go code. Report bugs only.\n",
 	})
 	if err != nil {
@@ -267,7 +440,7 @@ func TestAgentInstructionsReachSession(t *testing.T) {
 		t.Fatalf("agents = %+v, %v", as, err)
 	}
 
-	j, err := r.client.Dispatch(ctx, "reviewer", "review the auth package")
+	j, err := r.client.Dispatch(ctx, protocol.DispatchRequest{Agent: "reviewer", Prompt: "review the auth package"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +475,7 @@ func TestFastPathNotesReachSuperAgent(t *testing.T) {
 		mu.Unlock()
 		if text == "[user] fix auth" {
 			me := client.New(r.url, spec.Env["SOLAX_TOKEN"])
-			if _, err := me.Dispatch(context.Background(), "coder", "fix auth"); err != nil {
+			if _, err := me.Dispatch(context.Background(), protocol.DispatchRequest{Agent: "coder", Prompt: "fix auth"}); err != nil {
 				return "dispatch failed: " + err.Error()
 			}
 			return "sent to coder"

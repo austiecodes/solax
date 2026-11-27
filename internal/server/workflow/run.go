@@ -214,6 +214,7 @@ func fingerprint(kind, ident string) string {
 // set them. The other steps get only those four, in the same type.
 type taskOpts struct {
 	Schema      json.RawMessage `json:"schema"`
+	Project     string          `json:"project"` // wf.task only
 	Phase       string          `json:"phase"`
 	Label       string          `json:"label"`
 	Loop        string          `json:"loop"`
@@ -237,6 +238,7 @@ type outcome struct {
 	ID        string          `json:"id"`
 	SessionID string          `json:"sessionId"`
 	Agent     string          `json:"agent"`
+	Project   string          `json:"project"` // project name
 	State     string          `json:"state"`
 	Result    string          `json:"result"`
 	Data      json.RawMessage `json:"data,omitempty"`
@@ -269,7 +271,7 @@ func (rn *run) task(ctx context.Context, c js.Call) (any, error) {
 			if o.Schema != nil {
 				p += schemaPrompt(o.Schema)
 			}
-			j, err := service.StepTask(ctx, rn.w, st, agent, p)
+			j, err := service.StepTask(ctx, rn.w, st, agent, o.Project, p)
 			if err != nil {
 				return nil, err
 			}
@@ -329,7 +331,8 @@ func (rn *run) await(ctx context.Context, st model.WorkflowStep, schema json.Raw
 			return nil, err
 		}
 		ag, _ := model.GetAgent(ctx, model.ReadDB, j.AgentID)
-		oc := outcome{ID: string(j.ID), SessionID: string(j.SessionID), Agent: ag.Name, State: string(j.State),
+		p, _ := model.GetProject(ctx, model.ReadDB, j.ProjectID)
+		oc := outcome{ID: string(j.ID), SessionID: string(j.SessionID), Agent: ag.Name, Project: p.Name, State: string(j.State),
 			Result: clip(j.Result, resultClip), Error: j.Error}
 		if j.State == model.TaskDone && schema != nil {
 			data, err := answer(j.Result, schema)

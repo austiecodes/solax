@@ -31,6 +31,12 @@ func SendToSuper(c *gin.Context) {
 	reply(c, http.StatusCreated, model.WireMessage(m), err)
 }
 
+// InterruptSuper stops the running turn of the Super Agent.
+func InterruptSuper(c *gin.Context) {
+	err := service.InterruptSuper(c.Request.Context(), middleware.Actor(c))
+	reply(c, http.StatusNoContent, nil, err)
+}
+
 // SuperReply stores a reply of the Super Agent.
 func SuperReply(c *gin.Context) {
 	var r protocol.TextRequest

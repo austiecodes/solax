@@ -35,9 +35,10 @@ type Config struct {
 	Plugin func(kind ir.Kind) string
 	// Env returns the environment of a session: SOLAX_* values and PATH.
 	Env func(e protocol.SessionEnsure) map[string]string
-	// Dir resolves the work folder of an agent, for example "~/src".
-	Dir      func(string) string
-	MaxSlots int
+	// Workspace prepares the work folder of a session. Nil uses the path
+	// of a local workspace as it is (tests).
+	Workspace func(ctx context.Context, w protocol.Workspace) (string, error)
+	MaxSlots  int
 	// Send sends a record to the server.
 	Send func(ctx context.Context, env protocol.Envelope) error
 	Log  *slog.Logger
@@ -81,8 +82,8 @@ func New(base context.Context, cfg Config) *Supervisor {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
-	if cfg.Dir == nil {
-		cfg.Dir = func(s string) string { return s }
+	if cfg.Workspace == nil {
+		cfg.Workspace = func(_ context.Context, w protocol.Workspace) (string, error) { return w.Path, nil }
 	}
 	return &Supervisor{cfg: cfg, base: base, sessions: map[string]*running{}, starting: map[string]chan struct{}{}, seqs: map[string]uint64{}}
 }
@@ -213,8 +214,12 @@ func (s *Supervisor) ensure(ctx context.Context, payload json.RawMessage) error 
 			return err
 		}
 	}
+	dir, err := s.cfg.Workspace(ctx, e.Workspace)
+	if err != nil {
+		return err
+	}
 	spec := agent.SessionSpec{
-		SessionID: e.SessionID, Resume: e.Resume, Dir: s.cfg.Dir(e.Dir), Model: e.Model,
+		SessionID: e.SessionID, Resume: e.Resume, Dir: dir, Model: e.Model,
 		Instructions: systemPrompt(prompt, e.Instructions), Options: e.Options,
 	}
 	if s.cfg.Env != nil {

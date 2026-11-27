@@ -95,7 +95,9 @@ func (d *desktop) tasksHead(c *ui.Context, pal *palette) {
 }
 
 // taskGroups are the groups of tasks the sidebar shows.
-func (d *desktop) taskGroups() []taskGroup { return groupTasks(d.tasks, d.agents, d.prefs.TaskGroups) }
+func (d *desktop) taskGroups() []taskGroup {
+	return groupTasks(d.tasks, d.agents, d.projects, d.prefs.TaskGroups)
+}
 
 // groupView is a group of tasks: a head that opens and closes it, as a
 // project folder in the Codex app, then its tasks. A group with no title
@@ -144,7 +146,7 @@ func (d *desktop) setGroupClosed(key string, closed bool) {
 // openGroupOf opens the group of a task, so the sidebar shows it.
 func (d *desktop) openGroupOf(id string) {
 	if j, ok := d.task(id); ok && d.prefs.TaskGroups != "none" {
-		if key := groupOf(j, d.agents, d.prefs.TaskGroups).key; d.groupClosed(key) {
+		if key := groupOf(j, d.agents, d.projects, d.prefs.TaskGroups).key; d.groupClosed(key) {
 			d.setGroupClosed(key, false)
 		}
 	}

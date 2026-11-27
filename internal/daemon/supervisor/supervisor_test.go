@@ -69,7 +69,7 @@ func TestDeliverModes(t *testing.T) {
 	ctx := context.Background()
 	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 1, Send: sk.Send})
 
-	ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Runtime: ir.KindClaude, Dir: "/x"}
+	ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Runtime: ir.KindClaude, Workspace: protocol.Workspace{Kind: protocol.WorkspaceLocal, Path: "/x"}}
 	if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
 		t.Fatal(ack.Error)
 	}
@@ -155,7 +155,7 @@ func TestEventSeqContinues(t *testing.T) {
 	ctx := context.Background()
 	run := func(s *Supervisor, sk *sink, lastSeq uint64, text string) {
 		t.Helper()
-		ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Runtime: ir.KindClaude, Dir: "/x", LastSeq: lastSeq}
+		ens := protocol.SessionEnsure{SessionID: "ses_1", Agent: "a", Runtime: ir.KindClaude, Workspace: protocol.Workspace{Kind: protocol.WorkspaceLocal, Path: "/x"}, LastSeq: lastSeq}
 		if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, ens)); !ack.OK {
 			t.Fatal(ack.Error)
 		}
@@ -225,8 +225,8 @@ func TestPluginOnlyForSuper(t *testing.T) {
 	s := New(ctx, Config{Runtimes: []agent.Runtime{fake}, MaxSlots: 2, Send: (&sink{}).Send,
 		Plugin: func(k ir.Kind) string { return "/assets/plugins/" + string(k) }})
 	for _, e := range []protocol.SessionEnsure{
-		{SessionID: "ses_s", Agent: "router", Runtime: ir.KindClaude, Dir: "/x", Role: protocol.RoleSuper},
-		{SessionID: "ses_w", Agent: "coder", Runtime: ir.KindClaude, Dir: "/x", Role: protocol.RoleWorker},
+		{SessionID: "ses_s", Agent: "router", Runtime: ir.KindClaude, Workspace: protocol.Workspace{Kind: protocol.WorkspaceLocal, Path: "/x"}, Role: protocol.RoleSuper},
+		{SessionID: "ses_w", Agent: "coder", Runtime: ir.KindClaude, Workspace: protocol.Workspace{Kind: protocol.WorkspaceLocal, Path: "/x"}, Role: protocol.RoleWorker},
 	} {
 		if ack := s.Handle(ctx, cmd(protocol.TypeSessionEnsure, e)); !ack.OK {
 			t.Fatal(ack.Error)

@@ -76,7 +76,7 @@ func planDelivery(ctx context.Context, db model.Querier, sid model.ID) (Delivery
 	// has the same first input, so the daemon drops it.
 	d.Input = ir.Input{Mode: mode, Text: text, Ref: string(pending[0].ID)}
 	if !ses.Live {
-		ens, err := ensureFor(ctx, ses, ag, m)
+		ens, err := ensureFor(ctx, db, ses, ag, m)
 		if err != nil {
 			return Delivery{}, false, err
 		}
@@ -85,14 +85,26 @@ func planDelivery(ctx context.Context, db model.Querier, sid model.ID) (Delivery
 	return d, true, nil
 }
 
-func ensureFor(ctx context.Context, ses model.Session, ag model.Agent, m model.Machine) (protocol.SessionEnsure, error) {
+func ensureFor(ctx context.Context, db model.Querier, ses model.Session, ag model.Agent, m model.Machine) (protocol.SessionEnsure, error) {
 	role := protocol.RoleWorker
+	// The Super Agent has no project: it runs the solax CLI only, in a
+	// folder of its own.
+	ws := protocol.Workspace{Kind: protocol.WorkspaceSuper}
 	if ag.Role == model.RoleSuper {
 		role = protocol.RoleSuper
 	}
+	if ses.TaskID != "" {
+		j, err := model.GetTask(ctx, db, ses.TaskID)
+		if err != nil {
+			return protocol.SessionEnsure{}, err
+		}
+		if ws, err = taskWorkspace(ctx, db, j); err != nil {
+			return protocol.SessionEnsure{}, err
+		}
+	}
 	ens := protocol.SessionEnsure{
 		SessionID: string(ses.ID), Agent: ag.Name, Role: role, Task: string(ses.TaskID),
-		Runtime: ag.Runtime, Dir: ag.Dir, Model: ag.Model, Options: ag.Options, Resume: ses.Ref,
+		Runtime: ag.Runtime, Workspace: ws, Model: ag.Model, Options: ag.Options, Resume: ses.Ref,
 		Instructions: ag.Instructions,
 		LastSeq:      uint64(ses.LastSeq),
 	}
@@ -136,7 +148,6 @@ func SessionLost(ctx context.Context, sessionID model.ID) error {
 // the inputs stay pending for the Super Agent session, which retries.
 func DeliveryFailed(ctx context.Context, sessionID model.ID, reason string) error {
 	var task *model.Task
-	var name string
 	var post afterCommit
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		post, task = nil, nil
@@ -167,7 +178,7 @@ func DeliveryFailed(ctx context.Context, sessionID model.ID, reason string) erro
 			return err
 		}
 		j.State, j.Error, j.UpdatedAt = model.TaskFailed, reason, clock()
-		task, name = &j, ag.Name
+		task = &j
 		if err := model.SaveTask(ctx, tx, j); err != nil {
 			return err
 		}
@@ -175,7 +186,7 @@ func DeliveryFailed(ctx context.Context, sessionID model.ID, reason string) erro
 	})
 	post.run()
 	if task != nil {
-		Publish(ctx, task.OwnerID, PushTask, model.WireTask(*task, name))
+		Publish(ctx, task.OwnerID, PushTask, wireTask(ctx, *task))
 		Wake()
 	}
 	return err

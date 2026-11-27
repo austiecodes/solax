@@ -427,6 +427,10 @@ type composer struct {
 	focus            bool // take the focus as it shows
 	info             func()
 	send             func(text string)
+	// stop stops the agent, nil while it does not work. With no text in
+	// the draft, the button stops the agent; with text, it sends the text,
+	// which the agent reads as it works (a steer).
+	stop func()
 }
 
 func (cm composer) view(c *ui.Context, pal *palette) {
@@ -457,7 +461,11 @@ func (cm composer) view(c *ui.Context, pal *palette) {
 					cm.info()
 				}
 				ui.Spacer(c)
-				sendButton(c, pal, ready, cm.busy, func() { submit(*cm.draft) })
+				if cm.stop != nil && !cm.busy && strings.TrimSpace(*cm.draft) == "" {
+					stopButton(c, pal, cm.stop)
+				} else {
+					sendButton(c, pal, ready, cm.busy, func() { submit(*cm.draft) })
+				}
 			})
 		})
 		// A hairline that darkens on focus, and a soft shadow in the
@@ -493,5 +501,22 @@ func sendButton(c *ui.Context, pal *palette, ready, busy bool, send func()) {
 	})
 	if b.Clicked() && ready {
 		send()
+	}
+}
+
+// stopButton is sendButton while the agent works and there is no text:
+// filled in the ink, with a square.
+func stopButton(c *ui.Context, pal *palette, stop func()) {
+	b := ui.ButtonBase(c.Key("stop")).Size(28, 28).Radius(14).Center().Label(locales.Stop()).Tooltip(locales.StopTip())
+	bg := pal.text
+	if b.Hovered() {
+		bg = bg.Mix(pal.card, 0.15)
+	}
+	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
+	b.Children(func() {
+		ui.Box(c).Size(10, 10).Radius(2).Background(pal.card)
+	})
+	if b.Clicked() {
+		stop()
 	}
 }

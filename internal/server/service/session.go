@@ -43,12 +43,11 @@ func SessionStateChanged(ctx context.Context, machineID model.ID, r protocol.Ses
 func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEvent) error {
 	ev := se.Event
 	var (
-		owner   model.ID
-		note    protocol.SessionEventNote
-		task    *model.Task
-		agentNm string
-		fresh   = true
-		post    afterCommit
+		owner model.ID
+		note  protocol.SessionEventNote
+		task  *model.Task
+		fresh = true
+		post  afterCommit
 	)
 	err := model.Atomic(ctx, func(tx *sql.Tx) error {
 		post, task = nil, nil
@@ -64,7 +63,7 @@ func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEv
 		if err != nil {
 			return err
 		}
-		owner, agentNm = m.OwnerID, ag.Name
+		owner = m.OwnerID
 		note = protocol.SessionEventNote{SessionID: string(ses.ID), Agent: ag.Name, TaskID: string(ses.TaskID), Super: ag.Role == model.RoleSuper, Event: ev}
 		if !ev.Type.Reliable() {
 			return nil
@@ -120,7 +119,7 @@ func SessionEvent(ctx context.Context, machineID model.ID, se protocol.SessionEv
 		Publish(ctx, owner, PushSession, note)
 	}
 	if task != nil {
-		Publish(ctx, owner, PushTask, model.WireTask(*task, agentNm))
+		Publish(ctx, owner, PushTask, wireTask(ctx, *task))
 		if task.State.Terminal() {
 			Wake()
 		}

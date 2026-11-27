@@ -24,7 +24,7 @@ func (d *desktop) agentsPage(c *ui.Context) {
 			title: locales.Roster(), count: countText(len(d.agents)), rows: listRows,
 			desc: locales.RosterHelp(),
 			actions: func() {
-				iconButton(c, "refresh", reloadIcon, locales.Refresh(), pal, d.reloadAgents)
+				iconButton(c, "refresh", reloadIcon, locales.Refresh(), pal, d.reloadSetup)
 				iconButton(c, "new", plusIcon, locales.NewAgent(), pal, func() { d.form.open = true })
 			},
 		}, func() {
@@ -103,14 +103,14 @@ func (d *desktop) agentDetail(c *ui.Context, a protocol.Agent) {
 				name, yes := a.Name, true
 				d.do(func(ctx context.Context, c *client.Client) (func(), error) {
 					_, err := c.UpdateAgent(ctx, name, protocol.UpdateAgentRequest{Super: &yes})
-					return d.reloadAgents, err
+					return d.reloadSetup, err
 				})
 			}
 			if button(c, "remove", locales.AgentRemove(), removeButton, false) {
 				name := a.Name
 				d.ask(locales.AgentRemoveQuestion(name), locales.AgentRemoveDetail(name), locales.AgentRemove(), true, func() {
 					d.do(func(ctx context.Context, c *client.Client) (func(), error) {
-						return d.reloadAgents, c.DeleteAgent(ctx, name)
+						return d.reloadSetup, c.DeleteAgent(ctx, name)
 					})
 				})
 			}
@@ -122,7 +122,6 @@ func (d *desktop) agentDetail(c *ui.Context, a protocol.Agent) {
 			valueText(c, word, false)
 		})
 		row(c, "machine", locales.FieldMachine(), "", func() { valueText(c, a.Machine, false) })
-		row(c, "dir", locales.FieldDir(), locales.AgentDirHelp(), func() { valueText(c, a.Dir, true) })
 		model := a.Model
 		if model == "" {
 			model = locales.ModelDefault()
@@ -182,7 +181,7 @@ func (d *desktop) saveInstructions(a protocol.Agent) {
 			if d.instr.agent == id {
 				d.instr = instrDraft{agent: id, base: text, text: text}
 			}
-			d.reloadAgents()
+			d.reloadSetup()
 		}, nil
 	})
 	if _, err := d.api(); err != nil {
@@ -201,7 +200,7 @@ func (d *desktop) agentFormView(c *ui.Context) {
 	if !slices.Contains(runtimes, f.Runtime) && len(runtimes) > 0 {
 		f.Runtime = runtimes[0]
 	}
-	ready := !f.busy && strings.TrimSpace(f.Name) != "" && f.Machine != "" && f.Runtime != "" && strings.TrimSpace(f.Dir) != ""
+	ready := !f.busy && strings.TrimSpace(f.Name) != "" && f.Machine != "" && f.Runtime != ""
 	pal := paletteFor(c)
 	section(c, "new-agent", sectionSpec{
 		title: locales.NewAgent(), desc: locales.NewAgentHelp(),
@@ -233,9 +232,6 @@ func (d *desktop) agentFormView(c *ui.Context) {
 		row(c, "runtime", locales.FieldRuntime(), locales.FieldRuntimeHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { selectField(c, "runtime", &f.Runtime, runtimes) })
 		})
-		row(c, "dir", locales.FieldDir(), locales.FieldDirHelp(), func() {
-			ui.Row(c).Width(fieldW).Children(func() { textField(c, "dir", &f.Dir, "~/src/my-app") })
-		})
 		row(c, "model", locales.FieldModel(), locales.FieldModelHelp(), func() {
 			ui.Row(c).Width(fieldW).Children(func() { textField(c, "model", &f.Model, "haiku") })
 		})
@@ -256,7 +252,7 @@ func (d *desktop) agentFormView(c *ui.Context) {
 func (d *desktop) addAgent() {
 	f := &d.form
 	req := protocol.CreateAgentRequest{
-		Machine: f.Machine, Name: strings.TrimSpace(f.Name), Runtime: ir.Kind(f.Runtime), Dir: strings.TrimSpace(f.Dir),
+		Machine: f.Machine, Name: strings.TrimSpace(f.Name), Runtime: ir.Kind(f.Runtime),
 		Model: strings.TrimSpace(f.Model), Description: strings.TrimSpace(f.Desc), Super: f.Super,
 		Instructions: strings.TrimSpace(f.Instructions),
 	}
@@ -270,7 +266,7 @@ func (d *desktop) addAgent() {
 		return func() {
 			d.form = agentForm{Machine: req.Machine}
 			d.agentSel = req.Name
-			d.reloadAgents()
+			d.reloadSetup()
 		}, nil
 	})
 	if _, err := d.api(); err != nil {

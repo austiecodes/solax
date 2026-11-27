@@ -300,10 +300,13 @@ func ActiveWorkflows(ctx context.Context) ([]model.Workflow, error) {
 // StepTask starts a task for a step of w and saves the step as pending
 // with the task as its target, in one transaction: a crash cannot start a
 // task that the step does not know.
-func StepTask(ctx context.Context, w model.Workflow, st model.WorkflowStep, agent, prompt string) (model.Task, error) {
-	var j model.Task
+func StepTask(ctx context.Context, w model.Workflow, st model.WorkflowStep, agent, project, prompt string) (model.Task, error) {
+	var (
+		j        model.Task
+		launched bool
+	)
 	err := model.Atomic(ctx, func(tx *sql.Tx) (err error) {
-		if j, err = dispatch(ctx, tx, WorkflowActor(w), agent, prompt, w.ID); err != nil {
+		if j, launched, err = dispatch(ctx, tx, WorkflowActor(w), agent, project, prompt, w.ID); err != nil {
 			return err
 		}
 		st.TargetID, st.State = string(j.ID), model.StepPending
@@ -312,8 +315,7 @@ func StepTask(ctx context.Context, w model.Workflow, st model.WorkflowStep, agen
 	if err != nil {
 		return model.Task{}, err
 	}
-	publishTask(ctx, j)
-	Wake()
+	dispatched(ctx, j, launched)
 	return j, nil
 }
 

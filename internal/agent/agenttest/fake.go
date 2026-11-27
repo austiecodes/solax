@@ -29,8 +29,9 @@ type FakeRuntime struct {
 	// the turn answers, after a blank line.
 	Steer bool
 
-	mu     sync.Mutex
-	starts []agent.SessionSpec
+	mu         sync.Mutex
+	starts     []agent.SessionSpec
+	interrupts int
 }
 
 func (d *FakeRuntime) Kind() ir.Kind { return d.KindV }
@@ -56,6 +57,13 @@ func (d *FakeRuntime) Starts() []agent.SessionSpec {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]agent.SessionSpec(nil), d.starts...)
+}
+
+// Interrupts returns the number of interrupts that the sessions got.
+func (d *FakeRuntime) Interrupts() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.interrupts
 }
 
 func (d *FakeRuntime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Session, error) {
@@ -88,6 +96,9 @@ func (s *fakeSession) Send(ctx context.Context, in ir.Input) (agent.Accepted, er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if in.Mode == ir.ModeInterrupt {
+		s.d.mu.Lock()
+		s.d.interrupts++
+		s.d.mu.Unlock()
 		return agent.Accepted{}, nil
 	}
 	if in.Mode == ir.ModeSteer && s.d.Steer {
