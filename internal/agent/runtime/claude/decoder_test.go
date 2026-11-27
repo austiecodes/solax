@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/austiecodes/solax/internal/agent/agenttest"
@@ -85,5 +86,58 @@ func TestPermissionModeWarning(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("mode %q, init %q: %d warnings, want %d", tt.mode, tt.init, got, tt.want)
 		}
+	}
+}
+
+// An input written during a turn steers it: Claude Code reads it between
+// two model calls and replays it there, and one result ends the turn. The
+// user message item comes at the replay, inside the turn, and a replay
+// while idle opens the next turn with cause "input".
+func TestReplaySteer(t *testing.T) {
+	d := NewDecoder()
+	replay := func(text string) string {
+		return `{"type":"user","isReplay":true,"message":{"role":"user","content":[{"type":"text","text":"` + text + `"}]},"session_id":"s"}`
+	}
+	d.NoteInput("in_1", "run sleep")
+	var evs []ir.Event
+	decode := func(recs ...string) {
+		for _, rec := range recs {
+			out, err := d.Decode([]byte(rec))
+			if err != nil {
+				t.Fatalf("decode %s: %v", rec, err)
+			}
+			evs = append(evs, out...)
+		}
+	}
+	decode(replay("run sleep"),
+		`{"type":"assistant","message":{"id":"msg_1","role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"sleep 6"}}]},"session_id":"s"}`)
+	d.NoteInput("in_2", "echo second too")
+	decode(`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"first"}]},"session_id":"s"}`,
+		replay("echo second too"),
+		`{"type":"assistant","message":{"id":"msg_2","role":"assistant","content":[{"type":"text","text":"first, second"}]},"session_id":"s"}`,
+		`{"type":"result","subtype":"success","result":"first, second","session_id":"s"}`)
+	agenttest.CheckTurns(t, evs)
+
+	var got []string
+	for _, e := range evs {
+		switch {
+		case e.Type == ir.TurnStarted:
+			got = append(got, "turn:"+string(e.Turn.Cause))
+		case e.Type == ir.ItemCompleted:
+			got = append(got, e.Item.ID+"@"+e.TurnID)
+		case e.Type == ir.TurnCompleted:
+			got = append(got, "end")
+		}
+	}
+	want := []string{"in_1@", "turn:input", "toolu_1@turn-1", "in_2@turn-1", "msg_2:0@turn-1", "end"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("events = %v, want %v", got, want)
+	}
+
+	// Output with no input read opens a turn with cause "auto".
+	evs = nil
+	decode(`{"type":"assistant","message":{"id":"msg_3","role":"assistant","content":[{"type":"text","text":"more"}]},"session_id":"s"}`)
+	if evs[0].Type != ir.TurnStarted || evs[0].Turn.Cause != ir.CauseAuto {
+		t.Fatalf("first event = %+v, want an auto turn", evs[0])
 	}
 }

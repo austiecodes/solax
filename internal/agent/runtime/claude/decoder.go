@@ -19,6 +19,8 @@ import (
 //	assistant (text, thinking blocks) → item.completed
 //	assistant (tool_use block)        → item.started (tool_call)
 //	user (tool_result block)          → item.completed (by tool_use_id)
+//	user (isReplay)                   → item.completed (user_message), when
+//	                                    the agent reads the input
 //	system/compact_boundary           → item.completed (compaction)
 //	system/api_retry                  → notice
 //	system/permission_denied          → dropped (the tool_result carries the denial)
@@ -26,6 +28,11 @@ import (
 //
 // Item IDs of text and thinking blocks are "<message.id>:<block index>".
 // Tool items use the tool_use ID.
+//
+// With --replay-user-messages, Claude Code echoes each input when the agent
+// reads it: before the first output of an idle session, or between two
+// model calls of a running turn (a steer). The user message item comes at
+// that point, so the transcript shows where the agent took the input.
 //
 // The decoder is not safe for concurrent use. The session calls NoteInput
 // and Interrupted under its own lock.
@@ -37,8 +44,9 @@ type Decoder struct {
 
 	modeSeen    bool
 	turns       int
-	turn        string // open turn, "" when idle
-	pending     int    // inputs written and not yet answered by a result
+	turn        string  // open turn, "" when idle
+	inputs      []input // inputs written and not yet read, oldest first
+	read        bool    // an input was read while no turn was open
 	interrupted bool
 
 	block map[string]int          // message ID → index of the open block
@@ -52,9 +60,13 @@ func NewDecoder() *Decoder {
 	return &Decoder{block: map[string]int{}, seen: map[string]int{}, tools: map[string]*ir.ToolCall{}, paren: map[string]string{}}
 }
 
-// NoteInput tells the decoder that an input was written, so the next
-// output opens a turn with cause "input".
-func (d *Decoder) NoteInput() { d.pending++ }
+// input is an input written to Claude Code: the ID and the text of its
+// user message item.
+type input struct{ id, text string }
+
+// NoteInput tells the decoder that an input was written. Its replay gives
+// the user message item, and opens the next turn with cause "input".
+func (d *Decoder) NoteInput(id, text string) { d.inputs = append(d.inputs, input{id, text}) }
 
 // Interrupted marks the open turn as interrupted by the user.
 func (d *Decoder) Interrupted() { d.interrupted = true }
@@ -83,6 +95,7 @@ type record struct {
 	Error           json.RawMessage `json:"error"`
 	APIMessageID    string          `json:"api_message_id"`
 	PermissionMode  string          `json:"permissionMode"`
+	IsReplay        bool            `json:"isReplay"`
 }
 
 type streamEvent struct {
@@ -153,9 +166,10 @@ func (d *Decoder) open() []ir.Event {
 	d.turns++
 	d.turn = fmt.Sprintf("turn-%d", d.turns)
 	cause := ir.CauseAuto
-	if d.pending > 0 {
+	if d.read {
 		cause = ir.CauseInput
 	}
+	d.read = false
 	return []ir.Event{agent.TurnStarted(d.turn, cause)}
 }
 
@@ -244,9 +258,11 @@ func (d *Decoder) hasStream(msgID string) bool {
 	return ok
 }
 
-// user handles tool results. Echoed user text is dropped: the session
-// emits the user message itself.
+// user handles tool results, and the replay of an input.
 func (d *Decoder) user(r record) []ir.Event {
+	if r.IsReplay {
+		return d.replay()
+	}
 	_, blocks, ok := content(r)
 	if !ok {
 		return nil
@@ -310,12 +326,23 @@ func (d *Decoder) result(r record) []ir.Event {
 	}
 	out = append(out, agent.TurnCompleted(d.turn, status, msg, u))
 	d.turn, d.interrupted = "", false
-	if d.pending > 0 {
-		d.pending--
-	}
 	clear(d.block)
 	clear(d.seen)
 	return out
+}
+
+// replay gives the user message item of the oldest input not yet read.
+// Claude Code reads the inputs in the order they were written.
+func (d *Decoder) replay() []ir.Event {
+	if len(d.inputs) == 0 {
+		return nil
+	}
+	in := d.inputs[0]
+	d.inputs = d.inputs[1:]
+	if d.turn == "" {
+		d.read = true
+	}
+	return []ir.Event{agent.ItemCompleted(d.turn, ir.Item{ID: in.id, Kind: ir.ItemUserMessage, Text: in.text})}
 }
 
 func (d *Decoder) system(r record) []ir.Event {

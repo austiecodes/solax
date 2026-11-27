@@ -85,7 +85,7 @@ func (d *Runtime) Probe(ctx context.Context) (agent.Probe, error) {
 // Start runs:
 //
 //	claude -p --input-format stream-json --output-format stream-json
-//	   --verbose --include-partial-messages
+//	   --verbose --include-partial-messages --replay-user-messages
 //	   [--dangerously-skip-permissions] --permission-mode default
 //	   --permission-prompt-tool stdio
 //	   [--model M] [--allowedTools ...] [--append-system-prompt-file F]
@@ -103,7 +103,7 @@ func (d *Runtime) Start(ctx context.Context, spec agent.SessionSpec) (agent.Sess
 	native := newUUID()
 	args := []string{
 		"-p", "--input-format", "stream-json", "--output-format", "stream-json",
-		"--verbose", "--include-partial-messages",
+		"--verbose", "--include-partial-messages", "--replay-user-messages",
 	}
 	bypass := bypassAllowed(spec.Env)
 	mode := "default"
@@ -214,14 +214,14 @@ func (s *session) Send(ctx context.Context, in ir.Input) (agent.Accepted, error)
 	if id == "" {
 		id = fmt.Sprintf("input-%d", s.n)
 	}
-	s.dec.NoteInput()
 	if err := s.w.Write(userMessage(in)); err != nil {
 		return agent.Accepted{}, err
 	}
+	// The replay of the input gives its user message item (Decoder).
+	s.dec.NoteInput(id, in.Text)
 	if in.Ref != "" {
 		s.seen[in.Ref] = true
 	}
-	s.em.Emit(agent.UserMessage(id, in.Text))
 	return agent.Accepted{}, nil
 }
 

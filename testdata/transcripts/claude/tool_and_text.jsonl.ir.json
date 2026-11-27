@@ -2,6 +2,18 @@
   {
     "seq": 0,
     "session_id": "",
+    "at": "0001-01-01T00:00:00Z",
+    "type": "item.completed",
+    "item": {
+      "id": "input-1",
+      "kind": "user_message",
+      "status": "completed",
+      "text": "prompt"
+    }
+  },
+  {
+    "seq": 0,
+    "session_id": "",
     "turn_id": "turn-1",
     "at": "0001-01-01T00:00:00Z",
     "type": "turn.started",

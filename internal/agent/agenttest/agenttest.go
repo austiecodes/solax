@@ -35,7 +35,7 @@ func Transcript(kind ir.Kind, name string) string {
 
 // Decode replays a transcript through d and returns the IR events. A
 // decoder with NoteInput is told about one input first, as a session does
-// before it writes the prompt.
+// when it writes the prompt. Claude transcripts replay it as "prompt".
 func Decode(t *testing.T, d Decoder, path string) []ir.Event {
 	t.Helper()
 	f, err := os.Open(path)
@@ -43,8 +43,11 @@ func Decode(t *testing.T, d Decoder, path string) []ir.Event {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	if n, ok := d.(interface{ NoteInput() }); ok {
+	switch n := d.(type) {
+	case interface{ NoteInput() }:
 		n.NoteInput()
+	case interface{ NoteInput(id, text string) }:
+		n.NoteInput("input-1", "prompt")
 	}
 	var out []ir.Event
 	r := framing.NewReader(f)
